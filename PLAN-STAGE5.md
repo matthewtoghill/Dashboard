@@ -14,9 +14,9 @@ Actionable plan for the ten follow-up features identified in the post-Stage-4 re
 | 5 | Natural-language dates in quick-add | **Done** | S | A |
 | 6 | Keyboard navigation of the task list | **Done** | M | A |
 | 7 | Automatic local backups | **Done** | S | B |
-| 8 | Real markdown in notes | Not started | M | C |
-| 9 | Completion trends and per-project progress | Not started | M | C |
-| 10 | Saved filters (named views) | Not started | M | C |
+| 8 | Real markdown in notes | **Done** | M | C |
+| 9 | Completion trends and per-project progress | **Done** | M | C |
+| 10 | Saved filters (named views) | **Done** | M | C |
 
 Effort: **S** ≈ half a day, **M** ≈ one day, **L** ≈ two to three days.
 
@@ -239,12 +239,14 @@ Tests: next-date maths (month end, leap year, overdue catch-up, from-completion)
 Decision: use `react-markdown` + `remark-gfm` rather than extending the hand-written renderer. Markdown parsing has many edge cases (nesting, code spans, emphasis inside links), and `react-markdown` renders to React elements with no `dangerouslySetInnerHTML`. Its default URL transform already drops `javascript:` links. This is the only new runtime dependency in this plan; justify it in the PR.
 
 Scope:
-- [ ] Support links and autolinks, bold, italic, inline code, code blocks, ordered and unordered lists, headings, blockquotes, and GFM task lists.
-- [ ] Custom `a` renderer: allow only `http:`, `https:` and `mailto:`; open in a new tab with `rel="noreferrer noopener"`.
-- [ ] **Clickable checklists:** `- [ ]` items in the preview toggle in place. Use the list item's `node.position.start.line` to flip `[ ]` ↔ `[x]` on that source line, then call `onUpdateTask(id, { description })`. Put the line edit in a pure `toggleMarkdownCheckbox(text, line)` function.
-- [ ] Open the drawer in Preview mode when the description is non-empty, so links and checkboxes are usable immediately; Edit stays one click away.
-- [ ] Style with Tailwind classes on the custom renderers (no typography plugin needed); check dark mode.
-- [ ] Optional: the row's notes indicator shows checklist progress (`2/5`) when the description contains task-list items.
+- [x] Support links and autolinks, bold, italic, inline code, code blocks, ordered and unordered lists, headings, blockquotes, and GFM task lists.
+- [x] Custom `a` renderer: allow only `http:`, `https:` and `mailto:`; open in a new tab with `rel="noreferrer noopener"`.
+- [x] **Clickable checklists:** `- [ ]` items in the preview toggle in place. Use the list item's `node.position.start.line` to flip `[ ]` ↔ `[x]` on that source line, then call `onUpdateTask(id, { description })`. Put the line edit in a pure `toggleMarkdownCheckbox(text, line)` function.
+- [x] Open the drawer in Preview mode when the description is non-empty, so links and checkboxes are usable immediately; Edit stays one click away.
+- [x] Style with Tailwind classes on the custom renderers (no typography plugin needed); check dark mode.
+- [x] Optional: the row's notes indicator shows checklist progress (`2/5`) when the description contains task-list items.
+
+**As built:** `components/MarkdownNotes.tsx` renders the notes; the pure helpers (`toggleMarkdownCheckbox`, `checklistProgress`, `isSafeLinkHref`) are in `utils/markdown.ts`. Each checkbox gets its list item's source line from a React context set by the `li` renderer, and is labelled with the item's own text. Unsafe links render as plain text. Clicking a link or checkbox in the preview no longer switches to Edit; clicking anywhere else still does. Known limitation: the row's `2/5` count scans lines, so checkbox-looking lines inside a code block are counted too (marked `ponytail:`).
 
 Tests: `toggleMarkdownCheckbox` (first/last line, indented items, `[X]` uppercase, a line that isn't a checkbox is unchanged); a `javascript:` link does not render as a clickable href.
 
@@ -252,15 +254,17 @@ Tests: `toggleMarkdownCheckbox` (first/last line, indented items, `[X]` uppercas
 Read the `dataviz` skill before building the charts.
 
 Data (pure functions in `taskUtils.ts`, with tests):
-- [ ] `completionsByDay(tasks, days = 14, today)` returns a `{ date, count }[]` covering every day in the range, including zeros. It counts tasks with `completedAt` whose status is `done` or `archived` (same rule as the streak).
-- [ ] `projectProgress(tasks, projects)` returns `{ projectId | null, name, color, done, total }[]` over non-archived tasks, including a "No project" row, sorted by most open tasks first.
+- [x] `completionsByDay(tasks, days = 14, today)` returns a `{ date, count }[]` covering every day in the range, including zeros. It counts tasks with `completedAt` whose status is `done` or `archived` (same rule as the streak).
+- [x] `projectProgress(tasks, projects)` returns `{ projectId | null, name, color, done, total }[]` over non-archived tasks, including a "No project" row, sorted by most open tasks first.
 
 UI (Overview page, `DashboardWidgets.tsx`):
-- [ ] "Last 14 days" card: inline SVG bar chart (no chart library), one bar per day with the weekday initial under it, today highlighted, plus a total and a comparison with the previous 14 days. Include a visually hidden table of the same numbers, and `<title>` on bars for hover.
-- [ ] "Projects" card: one row per project with its colour dot, name, `done/total` and a progress bar; clicking a row opens that project view.
-- [ ] New widget toggle `showTrends` in `WidgetConfigSchema` (default true) and in the Widgets settings bar.
-- [ ] Empty states (no completions yet, no projects).
-- [ ] Light and dark colours checked for contrast.
+- [x] "Last 14 days" card: inline SVG bar chart (no chart library), one bar per day with the weekday initial under it, today highlighted, plus a total and a comparison with the previous 14 days. Include a visually hidden table of the same numbers, and `<title>` on bars for hover.
+- [x] "Projects" card: one row per project with its colour dot, name, `done/total` and a progress bar; clicking a row opens that project view.
+- [x] New widget toggle `showTrends` in `WidgetConfigSchema` (default true) and in the Widgets settings bar.
+- [x] Empty states (no completions yet, no projects).
+- [x] Light and dark colours checked for contrast.
+
+**As built:** the "No project" row appears only when it has tasks; projects with no tasks still get a row (`0/0`). The previous-14-days comparison reuses `completionsByDay` over 28 days. Bars use indigo-400 (indigo-500 in dark mode), with today in indigo-700 (indigo-300 in dark mode), a direct label and a bold weekday initial, so today is not marked by colour alone. Each day's full column is the hover target. The widget-config defaults now come from `WidgetConfigSchema.parse({})` on both client and server, so adding a toggle needs only a schema change.
 
 Tests: zero-filled days, completions at local midnight boundaries, archived completions counted, project rows include "No project" and exclude archived tasks.
 
@@ -271,17 +275,19 @@ Data: stored in `key_value_store` under `saved_views` (no migration):
 `SavedView = { id, name, view: ViewState, createdAt }`, validated by a Zod `SavedViewSchema` in `src/shared/types.ts`.
 
 API:
-- [ ] `GET /api/dashboard` includes `savedViews`.
-- [ ] `PUT /api/dashboard/saved-views` replaces the full list (validated; maximum 50).
-- [ ] Include `savedViews` in export; import merges by id. Bump export `version` to 2; v1 imports still work.
+- [x] `GET /api/dashboard` includes `savedViews`.
+- [x] `PUT /api/dashboard/saved-views` replaces the full list (validated; maximum 50).
+- [x] Include `savedViews` in export; import merges by id. Bump export `version` to 2; v1 imports still work.
 
 UI:
-- [ ] Toolbar: "Save view" opens an inline name input and stores the current `ViewState`.
-- [ ] Sidebar "Saved Views" section (under Projects) with a live count of matching active tasks; click applies the whole `ViewState`.
-- [ ] When the current state differs from the applied saved view, show a "modified" dot plus "Update view" and "Save as new".
-- [ ] Rename inline; delete with confirmation and undo (reuse `useDeferredDelete`).
-- [ ] If a saved view points at a deleted project or tag, apply its filters on top of "All Active" and show a one-line notice instead of failing.
-- [ ] Command palette: "Go to view: <name>".
+- [x] Toolbar: "Save view" opens an inline name input and stores the current `ViewState`.
+- [x] Sidebar "Saved Views" section (under Projects) with a live count of matching active tasks; click applies the whole `ViewState`.
+- [x] When the current state differs from the applied saved view, show a "modified" dot plus "Update view" and "Save as new".
+- [x] Rename inline; delete with confirmation and undo (reuse `useDeferredDelete`).
+- [x] If a saved view points at a deleted project or tag, apply its filters on top of "All Active" and show a one-line notice instead of failing.
+- [x] Command palette: "Go to view: <name>".
+
+**As built:** `ViewStateSchema` (with `ActiveNavigationSchema`) now lives in `src/shared/types.ts`, and the `ViewState` types in `taskView.ts` are inferred from it. The PUT body is `{ savedViews }`. On import, existing ids win and new views are appended up to the limit of 50; the response includes `importedSavedViews`. Pure helpers in `taskView.ts`: `resolveSavedView` (fallback plus notice), `sameView` and `viewTaskCount`. A tag counts as deleted when no task carries it. The notice is a toast. Filter changes keep the applied view (and mark it modified); navigating anywhere else drops it. Code: `components/SavedViewControls.tsx`, the Sidebar section, `handle*SavedView` in `App.tsx`; tests in `__tests__/savedViews.test.ts`.
 
 Tests: schema validation, export/import round trip, applying a view whose project no longer exists.
 

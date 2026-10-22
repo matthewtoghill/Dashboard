@@ -8,7 +8,7 @@
 | **Stage 2** | Organization, Grouping, Filtering & Search | **Completed** |
 | **Stage 3** | Task Detail Drawer, Subtasks & Keyboard-First UX | **Completed** |
 | **Stage 4** | Dashboard Overview, Widgets & Data Portability | **Completed** |
-| **Stage 5** | Feature Roadmap (see [PLAN-STAGE5.md](PLAN-STAGE5.md)) | **Planned** |
+| **Stage 5** | Feature Roadmap (see [PLAN-STAGE5.md](PLAN-STAGE5.md)) | **Completed** |
 
 ---
 
@@ -140,7 +140,7 @@ Stored locally in `data/dashboard.db`:
      - **Quick Scratchpad Widget** (persistent notepad stored in SQLite with one-click "Convert top line to Task" promotion).
      - **Quick Links / Bookmarks Widget** (configurable launchpad for frequent local/web URLs with category badges).
   2. [x] **Modular Widget Architecture**:
-     - Customizable widget visibility preferences persisted in SQLite (`showStats`, `showScratchpad`, `showQuickLinks`, `showHeaderSummary`).
+     - Customizable widget visibility preferences persisted in SQLite (`showStats`, `showScratchpad`, `showQuickLinks`, `showTrends`, `showHeaderSummary`).
   3. [x] **Data Management**:
      - One-click **JSON Export**, **CSV Task Export**, and **JSON Backup Import/Restore**.
 
