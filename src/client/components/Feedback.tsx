@@ -64,22 +64,84 @@ export const ConfirmDialog: React.FC<{
 export interface ToastState {
   message: string;
   onUndo?: () => void;
+  /** Called while the toast is hovered or focused, so a pending action waits for the user. */
+  onPause?: () => void;
+  onResume?: () => void;
 }
 
+// Close a little before the deferred commit fires, so Undo is never offered after it has run.
+const TOAST_MS = UNDO_WINDOW_MS - 250;
+
+/**
+ * Single toast with optional Undo. Its timer pauses while hovered or focused (WCAG 2.2.1).
+ * A new toast replaces the current one: the replaced action can no longer be undone, but
+ * anything it paused is resumed, so a held delete still commits on time.
+ */
 export const Toast: React.FC<{ toast: ToastState | null; onDismiss: () => void }> = ({
   toast,
   onDismiss,
 }) => {
+  const timer = useRef<number | null>(null);
+  const startedAt = useRef(0);
+  const remaining = useRef(TOAST_MS);
+  const hovered = useRef(false);
+  const focused = useRef(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  const start = () => {
+    startedAt.current = Date.now();
+    timer.current = window.setTimeout(() => onDismissRef.current(), remaining.current);
+  };
+
   useEffect(() => {
     if (!toast) return;
-    const timer = window.setTimeout(onDismiss, UNDO_WINDOW_MS);
-    return () => window.clearTimeout(timer);
+    remaining.current = TOAST_MS;
+    hovered.current = focused.current = false;
+    start();
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = null;
+      toast.onResume?.();
+    };
   }, [toast]);
+
+  const syncPause = () => {
+    const shouldPause = hovered.current || focused.current;
+    if (shouldPause && timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+      remaining.current -= Date.now() - startedAt.current;
+      toast?.onPause?.();
+    } else if (!shouldPause && timer.current === null && toast) {
+      start();
+      toast.onResume?.();
+    }
+  };
 
   return (
     <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
       {toast && (
-        <div className="flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-sm shadow-xl">
+        <div
+          onMouseEnter={() => {
+            hovered.current = true;
+            syncPause();
+          }}
+          onMouseLeave={() => {
+            hovered.current = false;
+            syncPause();
+          }}
+          onFocus={() => {
+            focused.current = true;
+            syncPause();
+          }}
+          onBlur={(e) => {
+            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+            focused.current = false;
+            syncPause();
+          }}
+          className="flex items-center gap-3 pl-4 pr-2 py-2 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-sm shadow-xl"
+        >
           <span>{toast.message}</span>
           {toast.onUndo && (
             <button

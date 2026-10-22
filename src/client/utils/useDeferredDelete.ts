@@ -4,13 +4,24 @@ export const UNDO_WINDOW_MS = 5000;
 
 interface PendingJob {
   ids: string[];
-  timer: number;
   commit: () => Promise<void>;
+  /** null while paused */
+  timer: number | null;
+  startedAt: number;
+  remaining: number;
+}
+
+/** Controls for one scheduled delete; every method is a no-op once the commit has started. */
+export interface DeferredHandle {
+  undo: () => void;
+  /** Hold the commit, e.g. while the user hovers the undo toast. */
+  pause: () => void;
+  resume: () => void;
 }
 
 /**
  * Hides items immediately and only runs `commit` (the real delete) after the undo window.
- * Pending jobs are flushed on page hide so a closed tab still completes the delete.
+ * Pending jobs (paused or not) are flushed on page hide so a closed tab still completes the delete.
  */
 export function useDeferredDelete(onError: (err: unknown) => void) {
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -30,7 +41,7 @@ export function useDeferredDelete(onError: (err: unknown) => void) {
     const job = jobs.current.get(key);
     if (!job) return;
     jobs.current.delete(key);
-    window.clearTimeout(job.timer);
+    if (job.timer !== null) window.clearTimeout(job.timer);
     try {
       await job.commit();
     } catch (err) {
@@ -40,19 +51,38 @@ export function useDeferredDelete(onError: (err: unknown) => void) {
     }
   };
 
-  /** Returns an undo function; calling it after the commit has started does nothing. */
-  const schedule = (ids: string[], commit: () => Promise<void>): (() => void) => {
+  const schedule = (ids: string[], commit: () => Promise<void>): DeferredHandle => {
     const key = nextKey.current++;
     setPendingIds((prev) => new Set([...prev, ...ids]));
-    const timer = window.setTimeout(() => void run(key), UNDO_WINDOW_MS);
-    jobs.current.set(key, { ids, timer, commit });
+    jobs.current.set(key, {
+      ids,
+      commit,
+      timer: window.setTimeout(() => void run(key), UNDO_WINDOW_MS),
+      startedAt: Date.now(),
+      remaining: UNDO_WINDOW_MS,
+    });
 
-    return () => {
-      const job = jobs.current.get(key);
-      if (!job) return;
-      window.clearTimeout(job.timer);
-      jobs.current.delete(key);
-      release(ids);
+    return {
+      undo: () => {
+        const job = jobs.current.get(key);
+        if (!job) return;
+        if (job.timer !== null) window.clearTimeout(job.timer);
+        jobs.current.delete(key);
+        release(ids);
+      },
+      pause: () => {
+        const job = jobs.current.get(key);
+        if (!job || job.timer === null) return;
+        window.clearTimeout(job.timer);
+        job.timer = null;
+        job.remaining -= Date.now() - job.startedAt;
+      },
+      resume: () => {
+        const job = jobs.current.get(key);
+        if (!job || job.timer !== null) return;
+        job.startedAt = Date.now();
+        job.timer = window.setTimeout(() => void run(key), Math.max(job.remaining, 0));
+      },
     };
   };
 

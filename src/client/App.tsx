@@ -60,7 +60,7 @@ import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { ConfirmDialog, ConfirmRequest, Toast, ToastState } from './components/Feedback.tsx';
-import { useDeferredDelete } from './utils/useDeferredDelete.ts';
+import { DeferredHandle, useDeferredDelete } from './utils/useDeferredDelete.ts';
 import {
   ActiveNavigation,
   DEFAULT_VIEW_STATE,
@@ -97,7 +97,13 @@ export const App: React.FC = () => {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
-  const showToast = (message: string, onUndo?: () => void) => setToast({ message, onUndo });
+  /** `undo` is a plain callback, or a deferred-delete handle (whose commit pauses with the toast). */
+  const showToast = (message: string, undo?: (() => void) | DeferredHandle) =>
+    setToast(
+      typeof undo === 'function' || undo === undefined
+        ? { message, onUndo: undo }
+        : { message, onUndo: undo.undo, onPause: undo.pause, onResume: undo.resume }
+    );
 
   // Quick-add form state
   const [newTitle, setNewTitle] = useState('');
@@ -140,9 +146,6 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Leave browser/OS shortcuts (Ctrl+C, Ctrl+N, ...) alone.
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-
       const target = e.target as HTMLElement | null;
       const isInputFocused =
         target &&
@@ -150,6 +153,23 @@ export const App: React.FC = () => {
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           target.isContentEditable);
+
+      // Ctrl/Cmd+Z undoes the action in the toast, unless the user is editing text
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === 'z' &&
+        !isInputFocused &&
+        toast?.onUndo
+      ) {
+        e.preventDefault();
+        toast.onUndo();
+        setToast(null);
+        return;
+      }
+
+      // Leave browser/OS shortcuts (Ctrl+C, Ctrl+N, ...) alone.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === 'Escape') {
         if (commandPaletteOpen) {
@@ -178,7 +198,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest]);
+  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, toast]);
 
   // Quick-add defaults follow the current view, and reset when leaving it
   useEffect(() => {
@@ -419,8 +439,15 @@ export const App: React.FC = () => {
   };
 
   const handleToggleTask = (task: Task) => {
-    const nextStatus = task.status === 'done' ? 'todo' : 'done';
-    updateTaskMutation.mutate({ id: task.id, payload: { status: nextStatus } });
+    if (task.status === 'done') {
+      updateTaskMutation.mutate({ id: task.id, payload: { status: 'todo' } });
+      return;
+    }
+    const previous = task.status === 'in_progress' ? 'in_progress' : 'todo';
+    updateTaskMutation.mutate({ id: task.id, payload: { status: 'done' } });
+    showToast(`Completed "${task.title}"`, () =>
+      updateTaskMutation.mutate({ id: task.id, payload: { status: previous } })
+    );
   };
 
   /** Manual sort: give the moved task a sortOrder between its new neighbours. */
