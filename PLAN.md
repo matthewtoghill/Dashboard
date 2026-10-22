@@ -143,3 +143,14 @@ Stored locally in `data/dashboard.db`:
      - Customizable widget visibility preferences persisted in SQLite (`showStats`, `showScratchpad`, `showQuickLinks`, `showHeaderSummary`).
   3. [x] **Data Management**:
      - One-click **JSON Export**, **CSV Task Export**, and **JSON Backup Import/Restore**.
+
+---
+
+## Backups & Restore
+
+The server keeps automatic snapshots of the database in `data/backups/` (override with `BACKUP_DIR`; it keeps the newest 14, override with `BACKUP_KEEP`). A snapshot is taken once a day, before every JSON import, and before a schema upgrade; the Overview page shows the last one and has a **Back up now** button.
+
+To restore a snapshot:
+1. Stop the server.
+2. Copy the chosen `data/backups/dashboard-<timestamp>.db` over `data/dashboard.db`, and delete `data/dashboard.db-wal` and `data/dashboard.db-shm` if they exist.
+3. Start the server.

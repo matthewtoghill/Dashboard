@@ -7,13 +7,13 @@ Actionable plan for the ten follow-up features identified in the post-Stage-4 re
 | # | Feature | Status | Effort | Phase |
 | :- | :--- | :--- | :- | :- |
 | P0–P2 | Prerequisites (version control, migrations, view-logic extraction) | **Done** | M | 0 |
-| 1 | Recurring tasks | Not started | L | B |
+| 1 | Recurring tasks | **Done** | L | B |
 | 2 | Undo for delete, complete and clear | **Done** | S | A |
 | 3 | Archive instead of delete | **Done** | S | A |
 | 4 | Drag-to-reorder (manual sort) | **Done** (touch: verify on a real device) | S | A |
 | 5 | Natural-language dates in quick-add | **Done** | S | A |
 | 6 | Keyboard navigation of the task list | **Done** | M | A |
-| 7 | Automatic local backups | Not started | S | B |
+| 7 | Automatic local backups | **Done** | S | B |
 | 8 | Real markdown in notes | Not started | M | C |
 | 9 | Completion trends and per-project progress | Not started | M | C |
 | 10 | Saved filters (named views) | Not started | M | C |
@@ -186,42 +186,46 @@ Acceptance: complete a full triage of 10 tasks (navigate, prioritise, complete, 
 Build this before feature 1 so users have a restore point before the first schema migration touches their data.
 
 Design: `better-sqlite3` has `db.backup(destination)` (an online, consistent copy that works with WAL).
-- [ ] `src/server/backup.ts`: `backupDatabase(sqlite, dir, keep)` writes `dashboard-YYYY-MM-DDTHH-mm-ss.db` into `dir`, then deletes the oldest files beyond `keep`. Skip when the DB path is `:memory:`.
-- [ ] Triggers:
+
+**As built:** snapshots use SQLite's `VACUUM INTO` instead (also consistent and WAL-safe, but synchronous, so the pre-migration backup can run inside the synchronous `createDatabase`). The daily backup is a check run at startup and hourly that only writes when the newest backup is over 24 hours old, so frequent dev-server restarts don't fill the folder. `BACKUP_DIR` defaults to `backups/` next to the database file (`data/backups` for the default database). A failed pre-import backup cancels the import. Code: `src/server/backup.ts`, `src/server/routes/backups.ts`; tests in `__tests__/backup.test.ts`. Restore steps are in `PLAN.md` and the Overview tooltip.
+- [x] `src/server/backup.ts`: `backupDatabase(sqlite, dir, keep)` writes `dashboard-YYYY-MM-DDTHH-mm-ss.db` into `dir`, then deletes the oldest files beyond `keep`. Skip when the DB path is `:memory:`.
+- [x] Triggers:
   - on server start (after migrations, so a broken migration is caught by the backup taken just before it: run one backup **before** migrations too when `user_version` is behind);
   - every 24 hours (`setInterval(...).unref()`, cleared in `onClose`);
   - before every `POST /api/import`.
-- [ ] Config via env: `BACKUP_DIR` (default `data/backups`), `BACKUP_KEEP` (default 14).
-- [ ] `GET /api/backups` lists files with timestamp and size; `POST /api/backups` makes one now.
-- [ ] Overview page: "Last backup: <relative time> · Back up now" under the export buttons.
-- [ ] Restore stays manual and documented (stop the server, copy the backup over `data/dashboard.db`, start). In-app restore is out of scope; if added later it needs a confirmation and a pre-restore backup.
-- [ ] Errors (disk full, permissions) are logged and surfaced in the API response, never crash the server.
+- [x] Config via env: `BACKUP_DIR` (default `data/backups`), `BACKUP_KEEP` (default 14).
+- [x] `GET /api/backups` lists files with timestamp and size; `POST /api/backups` makes one now.
+- [x] Overview page: "Last backup: <relative time> · Back up now" under the export buttons.
+- [x] Restore stays manual and documented (stop the server, copy the backup over `data/dashboard.db`, start). In-app restore is out of scope; if added later it needs a confirmation and a pre-restore backup.
+- [x] Errors (disk full, permissions) are logged and surfaced in the API response, never crash the server.
 
 Tests: with a temp file DB, call `backupDatabase` `keep + 2` times and assert exactly `keep` files remain and the newest opens with the expected rows; `POST /api/import` creates a backup first.
 
 ### 1. Recurring tasks
 Depends on P1 (columns), 2 (completion undo), 5 (shared date arithmetic), 7 (backup before migrating).
 
-Data model (migration 1):
-- `recurrence TEXT NULL`: JSON `{ "every": number, "unit": "day" | "week" | "month", "from": "due" | "completion" }`.
+Data model (migration 2, since migration 1 went to `status_before_archive`):
+- `recurrence TEXT NULL`: JSON `{ "every": number, "unit": "day" | "week" | "month" | "weekday", "from": "due" | "completion" }`.
 - `recurrence_parent_id TEXT NULL`: the task this occurrence was spawned from (for undo).
-- Shared Zod `RecurrenceSchema` in `src/shared/types.ts`; add `recurrence` to Task, Create, Update and Backup schemas (v1 backups import with `recurrence: null`).
+- Shared Zod `RecurrenceSchema` in `src/shared/recurrence.ts` (with `nextOccurrence`, `describeRecurrence`, `parseRecurrenceToken`; date helpers in `src/shared/dates.ts`); add `recurrence` to Task, Create, Update and Backup schemas (v1 backups import with `recurrence: null`).
 
 Behaviour (server, `PATCH /api/tasks/:id` in one transaction):
-- [ ] When a task with `recurrence` moves to `done` from a non-done status, insert the next occurrence. It copies title, description, priority, project, tags and recurrence; copies subtasks with `isCompleted = false`; sets `status = 'todo'`, `recurrence_parent_id = <completed id>`, and gives it a new id and timestamps.
-- [ ] Next due date: `from: "due"` adds the interval to the old due date (or to today if there was none), repeating until the date is after today, so a task that is 3 weeks overdue doesn't spawn something already overdue. `from: "completion"` adds the interval to today. Month arithmetic clamps like feature 5; share the helper in `src/shared/` so server and client agree.
-- [ ] The completed task keeps its recurrence for history, but must never spawn again (a guard: spawn only if no task with this `recurrence_parent_id` exists).
-- [ ] Un-completing (moving back to `todo`/`in_progress`) deletes the spawned occurrence **only if it is untouched** (`updatedAt === createdAt` and no subtasks completed); otherwise leave it and say so in the response.
-- [ ] Response includes `spawnedTaskId` so the client toast can say `Completed "Pay rent" · next due 1 Dec`.
-- [ ] Archiving or bulk-archiving never spawns.
-- [ ] Deleting a recurring task deletes only that occurrence.
+- [x] When a task with `recurrence` moves to `done` from a non-done status, insert the next occurrence. It copies title, description, priority, project, tags and recurrence; copies subtasks with `isCompleted = false`; sets `status = 'todo'`, `recurrence_parent_id = <completed id>`, and gives it a new id and timestamps.
+- [x] Next due date: `from: "due"` adds the interval to the old due date (or to today if there was none), repeating until the date is after today, so a task that is 3 weeks overdue doesn't spawn something already overdue. `from: "completion"` adds the interval to today. Month arithmetic clamps like feature 5; share the helper in `src/shared/` so server and client agree.
+- [x] The completed task keeps its recurrence for history, but must never spawn again (a guard: spawn only if no task with this `recurrence_parent_id` exists).
+- [x] Un-completing (moving back to `todo`/`in_progress`) deletes the spawned occurrence **only if it is untouched** (`updatedAt === createdAt` and no subtasks completed); otherwise leave it and say so in the response.
+- [x] Response includes `spawnedTaskId` so the client toast can say `Completed "Pay rent" · next due 1 Dec`.
+- [x] Archiving or bulk-archiving never spawns.
+- [x] Deleting a recurring task deletes only that occurrence.
 
 UI:
-- [ ] Drawer: "Repeat" control: None, Daily, Weekdays\*, Weekly, Monthly, Custom (every N days/weeks/months, from due date or completion date).
-- [ ] Row and drawer show a repeat icon with a tooltip such as "Every 2 weeks from due date".
-- [ ] Quick-add tokens: `*daily`, `*weekly`, `*monthly`, `*3d`, `*2w`, `*1m`; append `!` for from-completion, e.g. `*2w!` (decide final syntax and show it in the preview chips from feature 5).
+- [x] Drawer: "Repeat" control: None, Daily, Weekdays\*, Weekly, Monthly, Custom (every N days/weeks/months, from due date or completion date).
+- [x] Row and drawer show a repeat icon with a tooltip such as "Every 2 weeks from due date".
+- [x] Quick-add tokens (decided: `~` prefix): `~daily`, `~weekly`, `~monthly`, `~weekdays`, `~3d`, `~2w`, `~1m`; append `!` for from-completion, e.g. `~2w!`. Shown in the quick-add preview.
 
-\*"Weekdays" (Monday–Friday) needs a different rule shape (`weekdays: number[]`). Defer unless asked; keep the JSON open to extension.
+\*"Weekdays" (Monday–Friday) was included as `unit: "weekday"` (every N working days), which needed no extra rule shape.
+
+Known limitation: monthly rules step from the previous due date, so "monthly on the 31st" settles on the 28th after February (marked `ponytail:` in `shared/recurrence.ts`).
 
 Tests: next-date maths (month end, leap year, overdue catch-up, from-completion); completing spawns exactly one; double completion spawns once; un-complete removes an untouched spawn and keeps an edited one; export/import round trip keeps recurrence.
 
