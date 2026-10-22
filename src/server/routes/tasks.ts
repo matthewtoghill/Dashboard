@@ -25,7 +25,7 @@ function serializeSubtask(row: DbSubtask): Subtask {
   };
 }
 
-function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
+export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
   let parsedTags: string[] = [];
   try {
     const raw = JSON.parse(row.tags);
@@ -49,8 +49,27 @@ function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
     completedAt: row.completedAt ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    statusBeforeArchive: row.statusBeforeArchive ?? null,
     subtasks: taskSubtasks,
   };
+}
+
+/** All tasks with their subtasks embedded, in stored order. */
+export function listTasks(db: AppDatabase): Task[] {
+  const rows = db
+    .select()
+    .from(tasks)
+    .orderBy(asc(tasks.sortOrder), desc(tasks.createdAt))
+    .all();
+
+  const subtasksByTask = new Map<string, Subtask[]>();
+  for (const sub of db.select().from(subtasks).orderBy(asc(subtasks.sortOrder)).all()) {
+    const list = subtasksByTask.get(sub.taskId) ?? [];
+    list.push(serializeSubtask(sub));
+    subtasksByTask.set(sub.taskId, list);
+  }
+
+  return rows.map((row) => serializeTask(row, subtasksByTask.get(row.id) ?? []));
 }
 
 export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) {
@@ -67,30 +86,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
   };
 
   // GET /api/tasks
-  app.get('/api/tasks', async () => {
-    const rows = db
-      .select()
-      .from(tasks)
-      .orderBy(asc(tasks.sortOrder), desc(tasks.createdAt))
-      .all();
-
-    const allSubtasks = db
-      .select()
-      .from(subtasks)
-      .orderBy(asc(subtasks.sortOrder))
-      .all();
-
-    const subtasksByTask = new Map<string, Subtask[]>();
-    for (const sub of allSubtasks) {
-      const list = subtasksByTask.get(sub.taskId) ?? [];
-      list.push(serializeSubtask(sub));
-      subtasksByTask.set(sub.taskId, list);
-    }
-
-    return {
-      tasks: rows.map((row) => serializeTask(row, subtasksByTask.get(row.id) ?? [])),
-    };
-  });
+  app.get('/api/tasks', async () => ({ tasks: listTasks(db) }));
 
   // POST /api/tasks
   app.post('/api/tasks', async (request, reply) => {
@@ -156,6 +152,13 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       completedAt = null;
     }
 
+    let statusBeforeArchive = existing.statusBeforeArchive;
+    if (input.status === 'archived' && existing.status !== 'archived') {
+      statusBeforeArchive = existing.status;
+    } else if (input.status !== undefined && input.status !== 'archived') {
+      statusBeforeArchive = null;
+    }
+
     db.update(tasks)
       .set({
         ...(input.title !== undefined ? { title: input.title } : {}),
@@ -167,6 +170,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
         ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
         completedAt,
+        statusBeforeArchive,
         updatedAt: now,
       })
       .where(eq(tasks.id, id))
@@ -198,13 +202,19 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     }
     const result = db
       .update(tasks)
-      .set({ status: 'archived', updatedAt: Date.now() })
+      .set({
+        status: 'archived',
+        // SQLite evaluates every SET expression against the old row, so this is the prior status
+        statusBeforeArchive: sql`${tasks.status}`,
+        updatedAt: Date.now(),
+      })
       .where(and(inArray(tasks.id, parsed.data.ids), ne(tasks.status, 'archived')))
       .run();
     return { archivedCount: result.changes };
   });
 
-  // POST /api/tasks/bulk-restore — archived tasks go back to done if they were completed, else todo
+  // POST /api/tasks/bulk-restore — back to the status held before archiving. Tasks archived
+  // before that was recorded go to done if they were completed, else todo.
   app.post('/api/tasks/bulk-restore', async (request, reply) => {
     const parsed = parseIds(request.body);
     if (!parsed.success) {
@@ -213,7 +223,8 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     const result = db
       .update(tasks)
       .set({
-        status: sql`CASE WHEN ${tasks.completedAt} IS NULL THEN 'todo' ELSE 'done' END`,
+        status: sql`COALESCE(${tasks.statusBeforeArchive}, CASE WHEN ${tasks.completedAt} IS NULL THEN 'todo' ELSE 'done' END)`,
+        statusBeforeArchive: null,
         updatedAt: Date.now(),
       })
       .where(and(inArray(tasks.id, parsed.data.ids), eq(tasks.status, 'archived')))

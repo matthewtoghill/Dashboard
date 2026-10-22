@@ -34,6 +34,7 @@ function task(overrides: Partial<Task>): Task {
     completedAt: null,
     createdAt: seq,
     updatedAt: seq,
+    statusBeforeArchive: null,
     subtasks: [],
     ...overrides,
   };

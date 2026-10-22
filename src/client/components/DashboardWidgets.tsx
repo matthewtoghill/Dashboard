@@ -210,7 +210,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
               <span className="font-semibold text-zinc-800 dark:text-zinc-100">
-                {stats.completionRate}% Complete
+                {stats.completionRate}% of current tasks done
               </span>
               <span className="text-zinc-400">
                 ({stats.totalCompleted}/{stats.totalActive + stats.totalCompleted})
@@ -524,12 +524,12 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
             </div>
             <div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                Overall Progress
+                Current Progress
               </p>
               <p className="text-lg font-bold mt-0.5">
                 {stats.totalCompleted} / {stats.totalActive + stats.totalCompleted}
               </p>
-              <p className="text-[11px] text-zinc-400">Tasks completed</p>
+              <p className="text-[11px] text-zinc-400">Completed, excluding archived</p>
             </div>
           </div>
 

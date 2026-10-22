@@ -23,6 +23,7 @@ export const tasks = sqliteTable('tasks', {
   completedAt: integer('completed_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  statusBeforeArchive: text('status_before_archive', { enum: ['todo', 'in_progress', 'done'] }),
 });
 
 export const subtasks = sqliteTable('subtasks', {

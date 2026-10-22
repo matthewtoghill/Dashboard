@@ -9,7 +9,7 @@ import {
   Project,
 } from '../../shared/types.ts';
 
-function serializeProject(row: DbProject): Project {
+export function serializeProject(row: DbProject): Project {
   return {
     id: row.id,
     name: row.name,

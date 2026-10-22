@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'done', 'archived']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+const UnarchivedStatusSchema = z.enum(['todo', 'in_progress', 'done']);
 
 export const TaskPrioritySchema = z.union([
   z.literal(0),
@@ -77,6 +78,8 @@ export const TaskSchema = z.object({
   completedAt: z.number().nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
+  /** Set while archived: the status a restore returns the task to. */
+  statusBeforeArchive: UnarchivedStatusSchema.nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;

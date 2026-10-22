@@ -10,10 +10,11 @@ import {
   Sun,
   Moon,
   Archive,
+  ArchiveRestore,
   Plus,
   X,
 } from 'lucide-react';
-import { Project } from '../../shared/types.ts';
+import { Project, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
 
 interface CommandPaletteProps {
@@ -24,6 +25,9 @@ interface CommandPaletteProps {
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
   onArchiveCompleted: () => void;
+  /** The task open in the detail drawer, if any. */
+  openTask: Task | null;
+  onToggleArchiveTask: (task: Task) => void;
   darkMode: boolean;
 }
 
@@ -43,6 +47,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onFocusQuickAdd,
   onToggleTheme,
   onArchiveCompleted,
+  openTask,
+  onToggleArchiveTask,
   darkMode,
 }) => {
   const [query, setQuery] = useState('');
@@ -162,7 +168,25 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
     }));
 
-    return [...base, ...projectItems];
+    const taskItems: CommandItem[] = openTask
+      ? [
+          {
+            id: 'act-archive-open-task',
+            label:
+              openTask.status === 'archived'
+                ? `Restore "${openTask.title}"`
+                : `Archive "${openTask.title}"`,
+            category: 'Task',
+            icon: openTask.status === 'archived' ? ArchiveRestore : Archive,
+            action: () => {
+              onToggleArchiveTask(openTask);
+              onClose();
+            },
+          },
+        ]
+      : [];
+
+    return [...taskItems, ...base, ...projectItems];
   }, [
     projects,
     darkMode,
@@ -171,6 +195,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onSelectNav,
     onToggleTheme,
     onArchiveCompleted,
+    openTask,
+    onToggleArchiveTask,
   ]);
 
   const filtered = useMemo(() => {

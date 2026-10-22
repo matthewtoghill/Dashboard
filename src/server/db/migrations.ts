@@ -58,6 +58,9 @@ export const MIGRATIONS: string[] = [
     CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order);
     CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
   `,
+
+  // 1: remember a task's status when it is archived, so restore can return it there
+  `ALTER TABLE tasks ADD COLUMN status_before_archive TEXT;`,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

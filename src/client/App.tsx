@@ -1193,6 +1193,10 @@ export const App: React.FC = () => {
             'across all projects'
           )
         }
+        openTask={selectedTask}
+        onToggleArchiveTask={(task) =>
+          task.status === 'archived' ? handleRestoreTasks([task]) : handleArchiveTask(task)
+        }
         darkMode={darkMode}
       />
 

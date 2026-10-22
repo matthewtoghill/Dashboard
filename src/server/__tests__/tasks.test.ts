@@ -218,6 +218,42 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     expect(emptyIdsRes.statusCode).toBe(400);
   });
 
+  it('restores archived tasks to the status they had before archiving', async () => {
+    const create = async (title: string, status: string) =>
+      (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title, status } })).json()
+        .task;
+    const wip = await create('In flight', 'in_progress');
+    const viaPatch = await create('Archived by PATCH', 'in_progress');
+    const get = async (id: string) =>
+      (await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks.find(
+        (t: { id: string }) => t.id === id
+      );
+
+    await app.inject({ method: 'POST', url: '/api/tasks/bulk-archive', payload: { ids: [wip.id] } });
+    expect((await get(wip.id)).statusBeforeArchive).toBe('in_progress');
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${viaPatch.id}`,
+      payload: { status: 'archived' },
+    });
+    expect(patched.json().task.statusBeforeArchive).toBe('in_progress');
+
+    // Survives an export/import round trip into a fresh database
+    const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
+    const fresh = (await buildApp({ dbPath: ':memory:' })).app;
+    await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
+    await fresh.inject({
+      method: 'POST',
+      url: '/api/tasks/bulk-restore',
+      payload: { ids: [wip.id, viaPatch.id] },
+    });
+    const restored = (await fresh.inject({ method: 'GET', url: '/api/tasks' })).json().tasks;
+    expect(restored.map((t: { status: string }) => t.status)).toEqual(['in_progress', 'in_progress']);
+    expect(restored.every((t: { statusBeforeArchive: unknown }) => t.statusBeforeArchive === null)).toBe(true);
+    await fresh.close();
+  });
+
   it('rejects cross-site origins and non-loopback hosts', async () => {
     const evilOrigin = await app.inject({
       method: 'GET',
@@ -393,6 +429,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         completedAt: now,
         createdAt: now,
         updatedAt: now,
+        statusBeforeArchive: null,
         subtasks: [],
       },
     ];

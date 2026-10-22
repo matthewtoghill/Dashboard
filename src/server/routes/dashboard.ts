@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { eq, asc, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
+import { listTasks } from './tasks.ts';
+import { serializeProject } from './projects.ts';
 import {
   keyValueStore,
   quickLinks,
@@ -172,61 +174,8 @@ export async function registerDashboardRoutes(app: FastifyInstance, db: AppDatab
       .from(projects)
       .orderBy(asc(projects.sortOrder))
       .all()
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        color: p.color,
-        sortOrder: p.sortOrder,
-        createdAt: p.createdAt,
-      }));
-
-    const allSubtasks = db
-      .select()
-      .from(subtasks)
-      .orderBy(asc(subtasks.sortOrder))
-      .all();
-
-    const subtasksByTask = new Map<string, typeof allSubtasks>();
-    for (const s of allSubtasks) {
-      const list = subtasksByTask.get(s.taskId) ?? [];
-      list.push(s);
-      subtasksByTask.set(s.taskId, list);
-    }
-
-    const allTasks = db
-      .select()
-      .from(tasks)
-      .orderBy(asc(tasks.sortOrder), desc(tasks.createdAt))
-      .all()
-      .map((t) => {
-        let parsedTags: string[] = [];
-        try {
-          parsedTags = JSON.parse(t.tags);
-        } catch {
-          parsedTags = [];
-        }
-        return {
-          id: t.id,
-          title: t.title,
-          description: t.description,
-          status: t.status as TaskStatus,
-          priority: (t.priority ?? 0) as TaskPriority,
-          projectId: t.projectId ?? null,
-          tags: parsedTags,
-          dueDate: t.dueDate ?? null,
-          sortOrder: t.sortOrder,
-          completedAt: t.completedAt ?? null,
-          createdAt: t.createdAt,
-          updatedAt: t.updatedAt,
-          subtasks: (subtasksByTask.get(t.id) ?? []).map((s) => ({
-            id: s.id,
-            taskId: s.taskId,
-            title: s.title,
-            isCompleted: Boolean(s.isCompleted),
-            sortOrder: s.sortOrder,
-          })),
-        };
-      });
+      .map(serializeProject);
+    const allTasks = listTasks(db);
 
     const allLinks = db
       .select()
@@ -293,6 +242,7 @@ export async function registerDashboardRoutes(app: FastifyInstance, db: AppDatab
               completedAt: t.completedAt,
               createdAt: t.createdAt,
               updatedAt: t.updatedAt,
+              statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
             })
             .onConflictDoNothing()
             .run();
