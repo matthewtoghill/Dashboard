@@ -1,31 +1,21 @@
-import { Project, Task, TaskPriority } from '../../shared/types.ts';
+import { z } from 'zod';
+import {
+  ActiveNavigationSchema,
+  Project,
+  SmartViewIdSchema,
+  Task,
+  ViewStateSchema,
+} from '../../shared/types.ts';
 import { PRIORITY_CONFIG, STATUS_LABELS, getDueDateInfo, DueDateState } from './taskUtils.ts';
 
-export type SmartViewId =
-  | 'overview'
-  | 'inbox'
-  | 'today'
-  | 'upcoming'
-  | 'completed'
-  | 'archived';
+export type SmartViewId = z.infer<typeof SmartViewIdSchema>;
+export type ActiveNavigation = z.infer<typeof ActiveNavigationSchema>;
 
-export type ActiveNavigation =
-  | { type: 'smart'; id: SmartViewId }
-  | { type: 'project'; id: string }
-  | { type: 'tag'; id: string };
-
-export type GroupByOption = 'none' | 'priority' | 'project' | 'dueDate' | 'status';
-export type SortByOption = 'created' | 'priority' | 'dueDate' | 'manual';
-export type PriorityFilter = TaskPriority | 'all';
-
-/** Everything that decides which tasks the list shows and how. */
-export interface ViewState {
-  nav: ActiveNavigation;
-  search: string;
-  priority: PriorityFilter;
-  groupBy: GroupByOption;
-  sortBy: SortByOption;
-}
+/** Everything that decides which tasks the list shows and how. Saved views store exactly this. */
+export type ViewState = z.infer<typeof ViewStateSchema>;
+export type GroupByOption = ViewState['groupBy'];
+export type SortByOption = ViewState['sortBy'];
+export type PriorityFilter = ViewState['priority'];
 
 export const DEFAULT_VIEW_STATE: ViewState = {
   nav: { type: 'smart', id: 'inbox' },
@@ -240,4 +230,49 @@ export function viewTitle(nav: ActiveNavigation, projects: Project[]): string {
   if (nav.type === 'smart') return SMART_VIEW_TITLES[nav.id];
   if (nav.type === 'project') return projects.find((p) => p.id === nav.id)?.name ?? 'Project';
   return `#${nav.id}`;
+}
+
+/** The number shown beside a view: its done tasks in Completed, otherwise its not-done tasks. */
+export function viewTaskCount(
+  tasks: Task[],
+  view: ViewState,
+  projects: Project[],
+  today: string
+): number {
+  const isCompleted = isSmart(view.nav, 'completed');
+  return filterTasks(tasks, view, projects, today).filter(
+    (t) => isCompleted || t.status !== 'done'
+  ).length;
+}
+
+export function sameView(a: ViewState, b: ViewState): boolean {
+  return (
+    a.nav.type === b.nav.type &&
+    a.nav.id === b.nav.id &&
+    a.search === b.search &&
+    a.priority === b.priority &&
+    a.groupBy === b.groupBy &&
+    a.sortBy === b.sortBy
+  );
+}
+
+/**
+ * A saved view as it can be applied now. If its project was deleted, or no task carries its tag
+ * any more, its filters apply on top of All Active and `notice` says why.
+ */
+export function resolveSavedView(
+  view: ViewState,
+  projects: Project[],
+  tasks: Task[]
+): { view: ViewState; notice: string | null } {
+  const { nav } = view;
+  const missing =
+    nav.type === 'project' && !projects.some((p) => p.id === nav.id)
+      ? 'Its project no longer exists'
+      : nav.type === 'tag' && !tasks.some((t) => t.tags.includes(nav.id))
+      ? `No tasks are tagged #${nav.id} any more`
+      : null;
+  return missing
+    ? { view: { ...view, nav: { type: 'smart', id: 'inbox' } }, notice: `${missing}, so its filters are shown on All Active.` }
+    : { view, notice: null };
 }

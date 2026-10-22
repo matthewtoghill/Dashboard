@@ -13,6 +13,7 @@ import {
   CreateQuickLinkInput,
   WidgetConfig,
   BackupPayload,
+  SavedView,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -203,6 +204,18 @@ export async function saveScratchpad(content: string): Promise<{ scratchpad: str
   return (await res.json()) as { scratchpad: string };
 }
 
+export async function saveSavedViews(savedViews: SavedView[]): Promise<SavedView[]> {
+  const res = await fetch('/api/dashboard/saved-views', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ savedViews }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save views: ${res.statusText}`);
+  }
+  return ((await res.json()) as { savedViews: SavedView[] }).savedViews;
+}
+
 export async function saveWidgetConfig(
   config: Partial<WidgetConfig>
 ): Promise<{ widgetConfig: WidgetConfig }> {
@@ -279,6 +292,7 @@ export interface ImportResult {
   importedTasks: number;
   importedProjects: number;
   importedQuickLinks: number;
+  importedSavedViews: number;
 }
 
 export async function importDashboardData(payload: BackupPayload): Promise<ImportResult> {

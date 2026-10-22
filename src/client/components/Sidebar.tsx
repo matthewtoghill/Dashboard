@@ -12,10 +12,12 @@ import {
   X,
   Check,
   Pencil,
+  Bookmark,
 } from 'lucide-react';
-import { Project, Task } from '../../shared/types.ts';
+import { Project, SavedView, Task } from '../../shared/types.ts';
 import { PROJECT_COLORS, getTodayIso } from '../utils/taskUtils.ts';
-import { ActiveNavigation, SmartViewId } from '../utils/taskView.ts';
+import { ActiveNavigation, SmartViewId, resolveSavedView, viewTaskCount } from '../utils/taskView.ts';
+import { ViewNameInput } from './SavedViewControls.tsx';
 
 interface SidebarProps {
   tasks: Task[];
@@ -25,6 +27,11 @@ interface SidebarProps {
   onCreateProject: (name: string, color: string) => void;
   onUpdateProject: (id: string, name: string, color: string) => void;
   onDeleteProject: (id: string) => void;
+  savedViews: SavedView[];
+  appliedViewId: string | null;
+  onApplySavedView: (id: string) => void;
+  onRenameSavedView: (id: string, name: string) => void;
+  onDeleteSavedView: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,7 +42,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
+  savedViews,
+  appliedViewId,
+  onApplySavedView,
+  onRenameSavedView,
+  onDeleteSavedView,
 }) => {
+  const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
@@ -348,6 +361,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </button>
                       <span className="text-xs text-zinc-400 dark:text-zinc-500 min-w-[1rem] text-right">
                         {projectTaskCount}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Saved Views Section */}
+        <div>
+          <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Saved Views
+          </div>
+          <div className="space-y-0.5">
+            {savedViews.length === 0 ? (
+              <p className="px-2.5 py-2 text-xs text-zinc-400 dark:text-zinc-500 italic">
+                Use "Save view" above a task list
+              </p>
+            ) : (
+              savedViews.map((saved) => {
+                if (renamingViewId === saved.id) {
+                  return (
+                    <div key={saved.id} className="px-1.5 py-1">
+                      <ViewNameInput
+                        initial={saved.name}
+                        label={`Rename view ${saved.name}`}
+                        onSubmit={(name) => {
+                          onRenameSavedView(saved.id, name);
+                          setRenamingViewId(null);
+                        }}
+                        onCancel={() => setRenamingViewId(null)}
+                      />
+                    </div>
+                  );
+                }
+                const isSelected = appliedViewId === saved.id;
+                return (
+                  <div
+                    key={saved.id}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onApplySavedView(saved.id)}
+                      aria-current={isSelected ? 'true' : undefined}
+                      className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{saved.name}</span>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setRenamingViewId(saved.id)}
+                        aria-label={`Rename view ${saved.name}`}
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer transition-opacity"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteSavedView(saved.id)}
+                        aria-label={`Delete view ${saved.name}`}
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer transition-opacity"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 min-w-[1rem] text-right">
+                        {viewTaskCount(
+                          tasks,
+                          resolveSavedView(saved.view, projects, tasks).view,
+                          projects,
+                          today
+                        )}
                       </span>
                     </div>
                   </div>

@@ -14,8 +14,9 @@ import {
   Plus,
   X,
   Keyboard,
+  Bookmark,
 } from 'lucide-react';
-import { Project, Task } from '../../shared/types.ts';
+import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
 
 interface CommandPaletteProps {
@@ -23,6 +24,8 @@ interface CommandPaletteProps {
   onClose: () => void;
   projects: Project[];
   onSelectNav: (nav: ActiveNavigation) => void;
+  savedViews: SavedView[];
+  onApplySavedView: (id: string) => void;
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
   onArchiveCompleted: () => void;
@@ -46,6 +49,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   projects,
   onSelectNav,
+  savedViews,
+  onApplySavedView,
   onFocusQuickAdd,
   onToggleTheme,
   onArchiveCompleted,
@@ -181,6 +186,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
     }));
 
+    const savedViewItems: CommandItem[] = savedViews.map((v) => ({
+      id: `view-${v.id}`,
+      label: `Go to view: ${v.name}`,
+      category: 'Saved Views',
+      icon: Bookmark,
+      action: () => {
+        onApplySavedView(v.id);
+        onClose();
+      },
+    }));
+
     const taskItems: CommandItem[] = openTask
       ? [
           {
@@ -199,9 +215,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         ]
       : [];
 
-    return [...taskItems, ...base, ...projectItems];
+    return [...taskItems, ...base, ...savedViewItems, ...projectItems];
   }, [
     projects,
+    savedViews,
+    onApplySavedView,
     darkMode,
     onClose,
     onFocusQuickAdd,

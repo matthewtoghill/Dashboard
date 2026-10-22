@@ -21,10 +21,15 @@ import {
   WidgetConfig,
   TaskStatus,
   TaskPriority,
+  SavedView,
+  SavedViewListSchema,
+  MAX_SAVED_VIEWS,
 } from '../../shared/types.ts';
+import { z } from 'zod';
 
 const SCRATCHPAD_KEY = 'scratchpad_content';
 const WIDGET_CONFIG_KEY = 'widget_config';
+const SAVED_VIEWS_KEY = 'saved_views';
 
 const DEFAULT_WIDGET_CONFIG: WidgetConfig = WidgetConfigSchema.parse({});
 
@@ -87,6 +92,21 @@ export async function registerDashboardRoutes(
     }
   };
 
+  const getSavedViews = (): SavedView[] => {
+    const row = db
+      .select()
+      .from(keyValueStore)
+      .where(eq(keyValueStore.key, SAVED_VIEWS_KEY))
+      .get();
+    if (!row) return [];
+    try {
+      const parsed = SavedViewListSchema.safeParse(JSON.parse(row.value));
+      return parsed.success ? parsed.data : [];
+    } catch {
+      return [];
+    }
+  };
+
   // GET /api/dashboard
   app.get('/api/dashboard', async () => {
     const links = db
@@ -99,7 +119,21 @@ export async function registerDashboardRoutes(
       scratchpad: getScratchpad(),
       widgetConfig: getWidgetConfig(),
       quickLinks: links.map(serializeQuickLink),
+      savedViews: getSavedViews(),
     };
+  });
+
+  // PUT /api/dashboard/saved-views: replaces the whole list
+  app.put('/api/dashboard/saved-views', async (request, reply) => {
+    const parsed = z.object({ savedViews: SavedViewListSchema }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid saved views payload',
+        details: parsed.error.flatten(),
+      });
+    }
+    setKeyValue(SAVED_VIEWS_KEY, JSON.stringify(parsed.data.savedViews));
+    return { savedViews: parsed.data.savedViews };
   });
 
   // PUT /api/dashboard/scratchpad
@@ -184,12 +218,13 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 1,
+      version: 2,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
       scratchpad: getScratchpad(),
       quickLinks: allLinks,
+      savedViews: getSavedViews(),
     };
   });
 
@@ -218,6 +253,7 @@ export async function registerDashboardRoutes(
     let importedProjects = 0;
     let importedTasks = 0;
     let importedQuickLinks = 0;
+    let importedSavedViews = 0;
 
     try {
       db.transaction((tx) => {
@@ -293,6 +329,17 @@ export async function registerDashboardRoutes(
         if (payload.scratchpad !== undefined) {
           setKeyValue(SCRATCHPAD_KEY, payload.scratchpad);
         }
+
+        // Merge by id: existing views win, new ones are appended up to the limit.
+        const existingViews = getSavedViews();
+        const knownIds = new Set(existingViews.map((v) => v.id));
+        const newViews = payload.savedViews
+          .filter((v) => !knownIds.has(v.id))
+          .slice(0, MAX_SAVED_VIEWS - existingViews.length);
+        if (newViews.length > 0) {
+          setKeyValue(SAVED_VIEWS_KEY, JSON.stringify([...existingViews, ...newViews]));
+        }
+        importedSavedViews = newViews.length;
       });
     } catch (err) {
       // e.g. a task referencing a project that is neither in the backup nor the database
@@ -302,6 +349,6 @@ export async function registerDashboardRoutes(
       });
     }
 
-    return { importedTasks, importedProjects, importedQuickLinks };
+    return { importedTasks, importedProjects, importedQuickLinks, importedSavedViews };
   });
 }

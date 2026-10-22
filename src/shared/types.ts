@@ -144,10 +144,39 @@ export const WidgetConfigSchema = z.object({
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
+// Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'completed', 'archived']);
+export const ActiveNavigationSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
+  z.object({ type: z.literal('project'), id: z.string().min(1) }),
+  z.object({ type: z.literal('tag'), id: z.string().min(1) }),
+]);
+export const ViewStateSchema = z.object({
+  nav: ActiveNavigationSchema,
+  search: z.string().max(200),
+  priority: z.union([TaskPrioritySchema, z.literal('all')]),
+  groupBy: z.enum(['none', 'priority', 'project', 'dueDate', 'status']),
+  sortBy: z.enum(['created', 'priority', 'dueDate', 'manual']),
+});
+
+export const MAX_SAVED_VIEWS = 50;
+export const SavedViewSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1, 'View name is required').max(60),
+  view: ViewStateSchema,
+  createdAt: z.number(),
+});
+export type SavedView = z.infer<typeof SavedViewSchema>;
+export const SavedViewListSchema = z
+  .array(SavedViewSchema)
+  .max(MAX_SAVED_VIEWS, `At most ${MAX_SAVED_VIEWS} saved views`)
+  .refine((list) => new Set(list.map((v) => v.id)).size === list.length, 'Saved view ids must be unique');
+
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),
   widgetConfig: WidgetConfigSchema,
   quickLinks: z.array(QuickLinkSchema),
+  savedViews: z.array(SavedViewSchema),
 });
 export type DashboardState = z.infer<typeof DashboardStateSchema>;
 
@@ -162,5 +191,7 @@ export const BackupPayloadSchema = z.object({
   tasks: z.array(TaskSchema).optional().default([]),
   scratchpad: z.string().optional(),
   quickLinks: z.array(QuickLinkSchema).optional().default([]),
+  /** Since version 2. */
+  savedViews: SavedViewListSchema.optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

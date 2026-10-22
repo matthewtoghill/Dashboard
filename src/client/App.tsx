@@ -46,6 +46,7 @@ import {
   createQuickLink,
   deleteQuickLink,
   importDashboardData,
+  saveSavedViews,
 } from './api.ts';
 import {
   Task,
@@ -54,6 +55,9 @@ import {
   WidgetConfig,
   WidgetConfigSchema,
   BackupPayload,
+  DashboardState,
+  SavedView,
+  MAX_SAVED_VIEWS,
 } from '../shared/types.ts';
 import { TaskRow } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -61,6 +65,7 @@ import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
+import { SavedViewControls } from './components/SavedViewControls.tsx';
 import {
   ConfirmDialog,
   ConfirmRequest,
@@ -77,6 +82,8 @@ import {
   SortByOption,
   ViewState,
   buildTaskList,
+  resolveSavedView,
+  sameView,
   viewTitle,
   visibleTaskOrder,
 } from './utils/taskView.ts';
@@ -99,10 +106,12 @@ export const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
   const updateView = (patch: Partial<ViewState>) => setView((v) => ({ ...v, ...patch }));
-  const setActiveNav = useCallback(
-    (nav: ActiveNavigation) => setView((v) => ({ ...v, nav })),
-    []
-  );
+  // The saved view last applied. Filter changes keep it (and mark it modified); navigating elsewhere drops it.
+  const [appliedViewId, setAppliedViewId] = useState<string | null>(null);
+  const setActiveNav = useCallback((nav: ActiveNavigation) => {
+    setAppliedViewId(null);
+    setView((v) => ({ ...v, nav }));
+  }, []);
 
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -275,6 +284,8 @@ export const App: React.FC = () => {
   const scratchpad = dashboardState?.scratchpad ?? '';
   const quickLinks = (dashboardState?.quickLinks ?? []).filter((l) => !pendingIds.has(l.id));
   const widgetConfig: WidgetConfig = dashboardState?.widgetConfig ?? DEFAULT_WIDGET_CONFIG;
+  const savedViews = (dashboardState?.savedViews ?? []).filter((v) => !pendingIds.has(v.id));
+  const appliedView = savedViews.find((v) => v.id === appliedViewId) ?? null;
 
   const selectedTask = useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) ?? null,
@@ -569,6 +580,67 @@ export const App: React.FC = () => {
           await invalidate('dashboard');
         });
         showToast(`Removed "${link.title}"`, undo);
+      },
+    });
+  };
+
+  // Saved views: every change rewrites the full list, starting from the cached list (which still
+  // holds views awaiting a deferred delete, so their undo keeps working).
+  const writeSavedViews = async (update: (list: SavedView[]) => SavedView[]) => {
+    const current = queryClient.getQueryData<DashboardState>(['dashboard']);
+    if (!current) return;
+    const next = update(current.savedViews);
+    queryClient.setQueryData<DashboardState>(['dashboard'], (old) =>
+      old ? { ...old, savedViews: next } : old
+    );
+    await saveSavedViews(next);
+  };
+  const changeSavedViews = (update: (list: SavedView[]) => SavedView[]) =>
+    writeSavedViews(update).catch((err) => {
+      showToast(err instanceof Error ? err.message : 'Saving views failed');
+      void invalidate('dashboard');
+    });
+
+  const handleSaveNewView = (name: string) => {
+    if ((dashboardState?.savedViews.length ?? 0) >= MAX_SAVED_VIEWS) {
+      showToast(`You can save up to ${MAX_SAVED_VIEWS} views; delete one first`);
+      return;
+    }
+    const saved: SavedView = { id: crypto.randomUUID(), name, view, createdAt: Date.now() };
+    void changeSavedViews((list) => [...list, saved]);
+    setAppliedViewId(saved.id);
+    showToast(`Saved view "${name}"`);
+  };
+
+  const handleUpdateAppliedView = () => {
+    if (!appliedView) return;
+    void changeSavedViews((list) => list.map((v) => (v.id === appliedView.id ? { ...v, view } : v)));
+    showToast(`Updated view "${appliedView.name}"`);
+  };
+
+  const handleApplySavedView = (id: string) => {
+    const saved = savedViews.find((v) => v.id === id);
+    if (!saved) return;
+    const { view: next, notice } = resolveSavedView(saved.view, projects, tasks);
+    setView(next);
+    setAppliedViewId(id);
+    if (notice) showToast(`"${saved.name}": ${notice}`);
+  };
+
+  const handleRenameSavedView = (id: string, name: string) =>
+    void changeSavedViews((list) => list.map((v) => (v.id === id ? { ...v, name } : v)));
+
+  const handleDeleteSavedView = (id: string) => {
+    const saved = savedViews.find((v) => v.id === id);
+    if (!saved) return;
+    setConfirmRequest({
+      title: 'Delete saved view?',
+      message: `Saved view "${saved.name}" will be deleted. Its tasks are not affected.\n${UNDO_HINT}`,
+      confirmLabel: 'Delete view',
+      onConfirm: () => {
+        if (appliedViewId === id) setAppliedViewId(null);
+        const undo = schedule([id], () => writeSavedViews((list) => list.filter((v) => v.id !== id)));
+        showToast(`Deleted view "${saved.name}"`, undo);
       },
     });
   };
@@ -919,6 +991,11 @@ export const App: React.FC = () => {
               updateProjectMutation.mutate({ id, name, color })
             }
             onDeleteProject={handleDeleteProject}
+            savedViews={savedViews}
+            appliedViewId={appliedViewId}
+            onApplySavedView={handleApplySavedView}
+            onRenameSavedView={handleRenameSavedView}
+            onDeleteSavedView={handleDeleteSavedView}
           />
         )}
 
@@ -1023,6 +1100,14 @@ export const App: React.FC = () => {
                       </button>
                     </>
                   )}
+
+                  <SavedViewControls
+                    appliedView={appliedView}
+                    isModified={appliedView !== null && !sameView(appliedView.view, view)}
+                    defaultName={currentViewTitle}
+                    onSaveNew={handleSaveNewView}
+                    onUpdate={handleUpdateAppliedView}
+                  />
 
                   {/* Filter by Priority */}
                   <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
@@ -1420,6 +1505,8 @@ export const App: React.FC = () => {
         onClose={() => setCommandPaletteOpen(false)}
         projects={projects}
         onSelectNav={setActiveNav}
+        savedViews={savedViews}
+        onApplySavedView={handleApplySavedView}
         onFocusQuickAdd={() => quickAddRef.current?.focus()}
         onToggleTheme={() => setDarkMode((d) => !d)}
         onArchiveCompleted={() =>

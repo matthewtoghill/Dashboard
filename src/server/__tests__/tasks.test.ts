@@ -366,7 +366,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
       },
     });
     expect(imported.statusCode).toBe(200);
-    expect(imported.json()).toEqual({ importedTasks: 1, importedProjects: 0, importedQuickLinks: 1 });
+    expect(imported.json()).toEqual({ importedTasks: 1, importedProjects: 0, importedQuickLinks: 1, importedSavedViews: 0 });
     const state = (await app.inject({ method: 'GET', url: '/api/dashboard' })).json();
     expect(state.quickLinks[0].url).toBe('https://javascript:alert(1)');
   });

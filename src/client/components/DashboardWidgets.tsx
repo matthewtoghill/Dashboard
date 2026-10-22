@@ -197,7 +197,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
       const result = await onImportBackup(parsed);
       setImportStatus(
         `Backup restored: ${result.importedTasks} tasks, ${result.importedProjects} projects, ` +
-          `${result.importedQuickLinks} links added (existing items were left unchanged).`
+          `${result.importedQuickLinks} links, ${result.importedSavedViews} saved views added ` +
+          '(existing items were left unchanged).'
       );
     } catch (err) {
       setImportStatus(err instanceof Error ? err.message : 'Import failed.');
