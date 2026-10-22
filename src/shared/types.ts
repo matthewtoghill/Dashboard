@@ -139,6 +139,7 @@ export const WidgetConfigSchema = z.object({
   showStats: z.boolean().default(true),
   showScratchpad: z.boolean().default(true),
   showQuickLinks: z.boolean().default(true),
+  showTrends: z.boolean().default(true),
   showHeaderSummary: z.boolean().default(true),
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;

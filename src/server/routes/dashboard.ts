@@ -26,12 +26,7 @@ import {
 const SCRATCHPAD_KEY = 'scratchpad_content';
 const WIDGET_CONFIG_KEY = 'widget_config';
 
-const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
-  showStats: true,
-  showScratchpad: true,
-  showQuickLinks: true,
-  showHeaderSummary: true,
-};
+const DEFAULT_WIDGET_CONFIG: WidgetConfig = WidgetConfigSchema.parse({});
 
 function serializeQuickLink(row: DbQuickLink): QuickLink {
   return {

@@ -52,6 +52,7 @@ import {
   TaskPriority,
   UpdateTaskInput,
   WidgetConfig,
+  WidgetConfigSchema,
   BackupPayload,
 } from '../shared/types.ts';
 import { TaskRow } from './components/TaskRow.tsx';
@@ -86,6 +87,8 @@ import {
   parseQuickAddSyntax,
   sortOrderForMove,
 } from './utils/taskUtils.ts';
+
+const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
 
 export const App: React.FC = () => {
   const queryClient = useQueryClient();
@@ -271,12 +274,7 @@ export const App: React.FC = () => {
 
   const scratchpad = dashboardState?.scratchpad ?? '';
   const quickLinks = (dashboardState?.quickLinks ?? []).filter((l) => !pendingIds.has(l.id));
-  const widgetConfig: WidgetConfig = dashboardState?.widgetConfig ?? {
-    showStats: true,
-    showScratchpad: true,
-    showQuickLinks: true,
-    showHeaderSummary: true,
-  };
+  const widgetConfig: WidgetConfig = dashboardState?.widgetConfig ?? DEFAULT_WIDGET_CONFIG;
 
   const selectedTask = useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) ?? null,
@@ -945,6 +943,7 @@ export const App: React.FC = () => {
                 importBackupMutation.mutateAsync(payload)
               }
               onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
+              onSelectProject={(id) => setActiveNav({ type: 'project', id })}
             />
           ) : (
             <>

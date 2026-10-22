@@ -27,10 +27,15 @@ import {
   BackupPayload,
 } from '../../shared/types.ts';
 import {
+  completionsByDay,
   computeDashboardStats,
+  formatDayDate,
   formatRelativeTime,
+  getTodayIso,
+  projectProgress,
   tasksToCsv,
 } from '../utils/taskUtils.ts';
+import { parseIsoDate } from '../../shared/dates.ts';
 import { exportDashboardData, ImportResult, fetchBackups, createBackup } from '../api.ts';
 
 interface DashboardWidgetsProps {
@@ -47,6 +52,7 @@ interface DashboardWidgetsProps {
   onUpdateWidgetConfig: (config: Partial<WidgetConfig>) => void;
   onImportBackup: (payload: BackupPayload) => Promise<ImportResult>;
   onSelectSmartView?: (view: 'today' | 'inbox' | 'completed') => void;
+  onSelectProject?: (projectId: string) => void;
 }
 
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
@@ -63,6 +69,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   onUpdateWidgetConfig,
   onImportBackup,
   onSelectSmartView,
+  onSelectProject,
 }) => {
   const stats = computeDashboardStats(tasks);
 
@@ -471,6 +478,15 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           <label className="inline-flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
+              checked={widgetConfig.showTrends}
+              onChange={(e) => onUpdateWidgetConfig({ showTrends: e.target.checked })}
+              className="rounded text-indigo-600"
+            />
+            <span>Trends & Project Progress</span>
+          </label>
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
               checked={widgetConfig.showQuickLinks}
               onChange={(e) =>
                 onUpdateWidgetConfig({ showQuickLinks: e.target.checked })
@@ -609,7 +625,15 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         </div>
       )}
 
-      {/* 2. Scratchpad & Quick Links Grid */}
+      {/* 2. Completion Trend & Per-Project Progress */}
+      {widgetConfig.showTrends && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <CompletionTrendCard tasks={tasks} />
+          <ProjectProgressCard tasks={tasks} projects={projects} onSelectProject={onSelectProject} />
+        </div>
+      )}
+
+      {/* 3. Scratchpad & Quick Links Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scratchpad Widget */}
         {widgetConfig.showScratchpad && (
@@ -787,6 +811,220 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const TREND_DAYS = 14;
+const CHART = { width: 280, height: 96, top: 14, bottom: 16 };
+
+/** Bar with a rounded top and a square base on the baseline. */
+function barPath(x: number, y: number, w: number, h: number, r = 4): string {
+  const rr = Math.min(r, h, w / 2);
+  return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
+}
+
+/** "Last 14 days": one bar per day, today highlighted, compared with the 14 days before. */
+const CompletionTrendCard: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
+  const today = getTodayIso();
+  const both = completionsByDay(tasks, TREND_DAYS * 2, today);
+  const previous = both.slice(0, TREND_DAYS).reduce((sum, d) => sum + d.count, 0);
+  const days = both.slice(TREND_DAYS);
+  const total = days.reduce((sum, d) => sum + d.count, 0);
+  const max = Math.max(...days.map((d) => d.count), 1);
+  const diff = total - previous;
+
+  const plotHeight = CHART.height - CHART.top - CHART.bottom;
+  const slot = CHART.width / TREND_DAYS;
+  const barWidth = slot - 6;
+  const label = (date: string, count: number) =>
+    `${formatDayDate(date)}: ${count} ${count === 1 ? 'completion' : 'completions'}`;
+
+  return (
+    <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Last 14 days</h3>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Tasks completed per day</p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold leading-none">{total}</p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
+            {diff === 0 ? 'Same as' : `${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} than`} the
+            previous 14 days ({previous})
+          </p>
+        </div>
+      </div>
+
+      {total === 0 ? (
+        <p className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+          No completions in the last 14 days yet.
+        </p>
+      ) : (
+        <>
+          <svg
+            viewBox={`0 0 ${CHART.width} ${CHART.height}`}
+            className="w-full h-auto"
+            aria-hidden
+          >
+            <line
+              x1={0}
+              x2={CHART.width}
+              y1={CHART.height - CHART.bottom + 0.5}
+              y2={CHART.height - CHART.bottom + 0.5}
+              className="stroke-zinc-200 dark:stroke-zinc-700"
+            />
+            {days.map((d, i) => {
+              const isToday = d.date === today;
+              const h = (d.count / max) * plotHeight;
+              const x = i * slot + (slot - barWidth) / 2;
+              const y = CHART.height - CHART.bottom - h;
+              return (
+                <g key={d.date} className="group">
+                  <title>{label(d.date, d.count)}</title>
+                  {/* Full-column hit target, bigger than the bar. */}
+                  <rect
+                    x={i * slot}
+                    y={0}
+                    width={slot}
+                    height={CHART.height}
+                    className="fill-transparent group-hover:fill-zinc-100 dark:group-hover:fill-zinc-800/60"
+                  />
+                  {h > 0 && (
+                    <path
+                      d={barPath(x, y, barWidth, h)}
+                      className={
+                        isToday
+                          ? 'fill-indigo-700 dark:fill-indigo-300'
+                          : 'fill-indigo-400 dark:fill-indigo-500'
+                      }
+                    />
+                  )}
+                  {isToday && d.count > 0 && (
+                    <text
+                      x={x + barWidth / 2}
+                      y={y - 3}
+                      textAnchor="middle"
+                      className="fill-zinc-700 dark:fill-zinc-200 text-[9px] font-semibold"
+                    >
+                      {d.count}
+                    </text>
+                  )}
+                  <text
+                    x={i * slot + slot / 2}
+                    y={CHART.height - 4}
+                    textAnchor="middle"
+                    className={`text-[9px] ${
+                      isToday
+                        ? 'fill-zinc-900 dark:fill-zinc-100 font-bold'
+                        : 'fill-zinc-500 dark:fill-zinc-400'
+                    }`}
+                  >
+                    {parseIsoDate(d.date).toLocaleDateString(undefined, { weekday: 'narrow' })}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          <table className="sr-only">
+            <caption>Completions per day, last 14 days</caption>
+            <thead>
+              <tr>
+                <th scope="col">Day</th>
+                <th scope="col">Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {days.map((d) => (
+                <tr key={d.date}>
+                  <th scope="row">
+                    {formatDayDate(d.date)}
+                    {d.date === today ? ' (today)' : ''}
+                  </th>
+                  <td>{d.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+};
+
+/** One row per project: colour dot, name, done/total and a progress bar. */
+const ProjectProgressCard: React.FC<{
+  tasks: Task[];
+  projects: Project[];
+  onSelectProject?: (projectId: string) => void;
+}> = ({ tasks, projects, onSelectProject }) => {
+  const rows = projectProgress(tasks, projects);
+
+  return (
+    <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3">
+      <div>
+        <h3 className="text-sm font-semibold">Projects</h3>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+          Done out of non-archived tasks, most open first
+        </p>
+      </div>
+
+      {projects.length === 0 ? (
+        <p className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+          No projects yet. Add one from the sidebar to track its progress here.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {rows.map((row) => {
+            const percent = row.total > 0 ? Math.round((row.done / row.total) * 100) : 0;
+            const content = (
+              <>
+                <span className="flex items-center justify-between gap-2 text-xs">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span
+                      aria-hidden
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-zinc-400 dark:border-zinc-500"
+                      style={row.color ? { backgroundColor: row.color, borderColor: row.color } : undefined}
+                    />
+                    <span className="truncate font-medium text-zinc-800 dark:text-zinc-100">
+                      {row.name}
+                    </span>
+                  </span>
+                  <span className="tabular-nums text-zinc-500 dark:text-zinc-400 flex-shrink-0">
+                    {row.done}/{row.total}
+                  </span>
+                </span>
+                <span
+                  aria-hidden
+                  className="mt-1.5 block h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden"
+                >
+                  <span
+                    className="block h-full rounded-full bg-zinc-400 dark:bg-zinc-500"
+                    style={{ width: `${percent}%`, ...(row.color ? { backgroundColor: row.color } : {}) }}
+                  />
+                </span>
+              </>
+            );
+            const rowLabel = `${row.name}: ${row.done} of ${row.total} done`;
+            return (
+              <li key={row.projectId ?? 'none'}>
+                {row.projectId && onSelectProject ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelectProject(row.projectId!)}
+                    aria-label={`${rowLabel}. Open project`}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer"
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div className="px-2 py-1.5">{content}</div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 };

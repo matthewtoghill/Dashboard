@@ -1,5 +1,5 @@
 import { Project, Task, TaskPriority, TaskStatus } from '../../shared/types.ts';
-import { addDays, addMonthsClamped, toIsoDate } from '../../shared/dates.ts';
+import { addDays, addMonthsClamped, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 import { Recurrence, parseRecurrenceToken } from '../../shared/recurrence.ts';
 
 export const PRIORITY_CONFIG: Record<
@@ -326,6 +326,55 @@ export function sortOrderForMove(orders: number[], targetIndex: number): number 
   return mid > before && mid < after ? mid : null;
 }
 
+/** Local YYYY-MM-DD of each completion. Archived tasks keep completedAt, so they still count. */
+function completionDates(tasks: Task[]): string[] {
+  return tasks
+    .filter((t) => t.completedAt !== null && (t.status === 'done' || t.status === 'archived'))
+    .map((t) => formatIsoDateFromTimestamp(t.completedAt!));
+}
+
+/** Completions per day for the `days` days ending on `today` (YYYY-MM-DD), oldest first, zeros included. */
+export function completionsByDay(
+  tasks: Task[],
+  days = 14,
+  today: string = getTodayIso()
+): { date: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const day of completionDates(tasks)) counts.set(day, (counts.get(day) ?? 0) + 1);
+  const end = parseIsoDate(today);
+  return Array.from({ length: days }, (_, i) => {
+    const date = toIsoDate(addDays(end, i - days + 1));
+    return { date, count: counts.get(date) ?? 0 };
+  });
+}
+
+export interface ProjectProgressRow {
+  projectId: string | null;
+  name: string;
+  color: string | null;
+  done: number;
+  total: number;
+}
+
+/** Done/total per project over non-archived tasks, plus "No project" when it has tasks; most open first. */
+export function projectProgress(tasks: Task[], projects: Project[]): ProjectProgressRow[] {
+  const rows = new Map<string | null, ProjectProgressRow>(
+    [...projects]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((p) => [p.id, { projectId: p.id, name: p.name, color: p.color, done: 0, total: 0 }])
+  );
+  const none: ProjectProgressRow = { projectId: null, name: 'No project', color: null, done: 0, total: 0 };
+  for (const task of tasks) {
+    if (task.status === 'archived') continue;
+    const row = (task.projectId !== null && rows.get(task.projectId)) || none;
+    row.total++;
+    if (task.status === 'done') row.done++;
+  }
+  const result = [...rows.values()];
+  if (none.total > 0) result.push(none);
+  return result.sort((a, b) => b.total - b.done - (a.total - a.done));
+}
+
 export interface DashboardStats {
   totalActive: number;
   totalCompleted: number;
@@ -341,10 +390,7 @@ export function computeDashboardStats(tasks: Task[]): DashboardStats {
   const active = tasks.filter((t) => t.status !== 'done' && t.status !== 'archived');
   const completed = tasks.filter((t) => t.status === 'done');
 
-  // Archived tasks keep completedAt, so they still count as completions for the day/streak.
-  const completionDays = tasks
-    .filter((t) => t.completedAt !== null && (t.status === 'done' || t.status === 'archived'))
-    .map((t) => formatIsoDateFromTimestamp(t.completedAt!));
+  const completionDays = completionDates(tasks);
 
   const completedToday = completionDays.filter((day) => day === today).length;
 
