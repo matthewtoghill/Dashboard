@@ -31,6 +31,7 @@ import {
   archiveTasks,
   restoreTasks,
   deleteTasks,
+  reorderTasks,
   createSubtask,
   updateSubtask,
   deleteSubtask,
@@ -432,16 +433,13 @@ export const App: React.FC = () => {
       updateTaskMutation.mutate({ id: taskId, payload: { sortOrder: order } });
       return;
     }
-    // No gap between the neighbours (e.g. imported tasks sharing an order): renumber this list.
-    // ponytail: renumbers only the visible tasks, so their position relative to tasks hidden by
-    // the current filter can shift; renumber globally on the server if that matters.
+    // No gap between the neighbours (e.g. imported tasks sharing an order): respace this list
+    // on the server in one transaction.
     const reordered = [...others.slice(0, targetIndex), moved, ...others.slice(targetIndex)];
-    const base = Math.min(...list.map((t) => t.sortOrder));
-    reordered.forEach((t, i) => {
-      if (t.sortOrder !== base + i) {
-        updateTaskMutation.mutate({ id: t.id, payload: { sortOrder: base + i } });
-      }
-    });
+    reorderTasks(reordered.map((t) => t.id)).then(
+      () => invalidate('tasks'),
+      (err) => showToast(err instanceof Error ? err.message : 'Reorder failed')
+    );
   };
 
   const handleUpdateTask = (id: string, payload: UpdateTaskInput) => {

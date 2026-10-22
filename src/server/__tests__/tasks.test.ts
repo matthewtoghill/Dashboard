@@ -254,6 +254,43 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     await fresh.close();
   });
 
+  it('reorders tasks atomically within the range they occupy', async () => {
+    const base = {
+      description: '', status: 'todo', priority: 0, projectId: null, tags: [], dueDate: null,
+      completedAt: null, createdAt: 1, updatedAt: 1,
+    };
+    // Three tasks sharing sortOrder 5 (as imports can produce), plus one elsewhere
+    await app.inject({
+      method: 'POST',
+      url: '/api/import',
+      payload: {
+        tasks: [
+          ...['a', 'b', 'c'].map((id) => ({ ...base, id, title: id, sortOrder: 5 })),
+          { ...base, id: 'z', title: 'z', sortOrder: 100 },
+        ],
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/tasks/reorder',
+      payload: { ids: ['c', 'a', 'b'] },
+    });
+    expect(res.statusCode).toBe(200);
+    const byOrder = (await app.inject({ method: 'GET', url: '/api/tasks' }))
+      .json()
+      .tasks.sort((x: { sortOrder: number }, y: { sortOrder: number }) => x.sortOrder - y.sortOrder)
+      .map((t: { id: string; sortOrder: number; updatedAt: number }) => [t.id, t.sortOrder, t.updatedAt]);
+    expect(byOrder).toEqual([['c', 5, 1], ['a', 6, 1], ['b', 7, 1], ['z', 100, 1]]);
+
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/tasks/reorder',
+      payload: { ids: ['a', 'missing'] },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('rejects cross-site origins and non-loopback hosts', async () => {
     const evilOrigin = await app.inject({
       method: 'GET',

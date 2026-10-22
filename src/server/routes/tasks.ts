@@ -232,6 +232,36 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     return { restoredCount: result.changes };
   });
 
+  // POST /api/tasks/reorder — rewrites sort_order so `ids` sit in the given order, evenly spaced
+  // across the range they already occupy (tasks hidden by the client's filter keep their place).
+  // Used when a manual move finds no gap between neighbours. Not an edit, so updatedAt is kept.
+  app.post('/api/tasks/reorder', async (request, reply) => {
+    const parsed = parseIds(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid ids', details: parsed.error.flatten() });
+    }
+    const ids = parsed.data.ids;
+    const rows = db
+      .select({ sortOrder: tasks.sortOrder })
+      .from(tasks)
+      .where(inArray(tasks.id, ids))
+      .all();
+    if (new Set(ids).size !== ids.length || rows.length !== ids.length) {
+      return reply.status(400).send({ error: 'Ids must be unique, existing tasks' });
+    }
+
+    const orders = rows.map((r) => r.sortOrder);
+    const min = Math.min(...orders);
+    const max = Math.max(...orders);
+    const step = max > min ? (max - min) / (ids.length - 1) : 1;
+    db.transaction((tx) => {
+      ids.forEach((id, i) => {
+        tx.update(tasks).set({ sortOrder: min + i * step }).where(eq(tasks.id, id)).run();
+      });
+    });
+    return { reorderedCount: ids.length };
+  });
+
   // POST /api/tasks/bulk-delete
   app.post('/api/tasks/bulk-delete', async (request, reply) => {
     const parsed = parseIds(request.body);

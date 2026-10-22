@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, ChevronUp, ChevronDown } from 'lucide-react';
 import { Task } from '../../shared/types.ts';
 
 interface ReorderableTaskListProps {
@@ -66,25 +66,50 @@ export const ReorderableTaskList: React.FC<ReorderableTaskListProps> = ({
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropIndex(null);
     }}>
       {tasks.map((task, index) => {
+        const moveButtonClass =
+          'p-0.5 rounded text-zinc-400 active:bg-zinc-200 dark:active:bg-zinc-700 disabled:opacity-30';
         const handle = (
-          <button
-            type="button"
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', task.id);
-              const row = e.currentTarget.closest('[data-reorder-row]');
-              if (row) e.dataTransfer.setDragImage(row, 16, 16);
-              setDragId(task.id);
-            }}
-            onDragEnd={reset}
-            data-reorder-handle
-            aria-label={`Reorder "${task.title}" (drag, or Alt+Up/Down)`}
-            title="Drag to reorder (Alt+Up/Down)"
-            className="-ml-1.5 p-0.5 rounded text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
+          <>
+            {/* Touch screens: native drag-and-drop is unreliable, so offer explicit moves */}
+            <span className="hidden pointer-coarse:flex flex-col -my-1 -ml-1.5">
+              <button
+                type="button"
+                onClick={() => onMove(task.id, index - 1)}
+                disabled={index === 0}
+                aria-label={`Move "${task.title}" up`}
+                className={moveButtonClass}
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onMove(task.id, index + 1)}
+                disabled={index === tasks.length - 1}
+                aria-label={`Move "${task.title}" down`}
+                className={moveButtonClass}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </span>
+            <button
+              type="button"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', task.id);
+                const row = e.currentTarget.closest('[data-reorder-row]');
+                if (row) e.dataTransfer.setDragImage(row, 16, 16);
+                setDragId(task.id);
+              }}
+              onDragEnd={reset}
+              data-reorder-handle
+              aria-label={`Reorder "${task.title}" (drag, or Alt+Up/Down)`}
+              title="Drag to reorder (Alt+Up/Down)"
+              className="pointer-coarse:hidden -ml-1.5 p-0.5 rounded text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          </>
         );
 
         return (

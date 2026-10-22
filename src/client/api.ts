@@ -79,6 +79,9 @@ export const archiveTasks = (ids: string[]) =>
 export const restoreTasks = (ids: string[]) =>
   postTaskIds<{ restoredCount: number }>('bulk-restore', ids, 'restore tasks');
 
+export const reorderTasks = (ids: string[]) =>
+  postTaskIds<{ reorderedCount: number }>('reorder', ids, 'reorder tasks');
+
 export const deleteTasks = (ids: string[]) =>
   postTaskIds<{ deletedCount: number }>('bulk-delete', ids, 'delete tasks');
 
