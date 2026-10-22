@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { Project } from '../../shared/types.ts';
-import { ActiveNavigation } from './Sidebar.tsx';
+import { ActiveNavigation } from '../utils/taskView.ts';
 
 interface CommandPaletteProps {
   isOpen: boolean;

@@ -15,19 +15,7 @@ import {
 } from 'lucide-react';
 import { Project, Task } from '../../shared/types.ts';
 import { PROJECT_COLORS, getTodayIso } from '../utils/taskUtils.ts';
-
-export type SmartViewId =
-  | 'overview'
-  | 'inbox'
-  | 'today'
-  | 'upcoming'
-  | 'completed'
-  | 'archived';
-
-export type ActiveNavigation =
-  | { type: 'smart'; id: SmartViewId }
-  | { type: 'project'; id: string }
-  | { type: 'tag'; id: string };
+import { ActiveNavigation, SmartViewId } from '../utils/taskView.ts';
 
 interface SidebarProps {
   tasks: Task[];

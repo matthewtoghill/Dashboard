@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckSquare,
@@ -53,7 +53,7 @@ import {
   BackupPayload,
 } from '../shared/types.ts';
 import { TaskRow } from './components/TaskRow.tsx';
-import { Sidebar, ActiveNavigation } from './components/Sidebar.tsx';
+import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
@@ -61,26 +61,33 @@ import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { ConfirmDialog, ConfirmRequest, Toast, ToastState } from './components/Feedback.tsx';
 import { useDeferredDelete } from './utils/useDeferredDelete.ts';
 import {
-  PRIORITY_CONFIG,
-  STATUS_LABELS,
+  ActiveNavigation,
+  DEFAULT_VIEW_STATE,
+  GroupByOption,
+  SortByOption,
+  ViewState,
+  buildTaskList,
+  viewTitle,
+} from './utils/taskView.ts';
+import {
   getTodayIso,
-  getDueDateInfo,
   parseQuickAddSyntax,
   sortOrderForMove,
 } from './utils/taskUtils.ts';
-
-export type GroupByOption = 'none' | 'priority' | 'project' | 'dueDate' | 'status';
-export type SortByOption = 'created' | 'priority' | 'dueDate' | 'manual';
 
 export const App: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Sidebar & Navigation state
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeNav, setActiveNav] = useState<ActiveNavigation>({
-    type: 'smart',
-    id: 'inbox',
-  });
+  // List view: navigation, search, priority filter, grouping and sorting
+  const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
+  const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
+  const updateView = (patch: Partial<ViewState>) => setView((v) => ({ ...v, ...patch }));
+  const setActiveNav = useCallback(
+    (nav: ActiveNavigation) => setView((v) => ({ ...v, nav })),
+    []
+  );
 
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -88,12 +95,6 @@ export const App: React.FC = () => {
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const showToast = (message: string, onUndo?: () => void) => setToast({ message, onUndo });
-
-  // Search, Group, Sort state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [groupBy, setGroupBy] = useState<GroupByOption>('none');
-  const [sortBy, setSortBy] = useState<SortByOption>('created');
-  const [priorityFilter, setPriorityFilter] = useState<number | 'all'>('all');
 
   // Quick-add form state
   const [newTitle, setNewTitle] = useState('');
@@ -598,193 +599,18 @@ export const App: React.FC = () => {
   const isCompletedView = activeNav.type === 'smart' && activeNav.id === 'completed';
   const isArchiveView = activeNav.type === 'smart' && activeNav.id === 'archived';
 
-  // Filter tasks based on active navigation + search + priority filter
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      // Archived tasks appear only in the Archive view, and only they do
-      if ((task.status === 'archived') !== isArchiveView) return false;
-
-      // Navigation filter
-      if (activeNav.type === 'smart') {
-        if (activeNav.id === 'today') {
-          if (task.dueDate === null || task.dueDate > today) return false;
-        } else if (activeNav.id === 'upcoming') {
-          if (task.dueDate === null || task.dueDate <= today) return false;
-        } else if (activeNav.id === 'completed') {
-          if (task.status !== 'done') return false;
-        }
-      } else if (activeNav.type === 'project') {
-        if (task.projectId !== activeNav.id) return false;
-      } else if (activeNav.type === 'tag') {
-        if (!task.tags.includes(activeNav.id)) return false;
-      }
-
-      // Priority filter
-      if (priorityFilter !== 'all' && task.priority !== priorityFilter) {
-        return false;
-      }
-
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const projectMatch = projects
-          .find((p) => p.id === task.projectId)
-          ?.name.toLowerCase()
-          .includes(q);
-        const tagMatch = task.tags.some((t) => t.toLowerCase().includes(q));
-        const titleMatch = task.title.toLowerCase().includes(q);
-        const descMatch = task.description.toLowerCase().includes(q);
-
-        if (!titleMatch && !descMatch && !tagMatch && !projectMatch) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [tasks, activeNav, isArchiveView, priorityFilter, searchQuery, projects, today]);
-
-  // Sort helper
-  const sortTasks = (list: Task[]): Task[] => {
-    return [...list].sort((a, b) => {
-      if (sortBy === 'priority') {
-        if (b.priority !== a.priority) return b.priority - a.priority;
-      } else if (sortBy === 'dueDate') {
-        if (a.dueDate && b.dueDate) {
-          const cmp = a.dueDate.localeCompare(b.dueDate);
-          if (cmp !== 0) return cmp;
-        } else if (a.dueDate && !b.dueDate) {
-          return -1;
-        } else if (!a.dueDate && b.dueDate) {
-          return 1;
-        }
-      } else if (sortBy === 'manual') {
-        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      }
-      return b.createdAt - a.createdAt;
-    });
-  };
-
-  const activeFilteredTasks = sortTasks(
-    filteredTasks.filter((t) => t.status !== 'done')
+  const taskList = useMemo(
+    () => buildTaskList(tasks, view, projects, today),
+    [tasks, view, projects, today]
   );
-  const completedFilteredTasks = sortTasks(
-    filteredTasks.filter((t) => t.status === 'done')
-  );
+  const {
+    active: activeFilteredTasks,
+    completed: completedFilteredTasks,
+    sections: groupedSections,
+    completedSection,
+  } = taskList;
 
-  // Grouping logic for active tasks (or all filtered tasks if on 'completed' view or grouped by status)
-  const groupedSections = useMemo(() => {
-    const sourceTasks =
-      activeNav.type === 'smart' && activeNav.id === 'completed'
-        ? completedFilteredTasks
-        : groupBy === 'status'
-        ? sortTasks(filteredTasks)
-        : activeFilteredTasks;
-
-    if (groupBy === 'none') {
-      return [
-        {
-          key: 'all',
-          label: isCompletedView
-            ? 'Completed Tasks'
-            : isArchiveView
-            ? 'Archived Tasks'
-            : 'Tasks',
-          tasks: sourceTasks,
-        },
-      ];
-    }
-
-    const map = new Map<string, { label: string; order: number; tasks: Task[] }>();
-
-    for (const task of sourceTasks) {
-      let key = 'other';
-      let label = 'Other';
-      let order = 999;
-
-      if (groupBy === 'priority') {
-        key = `p-${task.priority}`;
-        label = PRIORITY_CONFIG[task.priority].label;
-        order = 10 - task.priority; // Urgent first
-      } else if (groupBy === 'project') {
-        const proj = projects.find((p) => p.id === task.projectId);
-        if (proj) {
-          key = `proj-${proj.id}`;
-          label = proj.name;
-          order = proj.sortOrder;
-        } else {
-          key = 'proj-none';
-          label = 'No Project';
-          order = Number.MAX_SAFE_INTEGER;
-        }
-      } else if (groupBy === 'dueDate') {
-        const info = getDueDateInfo(task.dueDate);
-        key = `due-${info.state}`;
-        const stateTitles = {
-          overdue: 'Overdue',
-          today: 'Today',
-          tomorrow: 'Tomorrow',
-          upcoming: 'Upcoming',
-          none: 'No Due Date',
-        };
-        const stateOrder = {
-          overdue: 1,
-          today: 2,
-          tomorrow: 3,
-          upcoming: 4,
-          none: 5,
-        };
-        label = stateTitles[info.state];
-        order = stateOrder[info.state];
-      } else if (groupBy === 'status') {
-        key = `status-${task.status}`;
-        label = STATUS_LABELS[task.status];
-        const statusOrder = { in_progress: 1, todo: 2, done: 3, archived: 4 };
-        order = statusOrder[task.status];
-      }
-
-      const existing = map.get(key);
-      if (existing) {
-        existing.tasks.push(task);
-      } else {
-        map.set(key, { label, order, tasks: [task] });
-      }
-    }
-
-    return Array.from(map.entries())
-      .sort((a, b) => a[1].order - b[1].order)
-      .map(([key, val]) => ({
-        key,
-        label: val.label,
-        tasks: val.tasks,
-      }));
-  }, [
-    activeFilteredTasks,
-    completedFilteredTasks,
-    filteredTasks,
-    groupBy,
-    projects,
-    activeNav,
-  ]);
-
-  // Determine current view title
-  const currentViewTitle = useMemo(() => {
-    if (activeNav.type === 'smart') {
-      const titles = {
-        overview: 'Dashboard Overview',
-        inbox: 'All Active',
-        today: 'Today & Overdue',
-        upcoming: 'Upcoming',
-        completed: 'Completed',
-        archived: 'Archive',
-      };
-      return titles[activeNav.id];
-    }
-    if (activeNav.type === 'project') {
-      return projects.find((p) => p.id === activeNav.id)?.name ?? 'Project';
-    }
-    return `#${activeNav.id}`;
-  }, [activeNav, projects]);
+  const currentViewTitle = viewTitle(activeNav, projects);
 
   const totalActiveCount = tasks.filter(
     (t) => t.status !== 'done' && t.status !== 'archived'
@@ -839,12 +665,15 @@ export const App: React.FC = () => {
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (isOverviewPage && e.target.value.trim()) {
-                    setActiveNav({ type: 'smart', id: 'inbox' });
-                  }
-                }}
+                onChange={(e) =>
+                  updateView({
+                    search: e.target.value,
+                    // Typing a search on the Overview page jumps to the task list
+                    ...(isOverviewPage && e.target.value.trim()
+                      ? { nav: { type: 'smart', id: 'inbox' } as const }
+                      : {}),
+                  })
+                }
                 placeholder="Search tasks, tags, or projects... (Press /)"
                 aria-label="Search tasks"
                 className="w-full pl-9 pr-8 py-1.5 rounded-lg text-xs sm:text-sm bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
@@ -852,7 +681,7 @@ export const App: React.FC = () => {
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => updateView({ search: '' })}
                   aria-label="Clear search"
                   className="absolute right-2.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
                 >
@@ -1020,9 +849,12 @@ export const App: React.FC = () => {
                       aria-label="Filter by priority"
                       value={priorityFilter}
                       onChange={(e) =>
-                        setPriorityFilter(
-                          e.target.value === 'all' ? 'all' : Number(e.target.value)
-                        )
+                        updateView({
+                          priority:
+                            e.target.value === 'all'
+                              ? 'all'
+                              : (Number(e.target.value) as TaskPriority),
+                        })
                       }
                       className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
                     >
@@ -1042,7 +874,7 @@ export const App: React.FC = () => {
                     <select
                       aria-label="Group tasks by"
                       value={groupBy}
-                      onChange={(e) => setGroupBy(e.target.value as GroupByOption)}
+                      onChange={(e) => updateView({ groupBy: e.target.value as GroupByOption })}
                       className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
                     >
                       <option value="none">None</option>
@@ -1066,7 +898,7 @@ export const App: React.FC = () => {
                     <select
                       aria-label="Sort tasks by"
                       value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as SortByOption)}
+                      onChange={(e) => updateView({ sortBy: e.target.value as SortByOption })}
                       className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
                     >
                       <option value="created">Newest</option>
@@ -1280,9 +1112,7 @@ export const App: React.FC = () => {
               )}
 
               {/* Completed Tasks Section */}
-              {!isCompletedView &&
-                groupBy !== 'status' &&
-                completedFilteredTasks.length > 0 && (
+              {completedSection && (
                   <section className="space-y-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
                     <div className="flex items-center justify-between px-1">
                       <button
