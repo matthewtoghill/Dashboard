@@ -13,6 +13,7 @@ import {
   ArchiveRestore,
   Plus,
   X,
+  Keyboard,
 } from 'lucide-react';
 import { Project, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -25,6 +26,7 @@ interface CommandPaletteProps {
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
   onArchiveCompleted: () => void;
+  onShowShortcuts: () => void;
   /** The task open in the detail drawer, if any. */
   openTask: Task | null;
   onToggleArchiveTask: (task: Task) => void;
@@ -47,6 +49,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onFocusQuickAdd,
   onToggleTheme,
   onArchiveCompleted,
+  onShowShortcuts,
   openTask,
   onToggleArchiveTask,
   darkMode,
@@ -136,6 +139,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'act-shortcuts',
+        label: 'Keyboard Shortcuts',
+        category: 'Help',
+        icon: Keyboard,
+        action: () => {
+          onClose();
+          onShowShortcuts();
+        },
+      },
+      {
         id: 'act-theme',
         label: darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
         category: 'Preferences',
@@ -195,6 +208,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onSelectNav,
     onToggleTheme,
     onArchiveCompleted,
+    onShowShortcuts,
     openTask,
     onToggleArchiveTask,
   ]);
@@ -306,7 +320,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
         <div className="px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 flex items-center justify-between text-[11px] text-zinc-400">
           <span>Navigate with ↑↓ and Enter</span>
-          <span>Shortcuts: N (new), / (search), Ctrl+K (commands)</span>
+          <span>Press ? for all keyboard shortcuts</span>
         </div>
       </div>
     </div>

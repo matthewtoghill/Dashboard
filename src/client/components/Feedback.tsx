@@ -168,3 +168,75 @@ export const Toast: React.FC<{ toast: ToastState | null; onDismiss: () => void }
     </div>
   );
 };
+
+const SHORTCUTS: [string, string][] = [
+  ['J / ↓', 'Next task'],
+  ['K / ↑', 'Previous task'],
+  ['X / Space', 'Complete or reopen'],
+  ['Enter', 'Open details'],
+  ['E', 'Rename'],
+  ['A', 'Archive or restore'],
+  ['Delete', 'Delete'],
+  ['1 – 4, 0', 'Priority Low – Urgent, None'],
+  ['Alt + ↑ / ↓', 'Move (Manual sort)'],
+  ['Esc', 'Leave the list / close'],
+  ['N', 'New task'],
+  ['/', 'Search'],
+  ['Ctrl + K', 'Command palette'],
+  ['Ctrl + Z', 'Undo last action'],
+  ['?', 'This help'],
+];
+
+/** Keyboard shortcut reference, on native <dialog> like ConfirmDialog. */
+export const ShortcutsDialog: React.FC<{ open: boolean; onClose: () => void }> = ({
+  open,
+  onClose,
+}) => {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      aria-labelledby="shortcuts-dialog-title"
+      className="m-auto w-full max-w-md rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
+    >
+      <form method="dialog" className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 id="shortcuts-dialog-title" className="text-base font-semibold">
+            Keyboard shortcuts
+          </h2>
+          <button
+            value="close"
+            aria-label="Close keyboard shortcuts"
+            className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+          {SHORTCUTS.map(([keys, action]) => (
+            <React.Fragment key={keys}>
+              <dt>
+                <kbd className="px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 font-mono text-xs">
+                  {keys}
+                </kbd>
+              </dt>
+              <dd className="text-zinc-600 dark:text-zinc-300">{action}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+        <p className="text-xs text-zinc-400">
+          List shortcuts work when a task row has focus; press J to start.
+        </p>
+      </form>
+    </dialog>
+  );
+};

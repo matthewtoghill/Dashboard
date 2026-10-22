@@ -40,6 +40,12 @@ interface TaskRowProps {
   onRestore: (task: Task) => void;
   /** Drag handle supplied by ReorderableTaskList when manual sorting is active. */
   dragHandle?: React.ReactNode;
+  /** Inline title editing, controlled by App so the `e` shortcut can start it. */
+  isEditing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  /** Roving tabindex: exactly one row in the list is reachable with Tab. */
+  isTabStop: boolean;
+  onFocusRow: (taskId: string) => void;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({
@@ -53,10 +59,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   onArchive,
   onRestore,
   dragHandle,
+  isEditing,
+  onEditingChange: setIsEditing,
+  isTabStop,
+  onFocusRow,
 }) => {
   const isArchived = task.status === 'archived';
   const isDone = task.status === 'done' || (isArchived && task.completedAt !== null);
-  const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
 
   const [isAddingTag, setIsAddingTag] = useState(false);
@@ -142,7 +151,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   return (
     <div
       data-testid={`task-row-${task.id}`}
-      className={`group flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3.5 py-2.5 rounded-lg border transition-all duration-150 ${
+      data-task-row={task.id}
+      tabIndex={isTabStop ? 0 : -1}
+      role="group"
+      aria-label={`${task.title}${isDone ? ', completed' : ''}${isArchived ? ', archived' : ''}`}
+      onFocus={() => onFocusRow(task.id)}
+      className={`group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/70 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3.5 py-2.5 rounded-lg border transition-all duration-150 ${
         isSelected
           ? 'border-indigo-500 dark:border-indigo-500 ring-1 ring-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-950/20'
           : isDone
