@@ -13,6 +13,7 @@ import {
   Clock,
   Eye,
   Edit3,
+  Repeat,
 } from 'lucide-react';
 import {
   Task,
@@ -21,7 +22,120 @@ import {
   TaskStatus,
   UpdateTaskInput,
 } from '../../shared/types.ts';
-import { formatTimestamp } from '../utils/taskUtils.ts';
+import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.ts';
+import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
+
+const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
+  { key: 'none', label: 'Does not repeat', rule: null },
+  { key: 'daily', label: 'Daily', rule: { every: 1, unit: 'day', from: 'due' } },
+  { key: 'weekdays', label: 'Every weekday', rule: { every: 1, unit: 'weekday', from: 'due' } },
+  { key: 'weekly', label: 'Weekly', rule: { every: 1, unit: 'week', from: 'due' } },
+  { key: 'monthly', label: 'Monthly', rule: { every: 1, unit: 'month', from: 'due' } },
+];
+
+const presetKey = (rule: Recurrence | null) =>
+  REPEAT_PRESETS.find(
+    (p) =>
+      p.rule === rule ||
+      (p.rule &&
+        rule &&
+        p.rule.every === rule.every &&
+        p.rule.unit === rule.unit &&
+        p.rule.from === rule.from)
+  )?.key ?? 'custom';
+
+/** Repeat picker: common presets, or "Custom" for every N days/weeks/months/weekdays. */
+const RecurrenceEditor: React.FC<{
+  rule: Recurrence | null;
+  dueDate: string | null;
+  onChange: (rule: Recurrence | null) => void;
+}> = ({ rule, dueDate, onChange }) => {
+  const [customOpen, setCustomOpen] = useState(presetKey(rule) === 'custom');
+  const [everyDraft, setEveryDraft] = useState(String(rule?.every ?? 2));
+  const custom: Recurrence = rule ?? { every: 2, unit: 'week', from: 'due' };
+  const selectClass =
+    'text-xs px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer';
+
+  const commitEvery = () => {
+    const every = Math.min(Math.max(Math.round(Number(everyDraft)) || 1, 1), 365);
+    setEveryDraft(String(every));
+    if (every !== custom.every) onChange({ ...custom, every });
+  };
+
+  return (
+    <div className="space-y-2">
+      <select
+        aria-label="Repeat"
+        value={customOpen ? 'custom' : presetKey(rule)}
+        onChange={(e) => {
+          if (e.target.value === 'custom') {
+            setCustomOpen(true);
+            setEveryDraft(String(custom.every));
+            onChange(custom);
+            return;
+          }
+          setCustomOpen(false);
+          onChange(REPEAT_PRESETS.find((p) => p.key === e.target.value)!.rule);
+        }}
+        className={`w-full ${selectClass}`}
+      >
+        {REPEAT_PRESETS.map((p) => (
+          <option key={p.key} value={p.key}>
+            {p.label}
+          </option>
+        ))}
+        <option value="custom">Custom…</option>
+      </select>
+
+      {customOpen && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+          <span>Every</span>
+          <input
+            type="number"
+            min={1}
+            max={365}
+            aria-label="Repeat interval"
+            value={everyDraft}
+            onChange={(e) => setEveryDraft(e.target.value)}
+            onBlur={commitEvery}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            className="w-14 px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+          />
+          <select
+            aria-label="Repeat unit"
+            value={custom.unit}
+            onChange={(e) => onChange({ ...custom, unit: e.target.value as Recurrence['unit'] })}
+            className={selectClass}
+          >
+            <option value="day">days</option>
+            <option value="weekday">weekdays</option>
+            <option value="week">weeks</option>
+            <option value="month">months</option>
+          </select>
+          <span>from</span>
+          <select
+            aria-label="Repeat from"
+            value={custom.from}
+            onChange={(e) => onChange({ ...custom, from: e.target.value as Recurrence['from'] })}
+            className={selectClass}
+          >
+            <option value="due">the due date</option>
+            <option value="completion">completion</option>
+          </select>
+        </div>
+      )}
+
+      {rule && (
+        <p className="text-[11px] text-zinc-400">
+          {describeRecurrence(rule)}. Completing it today creates the next one, due{' '}
+          {formatDayDate(nextOccurrence(rule, dueDate, getTodayIso()))}.
+        </p>
+      )}
+    </div>
+  );
+};
 
 interface TaskDetailDrawerProps {
   task: Task | null;
@@ -245,6 +359,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
           {/* Metadata Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/70 dark:border-zinc-800">
+            {/* Repeat (full width) */}
+            <div className="space-y-1 sm:col-span-3 sm:order-last">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                <Repeat className="w-3 h-3" />
+                <span>Repeat</span>
+              </label>
+              <RecurrenceEditor
+                key={task.id}
+                rule={task.recurrence}
+                dueDate={task.dueDate}
+                onChange={(recurrence) => onUpdateTask(task.id, { recurrence })}
+              />
+            </div>
+
             {/* Priority */}
             <div className="space-y-1">
               <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">

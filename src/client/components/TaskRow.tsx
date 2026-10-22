@@ -14,6 +14,7 @@ import {
   PanelRightOpen,
   Archive,
   ArchiveRestore,
+  Repeat,
 } from 'lucide-react';
 import {
   Task,
@@ -21,6 +22,7 @@ import {
   TaskPriority,
   UpdateTaskInput,
 } from '../../shared/types.ts';
+import { describeRecurrence } from '../../shared/recurrence.ts';
 import {
   PRIORITY_CONFIG,
   getDueDateInfo,
@@ -248,6 +250,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 >
                   <AlignLeft className="w-2.5 h-2.5" />
                 </button>
+              )}
+
+              {/* Repeat Indicator */}
+              {task.recurrence && (
+                <span
+                  role="img"
+                  aria-label={`Repeats: ${describeRecurrence(task.recurrence)}`}
+                  title={describeRecurrence(task.recurrence)}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                >
+                  <Repeat className="w-2.5 h-2.5" />
+                </span>
               )}
 
               {/* Tag Pills */}

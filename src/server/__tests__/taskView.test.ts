@@ -35,6 +35,8 @@ function task(overrides: Partial<Task>): Task {
     createdAt: seq,
     updatedAt: seq,
     statusBeforeArchive: null,
+    recurrence: null,
+    recurrenceParentId: null,
     subtasks: [],
     ...overrides,
   };

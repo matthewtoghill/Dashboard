@@ -22,6 +22,7 @@ import {
   Trash2,
   Archive,
   ArchiveRestore,
+  Repeat,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -67,6 +68,7 @@ import {
   ToastState,
 } from './components/Feedback.tsx';
 import { DeferredHandle, useDeferredDelete } from './utils/useDeferredDelete.ts';
+import { describeRecurrence, nextOccurrence } from '../shared/recurrence.ts';
 import {
   ActiveNavigation,
   DEFAULT_VIEW_STATE,
@@ -308,6 +310,11 @@ export const App: React.FC = () => {
         queryClient.setQueryData(['tasks'], context.previous);
       }
     },
+    onSuccess: (result) => {
+      if (result.keptOccurrenceId) {
+        showToast('Its next occurrence was already edited, so it was kept');
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
@@ -425,6 +432,7 @@ export const App: React.FC = () => {
       projectId: parsed.projectId,
       dueDate: parsed.dueDate,
       tags: parsed.tags,
+      recurrence: parsed.recurrence,
     });
 
     setNewTitle('');
@@ -445,6 +453,7 @@ export const App: React.FC = () => {
       projectId: parsed.projectId,
       dueDate: parsed.dueDate,
       tags: parsed.tags,
+      recurrence: parsed.recurrence,
     });
   };
 
@@ -455,7 +464,11 @@ export const App: React.FC = () => {
     }
     const previous = task.status === 'in_progress' ? 'in_progress' : 'todo';
     updateTaskMutation.mutate({ id: task.id, payload: { status: 'done' } });
-    showToast(`Completed "${task.title}"`, () =>
+    const nextDue = task.recurrence
+      ? ` · next due ${formatDayDate(nextOccurrence(task.recurrence, task.dueDate, getTodayIso()))}`
+      : '';
+    // Undo reopens the task; the server then also withdraws the untouched next occurrence
+    showToast(`Completed "${task.title}"${nextDue}`, () =>
       updateTaskMutation.mutate({ id: task.id, payload: { status: previous } })
     );
   };
@@ -1096,7 +1109,7 @@ export const App: React.FC = () => {
                       type="text"
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="Add a task... e.g. Call Sam !high #work @fri or @+3d (Shortcut: N)"
+                      placeholder="Add a task... e.g. Call Sam !high #work @fri ~weekly (Shortcut: N)"
                       aria-label="New task title"
                       className="w-full py-3 pr-4 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none"
                     />
@@ -1154,6 +1167,12 @@ export const App: React.FC = () => {
                           #{tag}
                         </span>
                       ))}
+                      {newTaskPreview.recurrence && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
+                          <Repeat className="w-3 h-3" />
+                          {describeRecurrence(newTaskPreview.recurrence)}
+                        </span>
+                      )}
                     </div>
                   )}
 

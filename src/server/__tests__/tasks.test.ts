@@ -467,6 +467,8 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         createdAt: now,
         updatedAt: now,
         statusBeforeArchive: null,
+        recurrence: null,
+        recurrenceParentId: null,
         subtasks: [],
       },
     ];

@@ -47,6 +47,16 @@ describe('quick-add dates', () => {
     expect(parsed.dueDate).toBe('2026-10-23');
     expect(parsed.priority).toBe(3);
 
+    const repeating = parseQuickAddSyntax('Pay rent ~monthly @eom ~nope', [], defaults, thursday);
+    expect(repeating.title).toBe('Pay rent ~nope');
+    expect(repeating.recurrence).toEqual({ every: 1, unit: 'month', from: 'due' });
+    expect(repeating.dueDate).toBe('2026-10-31');
+    expect(parseQuickAddSyntax('Stretch ~2w!', [], defaults, thursday).recurrence).toEqual({
+      every: 2,
+      unit: 'week',
+      from: 'completion',
+    });
+
     // Only tokens: fall back to the raw text as the title
     expect(parseQuickAddSyntax('@today', [], defaults, thursday).title).toBe('@today');
   });

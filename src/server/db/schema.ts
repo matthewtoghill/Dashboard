@@ -24,6 +24,8 @@ export const tasks = sqliteTable('tasks', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   statusBeforeArchive: text('status_before_archive', { enum: ['todo', 'in_progress', 'done'] }),
+  recurrence: text('recurrence'), // JSON Recurrence, see shared/recurrence.ts
+  recurrenceParentId: text('recurrence_parent_id'),
 });
 
 export const subtasks = sqliteTable('subtasks', {

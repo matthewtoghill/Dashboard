@@ -61,6 +61,14 @@ export const MIGRATIONS: string[] = [
 
   // 1: remember a task's status when it is archived, so restore can return it there
   `ALTER TABLE tasks ADD COLUMN status_before_archive TEXT;`,
+
+  // 2: recurring tasks. recurrence is JSON (see shared/recurrence.ts); recurrence_parent_id
+  // links an occurrence to the completed task that spawned it.
+  `
+    ALTER TABLE tasks ADD COLUMN recurrence TEXT;
+    ALTER TABLE tasks ADD COLUMN recurrence_parent_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_parent_id ON tasks(recurrence_parent_id);
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

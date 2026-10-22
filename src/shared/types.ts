@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RecurrenceSchema } from './recurrence.ts';
 
 export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'done', 'archived']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
@@ -80,6 +81,9 @@ export const TaskSchema = z.object({
   updatedAt: z.number(),
   /** Set while archived: the status a restore returns the task to. */
   statusBeforeArchive: UnarchivedStatusSchema.nullable().optional().default(null),
+  recurrence: RecurrenceSchema.nullable().optional().default(null),
+  /** The completed task this occurrence was spawned from. */
+  recurrenceParentId: z.string().nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;
@@ -92,6 +96,7 @@ export const CreateTaskInputSchema = z.object({
   projectId: z.string().nullable().optional().default(null),
   tags: z.array(z.string()).optional().default([]),
   dueDate: IsoDateSchema.nullable().optional().default(null),
+  recurrence: RecurrenceSchema.nullable().optional().default(null),
 });
 export type CreateTaskInput = z.input<typeof CreateTaskInputSchema>;
 
@@ -104,6 +109,7 @@ export const UpdateTaskInputSchema = z.object({
   tags: z.array(z.string()).optional(),
   dueDate: IsoDateSchema.nullable().optional(),
   sortOrder: z.number().optional(),
+  recurrence: RecurrenceSchema.nullable().optional(),
 });
 export type UpdateTaskInput = z.input<typeof UpdateTaskInputSchema>;
 

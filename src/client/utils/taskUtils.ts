@@ -1,4 +1,6 @@
 import { Project, Task, TaskPriority, TaskStatus } from '../../shared/types.ts';
+import { addDays, addMonthsClamped, toIsoDate } from '../../shared/dates.ts';
+import { Recurrence, parseRecurrenceToken } from '../../shared/recurrence.ts';
 
 export const PRIORITY_CONFIG: Record<
   TaskPriority,
@@ -60,11 +62,7 @@ export const PROJECT_COLORS = [
 ];
 
 export function formatIsoDateFromTimestamp(ts: number): string {
-  const d = new Date(ts);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return toIsoDate(new Date(ts));
 }
 
 export function getTodayIso(): string {
@@ -177,20 +175,6 @@ const WEEKDAYS: Record<string, number> = {
   sat: 6, saturday: 6,
 };
 
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-/** Adds calendar months, clamping to the target month's last day (31 Jan + 1 = 28/29 Feb). */
-function addMonthsClamped(date: Date, months: number): Date {
-  const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
-  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-  target.setDate(Math.min(date.getDate(), lastDay));
-  return target;
-}
-
 /** Next given weekday strictly after `today` (so `mon` on a Monday is a week away). */
 function nextWeekday(today: Date, weekday: number): Date {
   return addDays(today, (weekday - today.getDay() + 7) % 7 || 7);
@@ -231,7 +215,8 @@ export function resolveDateToken(word: string, today: Date = new Date()): string
  * - `!urgent` / `!p4`, `!high` / `!p3`, `!med` / `!medium` / `!p2`, `!low` / `!p1`
  * - `@` dates: see `resolveDateToken` (`@today`, `@fri`, `@+3d`, `@2026-11-01`, ...)
  * - `#projectName` (if matching an existing project name, case-insensitive) or `#tag`
- * Unrecognised `@words` stay in the title.
+ * - `~` repeats: see `parseRecurrenceToken` (`~daily`, `~weekdays`, `~2w`, `~2w!`, ...)
+ * Unrecognised `@words` and `~words` stay in the title.
  */
 export function parseQuickAddSyntax(
   rawInput: string,
@@ -249,8 +234,10 @@ export function parseQuickAddSyntax(
   projectId: string | null;
   dueDate: string | null;
   tags: string[];
+  recurrence: Recurrence | null;
 } {
   let priority = defaults.priority;
+  let recurrence: Recurrence | null = null;
   let projectId = defaults.projectId;
   let dueDate = defaults.dueDate;
   const tags = [...defaults.tags];
@@ -301,6 +288,14 @@ export function parseQuickAddSyntax(
       continue;
     }
 
+    if (token.startsWith('~') && token.length > 1) {
+      const rule = parseRecurrenceToken(token.slice(1));
+      if (rule) {
+        recurrence = rule;
+        continue;
+      }
+    }
+
     keptTokens.push(token);
   }
 
@@ -312,6 +307,7 @@ export function parseQuickAddSyntax(
     projectId,
     dueDate,
     tags,
+    recurrence,
   };
 }
 

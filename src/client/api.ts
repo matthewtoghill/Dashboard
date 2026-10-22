@@ -37,7 +37,17 @@ export async function createTask(input: CreateTaskInput): Promise<Task> {
   return data.task;
 }
 
-export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
+export interface UpdateTaskResult {
+  task: Task;
+  /** Recurring task completed: the next occurrence created. */
+  spawnedTaskId?: string;
+  /** Recurring task reopened: its untouched next occurrence was removed... */
+  removedOccurrenceId?: string;
+  /** ...or kept, because it had already been edited. */
+  keptOccurrenceId?: string;
+}
+
+export async function updateTask(id: string, input: UpdateTaskInput): Promise<UpdateTaskResult> {
   const res = await fetch(`/api/tasks/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -46,8 +56,7 @@ export async function updateTask(id: string, input: UpdateTaskInput): Promise<Ta
   if (!res.ok) {
     throw new Error(`Failed to update task: ${res.statusText}`);
   }
-  const data = (await res.json()) as { task: Task };
-  return data.task;
+  return (await res.json()) as UpdateTaskResult;
 }
 
 export async function deleteTask(id: string): Promise<void> {

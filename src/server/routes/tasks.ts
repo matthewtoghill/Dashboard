@@ -14,6 +14,8 @@ import {
   TaskPriority,
   TaskStatus,
 } from '../../shared/types.ts';
+import { Recurrence, RecurrenceSchema, nextOccurrence } from '../../shared/recurrence.ts';
+import { toIsoDate } from '../../shared/dates.ts';
 
 function serializeSubtask(row: DbSubtask): Subtask {
   return {
@@ -23,6 +25,89 @@ function serializeSubtask(row: DbSubtask): Subtask {
     isCompleted: Boolean(row.isCompleted),
     sortOrder: row.sortOrder,
   };
+}
+
+function parseRecurrence(json: string | null): Recurrence | null {
+  if (!json) return null;
+  try {
+    const parsed = RecurrenceSchema.safeParse(JSON.parse(json));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+const stringifyRecurrence = (rule: Recurrence | null) => (rule ? JSON.stringify(rule) : null);
+
+/**
+ * Creates the next occurrence of a just-completed recurring task: same details, subtasks
+ * reset, due on the next date. At most one occurrence per parent. Returns its id.
+ */
+function spawnNextOccurrence(
+  db: AppDatabase,
+  completed: DbTask,
+  rule: Recurrence,
+  now: number
+): string | undefined {
+  const existing = db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(eq(tasks.recurrenceParentId, completed.id))
+    .get();
+  if (existing) return undefined;
+
+  const id = crypto.randomUUID();
+  db.insert(tasks)
+    .values({
+      id,
+      title: completed.title,
+      description: completed.description,
+      status: 'todo',
+      priority: completed.priority,
+      projectId: completed.projectId,
+      tags: completed.tags,
+      dueDate: nextOccurrence(rule, completed.dueDate, toIsoDate(new Date(now))),
+      sortOrder: completed.sortOrder, // takes the completed task's place in manual order
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      recurrence: completed.recurrence,
+      recurrenceParentId: completed.id,
+    })
+    .run();
+
+  for (const sub of db.select().from(subtasks).where(eq(subtasks.taskId, completed.id)).all()) {
+    db.insert(subtasks)
+      .values({
+        id: crypto.randomUUID(),
+        taskId: id,
+        title: sub.title,
+        isCompleted: 0,
+        sortOrder: sub.sortOrder,
+      })
+      .run();
+  }
+  return id;
+}
+
+/**
+ * When a completed recurring task is reopened, remove the occurrence it spawned if nobody has
+ * touched it yet; otherwise keep it. Returns which happened.
+ */
+function withdrawNextOccurrence(
+  db: AppDatabase,
+  parentId: string
+): { removedOccurrenceId?: string; keptOccurrenceId?: string } {
+  const child = db.select().from(tasks).where(eq(tasks.recurrenceParentId, parentId)).get();
+  if (!child) return {};
+  const subs = db.select().from(subtasks).where(eq(subtasks.taskId, child.id)).all();
+  const untouched =
+    child.status === 'todo' &&
+    child.updatedAt === child.createdAt &&
+    subs.every((s) => !s.isCompleted);
+  if (!untouched) return { keptOccurrenceId: child.id };
+  db.delete(tasks).where(eq(tasks.id, child.id)).run();
+  return { removedOccurrenceId: child.id };
 }
 
 export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
@@ -50,6 +135,8 @@ export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     statusBeforeArchive: row.statusBeforeArchive ?? null,
+    recurrence: parseRecurrence(row.recurrence),
+    recurrenceParentId: row.recurrenceParentId ?? null,
     subtasks: taskSubtasks,
   };
 }
@@ -116,6 +203,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       completedAt: isDone ? now : null,
       createdAt: now,
       updatedAt: now,
+      recurrence: stringifyRecurrence(input.recurrence),
     };
 
     db.insert(tasks).values(newTask).run();
@@ -159,24 +247,41 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       statusBeforeArchive = null;
     }
 
-    db.update(tasks)
-      .set({
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.status !== undefined ? { status: input.status } : {}),
-        ...(input.priority !== undefined ? { priority: input.priority } : {}),
-        ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
-        ...(input.tags !== undefined ? { tags: JSON.stringify(input.tags) } : {}),
-        ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-        completedAt,
-        statusBeforeArchive,
-        updatedAt: now,
-      })
-      .where(eq(tasks.id, id))
-      .run();
+    const completing = input.status === 'done' && existing.status !== 'done';
+    const reopening =
+      (input.status === 'todo' || input.status === 'in_progress') && existing.status === 'done';
 
-    return { task: getTaskWithSubtasks(id)! };
+    const outcome = db.transaction(() => {
+      db.update(tasks)
+        .set({
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+          ...(input.tags !== undefined ? { tags: JSON.stringify(input.tags) } : {}),
+          ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+          ...(input.recurrence !== undefined
+            ? { recurrence: stringifyRecurrence(input.recurrence) }
+            : {}),
+          completedAt,
+          statusBeforeArchive,
+          updatedAt: now,
+        })
+        .where(eq(tasks.id, id))
+        .run();
+
+      const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()!;
+      const rule = parseRecurrence(updated.recurrence);
+      if (completing && rule) {
+        return { spawnedTaskId: spawnNextOccurrence(db, updated, rule, now) };
+      }
+      if (reopening) return withdrawNextOccurrence(db, id);
+      return {};
+    });
+
+    return { task: getTaskWithSubtasks(id)!, ...outcome };
   });
 
   // DELETE /api/tasks/:id
