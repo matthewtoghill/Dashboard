@@ -6,7 +6,7 @@ Actionable plan for the ten follow-up features identified in the post-Stage-4 re
 
 | # | Feature | Status | Effort | Phase |
 | :- | :--- | :--- | :- | :- |
-| P0–P2 | Prerequisites (version control, migrations, view-logic extraction) | Not started | M | 0 |
+| P0–P2 | Prerequisites (version control, migrations, view-logic extraction) | **Done** | M | 0 |
 | 1 | Recurring tasks | Not started | L | B |
 | 2 | Undo for delete, complete and clear | Partial (delete, archive) | S | A |
 | 3 | Archive instead of delete | Implemented, gaps remain | S | A |
@@ -54,29 +54,30 @@ flowchart LR
 
 ### P0. Version control
 The repository is not under git, so none of this work can be reviewed as a diff or rolled back.
-- [ ] `git init`, check `.gitignore` covers `data/`, `dist/`, `node_modules/` and `tsconfig.tsbuildinfo` (add the last one).
-- [ ] Baseline commit of the current state before any Stage 5 work (needs the owner's go-ahead per commit rules).
-- [ ] One branch (or at least one commit) per feature below.
+- [x] `git init`, check `.gitignore` covers `data/`, `dist/`, `node_modules/` and `tsconfig.tsbuildinfo` (add the last one).
+- [x] Baseline commit of the current state before any Stage 5 work (needs the owner's go-ahead per commit rules).
+- [x] One branch (or at least one commit) per feature below. Phase 0 is on `stage5/phase-0`, one commit per item.
 
 ### P1. Schema migrations
 Today the schema is created by `CREATE TABLE IF NOT EXISTS` in `src/server/db/index.ts`, which never alters an existing table. Feature 1 (and the archive gap in feature 3) need new columns, so this is a hard prerequisite.
 
 Design: a numbered migration list keyed on `PRAGMA user_version`. No new dependency (`drizzle-kit` stays unused).
-- [ ] `src/server/db/migrations.ts`: `export const MIGRATIONS: string[]`, where index 0 is the existing `CREATE TABLE`/`CREATE INDEX` SQL moved out of `db/index.ts`.
-- [ ] In `createDatabase`: read `user_version`; run each pending migration and bump `user_version` inside one transaction. Existing databases (version 0 with tables present) must not fail: migration 0 keeps `IF NOT EXISTS`.
-- [ ] Keep `src/server/db/schema.ts` (Drizzle) in sync with every migration.
-- [ ] Test: create a DB file with only the old v0 schema, open it with `createDatabase`, assert new columns exist and existing rows survive.
+- [x] `src/server/db/migrations.ts`: `export const MIGRATIONS: string[]`, where index 0 is the existing `CREATE TABLE`/`CREATE INDEX` SQL moved out of `db/index.ts`.
+- [x] In `createDatabase`: read `user_version`; run each pending migration and bump `user_version` inside one transaction. Existing databases (version 0 with tables present) must not fail: migration 0 keeps `IF NOT EXISTS`.
+- [x] Keep `src/server/db/schema.ts` (Drizzle) in sync with every migration.
+- [x] Tests (`__tests__/migrations.test.ts`): a pre-migration DB upgrades with rows intact; migrations apply in order and a failing one rolls back cleanly; a DB from a newer app version is refused. Also verified on a copy of the real `data/dashboard.db` (v0 → v1, all rows intact).
 
 ### P2. Extract view logic from `App.tsx`
 Filtering, sorting and grouping live inline in `App.tsx` (about 150 lines). Keyboard navigation (6) needs the flattened visible order, and saved views (10) need to serialise and reapply the same filter state.
-- [ ] New `src/client/utils/taskView.ts` with pure functions:
+- [x] New `src/client/utils/taskView.ts` with pure functions:
   - `filterTasks(tasks, { nav, search, priority, projects, today })`
   - `sortTasks(tasks, sortBy)`
   - `groupTasks(tasks, groupBy, projects)` returning `{ key, label, tasks }[]`
-  - `visibleTaskOrder(sections, completedSection, showCompleted)` returning the flat list of task ids exactly as rendered.
-- [ ] Define `ViewState = { nav, search, priority, groupBy, sortBy }` here; `App.tsx` holds one `ViewState` instead of five separate `useState` calls.
-- [ ] `App.tsx` calls these functions; behaviour must not change.
-- [ ] Tests: Today/Upcoming/Completed/Archive filters, search across title/description/tag/project, each sort (including manual ties), each grouping, and that archived tasks appear only in the Archive view.
+  - `visibleTaskOrder(model, showCompleted)` returning the flat list of task ids exactly as rendered.
+  - Built as `buildTaskList(tasks, view, projects, today)`, which returns `{ filtered, active, completed, sections, completedSection }`, plus `viewTitle(nav, projects)`.
+- [x] Define `ViewState = { nav, search, priority, groupBy, sortBy }` here; `App.tsx` holds one `ViewState` instead of five separate `useState` calls.
+- [x] `App.tsx` calls these functions; behaviour must not change.
+- [x] Tests: Today/Upcoming/Completed/Archive filters, search across title/description/tag/project, each sort (including manual ties), each grouping, and that archived tasks appear only in the Archive view.
 
 ---
 
