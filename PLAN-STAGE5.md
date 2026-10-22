@@ -8,11 +8,11 @@ Actionable plan for the ten follow-up features identified in the post-Stage-4 re
 | :- | :--- | :--- | :- | :- |
 | P0–P2 | Prerequisites (version control, migrations, view-logic extraction) | **Done** | M | 0 |
 | 1 | Recurring tasks | Not started | L | B |
-| 2 | Undo for delete, complete and clear | Partial (delete, archive) | S | A |
-| 3 | Archive instead of delete | Implemented, gaps remain | S | A |
-| 4 | Drag-to-reorder (manual sort) | Implemented, gaps remain | S | A |
-| 5 | Natural-language dates in quick-add | Not started | S | A |
-| 6 | Keyboard navigation of the task list | Not started | M | A |
+| 2 | Undo for delete, complete and clear | **Done** | S | A |
+| 3 | Archive instead of delete | **Done** | S | A |
+| 4 | Drag-to-reorder (manual sort) | **Done** (touch: verify on a real device) | S | A |
+| 5 | Natural-language dates in quick-add | **Done** | S | A |
+| 6 | Keyboard navigation of the task list | **Done** | M | A |
 | 7 | Automatic local backups | Not started | S | B |
 | 8 | Real markdown in notes | Not started | M | C |
 | 9 | Completion trends and per-project progress | Not started | M | C |
@@ -87,59 +87,64 @@ Filtering, sorting and grouping live inline in `App.tsx` (about 150 lines). Keyb
 **State:** Delete (tasks, subtasks, projects, quick links, bulk archived delete) uses deferred commit with Undo (`utils/useDeferredDelete.ts`, `components/Feedback.tsx`). "Clear completed" now archives with Undo. **Completing a task has no undo.**
 
 Remaining work:
-- [ ] Completion undo: when `handleToggleTask` marks a task done from a row, show `Completed "<title>"` with Undo. Undo PATCHes the task back to its **previous** status (`todo` or `in_progress`, captured before the toggle), and the server clears `completedAt`. With feature 1, Undo must also remove the spawned next occurrence (see feature 1).
-- [ ] `Ctrl+Z` / `Cmd+Z` runs the current toast's Undo when focus is not in a text field (add to the global key handler in `App.tsx`; it must not hijack undo inside inputs).
-- [ ] Accessibility (WCAG 2.2.1, timing adjustable): pause the toast's dismiss timer while it is hovered or focused. The deferred-delete timer must pause and resume with it, so Undo never appears available after the delete has been sent. Extend `useDeferredDelete` with `pause(key)` / `resume(key)`.
-- [ ] Decide and document what happens when a second toast replaces the first. Current behaviour: the first action's Undo is no longer reachable, but its delete still commits on time. That is acceptable; note it in `Feedback.tsx`.
+- [x] Completion undo: when `handleToggleTask` marks a task done from a row, show `Completed "<title>"` with Undo. Undo PATCHes the task back to its **previous** status (`todo` or `in_progress`, captured before the toggle), and the server clears `completedAt`. With feature 1, Undo must also remove the spawned next occurrence (see feature 1).
+- [x] `Ctrl+Z` / `Cmd+Z` runs the current toast's Undo when focus is not in a text field (add to the global key handler in `App.tsx`; it must not hijack undo inside inputs).
+- [x] Accessibility (WCAG 2.2.1, timing adjustable): pause the toast's dismiss timer while it is hovered or focused. The deferred-delete timer must pause and resume with it, so Undo never appears available after the delete has been sent. Extend `useDeferredDelete` with `pause(key)` / `resume(key)`.
+- [x] Decide and document what happens when a second toast replaces the first. Current behaviour: the first action's Undo is no longer reachable, but its delete still commits on time. That is acceptable; note it in `Feedback.tsx`.
 
 Acceptance:
-- [ ] Complete → Undo restores the exact prior status and leaves `completedAt` null.
-- [ ] Hovering the toast for 10 seconds, then clicking Undo, still restores the item; the server never received the DELETE.
-- [ ] `Ctrl+Z` in the quick-add input undoes typing, not the last action.
+- [x] Complete → Undo restores the exact prior status and leaves `completedAt` null.
+- [x] Hovering the toast for 10 seconds, then clicking Undo, still restores the item; the server never received the DELETE.
+- [x] `Ctrl+Z` in the quick-add input undoes typing, not the last action.
 
 ### 3. Archive instead of delete
 **State:** Implemented. Archive view in the sidebar and command palette; row Archive/Restore; drawer status "Archived"; bulk archive/restore/delete routes (`/api/tasks/bulk-*`); archiving keeps `completedAt`; archived completions count towards "done today" and the streak.
 
 Verification checklist (run before closing):
-- [ ] Archived tasks are hidden from Inbox, Today, Upcoming, Completed, project and tag views, from sidebar counts, and from the tag list.
-- [ ] Search inside the Archive view filters archived tasks only.
-- [ ] Bulk archive from Completed archives only the tasks shown (search and priority filter respected); the confirmation names the scope correctly in Inbox, project, tag and Completed views.
-- [ ] "Archive all completed" from the command palette covers every project.
-- [ ] Restore returns completed tasks to Completed with the original `completedAt`.
-- [ ] JSON export includes archived tasks; import restores them as archived; CSV shows status `archived`.
+- [x] Archived tasks are hidden from Inbox, Today, Upcoming, Completed, project and tag views, from sidebar counts, and from the tag list.
+- [x] Search inside the Archive view filters archived tasks only.
+- [x] Bulk archive from Completed archives only the tasks shown (search and priority filter respected); the confirmation names the scope correctly in Inbox, project, tag and Completed views.
+- [x] "Archive all completed" from the command palette covers every project.
+- [x] Restore returns completed tasks to Completed with the original `completedAt`.
+- [x] JSON export includes archived tasks; import restores them as archived; CSV shows status `archived`.
+
+Decisions (Phase A): progress excludes archived work and is labelled "Current progress"; the completion undo toast appears for the checkbox and the `x`/Space shortcut, not for the drawer's status dropdown.
 
 Gaps to fix:
-- [ ] **In-progress tasks restore as To Do.** Restore infers status from `completedAt`, so an archived `in_progress` task comes back as `todo`. Fix: migration (P1) adding `status_before_archive TEXT NULL`. Set it in `bulk-archive` and in the PATCH route when moving to `archived`; use it in `bulk-restore`, falling back to the current `completedAt` rule when null. Clear it on restore.
-- [ ] **Overall progress drops when tasks are archived.** `computeDashboardStats.completionRate` counts only `done`, so archiving completed work lowers the percentage (seen: 50% → 0%). Decide: (a) keep "progress of non-archived work" and relabel the card "Current progress"; or (b) count archived-with-`completedAt` as completed. Recommendation: (a). Archive means "out of sight", and the trend chart in feature 9 covers history.
-- [ ] Add an Archive action to the command palette for the task open in the drawer, and an `a` shortcut (feature 6).
-- [ ] Tests (in P2's `taskView` tests and the server tests): archive/restore of an `in_progress` task round-trips its status.
+- [x] **In-progress tasks restore as To Do.** Restore infers status from `completedAt`, so an archived `in_progress` task comes back as `todo`. Fix: migration (P1) adding `status_before_archive TEXT NULL`. Set it in `bulk-archive` and in the PATCH route when moving to `archived`; use it in `bulk-restore`, falling back to the current `completedAt` rule when null. Clear it on restore.
+- [x] **Overall progress drops when tasks are archived.** `computeDashboardStats.completionRate` counts only `done`, so archiving completed work lowers the percentage (seen: 50% → 0%). Decide: (a) keep "progress of non-archived work" and relabel the card "Current progress"; or (b) count archived-with-`completedAt` as completed. Recommendation: (a). Archive means "out of sight", and the trend chart in feature 9 covers history.
+- [x] Add an Archive action to the command palette for the task open in the drawer, and an `a` shortcut (feature 6).
+- [x] Tests (in P2's `taskView` tests and the server tests): archive/restore of an `in_progress` task round-trips its status.
 
 ### 4. Drag-to-reorder (manual sort)
 **State:** Implemented. `components/ReorderableTaskList.tsx` (native drag and drop, drop indicator, `Alt+↑/↓`, plain arrows on the handle), `sortOrderForMove` in `taskUtils.ts` (midpoint between neighbours) with a renumber fallback when there is no gap. Enabled only when Sort is Manual and Group is None.
 
 Verification checklist:
-- [ ] Drag to top, middle and bottom; drop on the top or bottom half of a row lands before or after it.
-- [ ] Order survives reload and is the same on another browser tab.
-- [ ] `Alt+↑/↓` does nothing when focus is in a `<select>` or input (no native dropdown hijack).
-- [ ] Tasks imported with identical `sortOrder` can still be reordered (renumber path).
-- [ ] New tasks appear at the top in Manual sort.
+- [x] Drag to top, middle and bottom; drop on the top or bottom half of a row lands before or after it.
+- [x] Order survives reload and is the same on another browser tab.
+- [x] `Alt+↑/↓` does nothing when focus is in a `<select>` or input (no native dropdown hijack).
+- [x] Tasks imported with identical `sortOrder` can still be reordered (renumber path).
+- [x] New tasks appear at the top in Manual sort.
 
 Gaps to fix:
-- [ ] **Touch devices.** HTML5 drag and drop is unreliable on touch screens. Verify on a phone or tablet. If it fails, add Move up/Move down items to a row overflow menu (the keyboard path already contains the logic: `onMove(id, index ± 1)`). Do not add a drag library unless this proves insufficient.
-- [ ] **Renumbering is client-side and partial.** The fallback sends one PATCH per task, and only for visible tasks (marked `ponytail:` in `App.tsx`). Replace it with `POST /api/tasks/reorder { ids: string[] }` that rewrites `sort_order` for those ids in one transaction, spacing them across the range they already occupy, so hidden tasks keep their relative position.
-- [ ] Out of scope (document only): reordering inside grouped views, and dragging between groups to change priority or project.
+- [x] **Touch devices.** Move up/Move down buttons replace the drag handle on coarse pointers (`pointer-coarse:` variant in `ReorderableTaskList.tsx`); the CSS rule and the desktop hiding are verified.
+- [ ] Check the Move up/down buttons on a real phone or tablet (not possible in this environment).
+- [x] **Renumbering is client-side and partial.** The fallback sends one PATCH per task, and only for visible tasks (marked `ponytail:` in `App.tsx`). Replace it with `POST /api/tasks/reorder { ids: string[] }` that rewrites `sort_order` for those ids in one transaction, spacing them across the range they already occupy, so hidden tasks keep their relative position.
+- [x] Out of scope (document only): reordering inside grouped views, and dragging between groups to change priority or project.
 
 ### 5. Natural-language dates in quick-add
 **State:** `parseQuickAddSyntax` (`utils/taskUtils.ts`) supports `@today`, `@tomorrow`/`@tmrw` and `@YYYY-MM-DD`.
 
 Scope:
-- [ ] Weekdays: `@mon` … `@sun` (also full names). Resolve to the **next** occurrence strictly after today, so `@mon` typed on a Monday means next Monday. Document this in the placeholder or help.
-- [ ] Relative: `@+3d`, `@+2w`, `@+1m` (month adds clamp to the month end: 31 Jan + 1m = 28/29 Feb).
-- [ ] `@next-week` means next Monday; `@eom` means the last day of this month.
-- [ ] All arithmetic on local calendar dates via `Date#setDate`/`setMonth` with clamping; output through `formatIsoDateFromTimestamp`. No date library.
-- [ ] Inject `today` for testability: `parseQuickAddSyntax(input, projects, defaults, today = new Date())`.
-- [ ] **Live preview chips** under the quick-add input showing what will be applied (for example `Due Mon 27 Oct · High · Work · #auth`). This makes the syntax discoverable. Compute with the same parser on each keystroke (cheap).
-- [ ] The scratchpad "Convert top line to Task" uses the same parser, so it gains this for free; verify.
+Implemented as `resolveDateToken` in `utils/taskUtils.ts` (tests in `__tests__/quickAdd.test.ts`).
+
+- [x] Weekdays: `@mon` … `@sun` (also full names). Resolve to the **next** occurrence strictly after today, so `@mon` typed on a Monday means next Monday. Document this in the placeholder or help.
+- [x] Relative: `@+3d`, `@+2w`, `@+1m` (month adds clamp to the month end: 31 Jan + 1m = 28/29 Feb).
+- [x] `@next-week` means next Monday; `@eom` means the last day of this month.
+- [x] All arithmetic on local calendar dates via `Date#setDate`/`setMonth` with clamping; output through `formatIsoDateFromTimestamp`. No date library.
+- [x] Inject `today` for testability: `parseQuickAddSyntax(input, projects, defaults, today = new Date())`.
+- [x] **Live preview chips** under the quick-add input showing what will be applied (for example `Due Mon 27 Oct · High · Work · #auth`). This makes the syntax discoverable. Compute with the same parser on each keystroke (cheap).
+- [x] The scratchpad "Convert top line to Task" uses the same parser, so it gains this for free; verify.
 
 Tests: each token on a fixed `today` (including a Monday, the 31st of a month, and the 29th of February), unknown tokens left in the title, and a title that is only tokens (falls back to the raw text, as today).
 
@@ -165,11 +170,11 @@ Design:
 | `Esc` | Clear row focus |
 
 Tasks:
-- [ ] Inline rename is internal state in `TaskRow`. Lift it to a prop: `editing` plus `onEditingChange`, so `e` can start it.
-- [ ] After toggle, archive or delete removes the row from the view, move focus to the next row (or the previous one if it was last).
-- [ ] `scrollIntoView({ block: 'nearest' })` when focus moves.
-- [ ] `?` opens a native `<dialog>` (reuse the `ConfirmDialog` styling) listing all shortcuts; update the command palette footer text.
-- [ ] Ensure `↑/↓` don't conflict with the reorder handle (handle arrows only act when the handle itself has focus).
+- [x] Inline rename is internal state in `TaskRow`. Lift it to a prop: `editing` plus `onEditingChange`, so `e` can start it.
+- [x] After toggle, archive or delete removes the row from the view, move focus to the next row (or the previous one if it was last).
+- [x] `scrollIntoView({ block: 'nearest' })` when focus moves.
+- [x] `?` opens a native `<dialog>` (reuse the `ConfirmDialog` styling) listing all shortcuts; update the command palette footer text.
+- [x] Ensure `↑/↓` don't conflict with the reorder handle (handle arrows only act when the handle itself has focus).
 
 Acceptance: complete a full triage of 10 tasks (navigate, prioritise, complete, archive, delete, rename) without touching the mouse; screen reader announces the focused task title.
 
