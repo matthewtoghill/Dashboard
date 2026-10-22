@@ -23,6 +23,7 @@ import {
   UpdateTaskInput,
 } from '../../shared/types.ts';
 import { describeRecurrence } from '../../shared/recurrence.ts';
+import { checklistProgress } from '../utils/markdown.ts';
 import {
   PRIORITY_CONFIG,
   getDueDateInfo,
@@ -149,6 +150,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const subtasks = task.subtasks ?? [];
   const completedSubtasks = subtasks.filter((s) => s.isCompleted).length;
   const hasNotes = Boolean(task.description && task.description.trim().length > 0);
+  const notesChecklist = hasNotes ? checklistProgress(task.description) : null;
 
   return (
     <div
@@ -244,11 +246,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelect?.(task)}
-                  aria-label={`View notes for "${task.title}"`}
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 cursor-pointer"
-                  title="Has markdown notes"
+                  aria-label={
+                    notesChecklist
+                      ? `View notes for "${task.title}", checklist ${notesChecklist.done} of ${notesChecklist.total} done`
+                      : `View notes for "${task.title}"`
+                  }
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 cursor-pointer"
+                  title={notesChecklist ? 'Notes checklist progress' : 'Has markdown notes'}
                 >
                   <AlignLeft className="w-2.5 h-2.5" />
+                  {notesChecklist && (
+                    <span>
+                      {notesChecklist.done}/{notesChecklist.total}
+                    </span>
+                  )}
                 </button>
               )}
 

@@ -24,6 +24,8 @@ import {
 } from '../../shared/types.ts';
 import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
+import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
+import { MarkdownNotes } from './MarkdownNotes.tsx';
 
 const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
   { key: 'none', label: 'Does not repeat', rule: null },
@@ -148,59 +150,6 @@ interface TaskDetailDrawerProps {
   onDeleteSubtask: (subtaskId: string) => void;
 }
 
-/**
- * Simple lightweight Markdown renderer for task notes preview.
- */
-function renderMarkdownPreview(text: string): React.ReactNode {
-  if (!text.trim()) {
-    return (
-      <p className="text-zinc-400 dark:text-zinc-500 italic text-xs">
-        No description provided. Click Edit to add markdown notes.
-      </p>
-    );
-  }
-
-  const lines = text.split('\n');
-  return (
-    <div className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200 leading-relaxed">
-      {lines.map((line, idx) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={idx} className="h-2" />;
-        if (trimmed.startsWith('### ')) {
-          return (
-            <h4 key={idx} className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 pt-1">
-              {trimmed.slice(4)}
-            </h4>
-          );
-        }
-        if (trimmed.startsWith('## ')) {
-          return (
-            <h3 key={idx} className="font-bold text-base text-zinc-900 dark:text-zinc-100 pt-1">
-              {trimmed.slice(3)}
-            </h3>
-          );
-        }
-        if (trimmed.startsWith('# ')) {
-          return (
-            <h2 key={idx} className="font-bold text-lg text-zinc-900 dark:text-zinc-100 pt-1">
-              {trimmed.slice(2)}
-            </h2>
-          );
-        }
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-          return (
-            <div key={idx} className="flex items-start gap-2 pl-2">
-              <span className="text-indigo-500 mt-1">•</span>
-              <span>{trimmed.slice(2)}</span>
-            </div>
-          );
-        }
-        return <p key={idx}>{line}</p>;
-      })}
-    </div>
-  );
-}
-
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   task,
   projects,
@@ -234,6 +183,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     }
   }, [task?.id, task?.title, task?.description]);
 
+  // Open notes rendered when there are any, so links and checkboxes work straight away.
+  useEffect(() => {
+    setIsPreviewingNotes(Boolean(task?.description.trim()));
+  }, [task?.id]);
+
   if (!task) return null;
 
   const subtasks = task.subtasks ?? [];
@@ -254,6 +208,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (description !== task.description) {
       onUpdateTask(task.id, { description });
     }
+  };
+
+  const handleToggleCheckbox = (line: number) => {
+    const next = toggleMarkdownCheckbox(description, line);
+    if (next === description) return;
+    setDescription(next);
+    onUpdateTask(task.id, { description: next });
   };
 
   const handleAddSubtask = (e: React.FormEvent) => {
@@ -600,10 +561,19 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             {isPreviewingNotes ? (
               <div
-                onClick={() => setIsPreviewingNotes(false)}
+                onClick={(e) => {
+                  // Links and checkboxes act on their own; clicking anywhere else edits.
+                  if (!(e.target as HTMLElement).closest('a, input')) setIsPreviewingNotes(false);
+                }}
                 className="min-h-[120px] p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 cursor-text"
               >
-                {renderMarkdownPreview(description)}
+                {description.trim() ? (
+                  <MarkdownNotes text={description} onToggleCheckbox={handleToggleCheckbox} />
+                ) : (
+                  <p className="text-zinc-400 dark:text-zinc-500 italic text-xs">
+                    No description provided. Click Edit to add markdown notes.
+                  </p>
+                )}
               </div>
             ) : (
               <textarea
