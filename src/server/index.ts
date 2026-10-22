@@ -7,6 +7,8 @@ import { createDatabase, AppDatabase } from './db/index.ts';
 import { registerTaskRoutes } from './routes/tasks.ts';
 import { registerProjectRoutes } from './routes/projects.ts';
 import { registerDashboardRoutes } from './routes/dashboard.ts';
+import { registerBackupRoutes } from './routes/backups.ts';
+import { backupDatabase, isDailyBackupDue, resolveBackupConfig } from './backup.ts';
 
 const ALLOWED_HOSTNAMES = new Set(
   ['localhost', '127.0.0.1', '[::1]', '::1', process.env.HOST].filter(Boolean)
@@ -41,9 +43,25 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
     }
   });
 
-  const { db, sqlite } = createDatabase(options?.dbPath);
+  const { db, sqlite, dbPath } = createDatabase(options?.dbPath);
+  const backupConfig = dbPath === ':memory:' ? null : resolveBackupConfig(dbPath);
+
+  // Daily backup: checked at startup and hourly, so frequent dev restarts don't pile up copies
+  let backupTimer: NodeJS.Timeout | undefined;
+  if (backupConfig) {
+    const dailyBackup = () => {
+      try {
+        if (isDailyBackupDue(backupConfig.dir)) backupDatabase(sqlite, backupConfig);
+      } catch (err) {
+        app.log.error(err, 'Daily backup failed');
+      }
+    };
+    dailyBackup();
+    backupTimer = setInterval(dailyBackup, 60 * 60 * 1000).unref();
+  }
 
   app.addHook('onClose', async () => {
+    clearInterval(backupTimer);
     sqlite.close();
   });
 
@@ -54,7 +72,11 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
 
   await registerTaskRoutes(app, db);
   await registerProjectRoutes(app, db);
-  await registerDashboardRoutes(app, db);
+  await registerDashboardRoutes(app, db, {
+    // Snapshot before an import changes data; null when backups are disabled
+    beforeImport: backupConfig ? () => backupDatabase(sqlite, backupConfig) : null,
+  });
+  await registerBackupRoutes(app, sqlite, backupConfig);
 
   // Serve built static client in production if dist exists
   const distPath = path.resolve(process.cwd(), 'dist');

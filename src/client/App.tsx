@@ -388,11 +388,8 @@ export const App: React.FC = () => {
 
   const importBackupMutation = useMutation({
     mutationFn: importDashboardData,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    },
+    // The server takes a safety backup first, so the backup list changes too
+    onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups'),
   });
 
   const handleAddQuickTag = () => {

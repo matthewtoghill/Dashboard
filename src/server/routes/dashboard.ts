@@ -44,7 +44,11 @@ function serializeQuickLink(row: DbQuickLink): QuickLink {
   };
 }
 
-export async function registerDashboardRoutes(app: FastifyInstance, db: AppDatabase) {
+export async function registerDashboardRoutes(
+  app: FastifyInstance,
+  db: AppDatabase,
+  options: { beforeImport: (() => void) | null } = { beforeImport: null }
+) {
   const getScratchpad = (): string => {
     const row = db
       .select()
@@ -205,6 +209,17 @@ export async function registerDashboardRoutes(app: FastifyInstance, db: AppDatab
     }
 
     const payload = parsed.data;
+
+    try {
+      options.beforeImport?.();
+    } catch (err) {
+      request.log.error(err, 'Pre-import backup failed');
+      return reply.status(500).send({
+        error: 'Import cancelled: could not create a safety backup first',
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     let importedProjects = 0;
     let importedTasks = 0;
     let importedQuickLinks = 0;

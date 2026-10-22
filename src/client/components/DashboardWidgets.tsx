@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Flame,
   CheckCircle2,
@@ -27,9 +28,10 @@ import {
 } from '../../shared/types.ts';
 import {
   computeDashboardStats,
+  formatRelativeTime,
   tasksToCsv,
 } from '../utils/taskUtils.ts';
-import { exportDashboardData, ImportResult } from '../api.ts';
+import { exportDashboardData, ImportResult, fetchBackups, createBackup } from '../api.ts';
 
 interface DashboardWidgetsProps {
   mode: 'full' | 'compact';
@@ -432,6 +434,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         </div>
       </div>
 
+      <BackupStatusLine />
+
       {importStatus && (
         <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
           {importStatus}
@@ -784,5 +788,52 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         )}
       </div>
     </div>
+  );
+};
+
+/** "Last backup: 3 hours ago · Back up now" for the Overview page. */
+const BackupStatusLine: React.FC = () => {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: ['backups'], queryFn: fetchBackups });
+  const backupNow = useMutation({
+    mutationFn: createBackup,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
+  });
+
+  if (!data) return null;
+  if (!data.enabled) {
+    return (
+      <p className="text-xs text-zinc-400">Automatic backups are off (in-memory database).</p>
+    );
+  }
+
+  const latest = data.backups[0];
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
+      <span
+        title={`Daily, before imports and before upgrades. Keeps the newest ${data.keep} in ${data.dir}. To restore: stop the server and copy a backup over the database file.`}
+      >
+        {latest
+          ? `Last backup: ${formatRelativeTime(latest.createdAt)}`
+          : 'No backups yet'}
+      </span>
+      <span aria-hidden>·</span>
+      <button
+        type="button"
+        onClick={() => backupNow.mutate()}
+        disabled={backupNow.isPending}
+        className="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-50"
+      >
+        {backupNow.isPending ? 'Backing up…' : 'Back up now'}
+      </button>
+      {backupNow.isError && (
+        <span role="alert" className="text-red-600 dark:text-red-400">
+          {backupNow.error.message}
+        </span>
+      )}
+      {backupNow.isSuccess && !backupNow.isPending && (
+        <span className="text-emerald-600 dark:text-emerald-400">Saved</span>
+      )}
+    </p>
   );
 };

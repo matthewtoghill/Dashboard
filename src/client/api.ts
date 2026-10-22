@@ -231,6 +231,33 @@ export async function deleteQuickLink(id: string): Promise<void> {
   }
 }
 
+export interface BackupInfo {
+  file: string;
+  createdAt: number;
+  size: number;
+}
+
+export type BackupStatus =
+  | { enabled: true; dir: string; keep: number; backups: BackupInfo[] }
+  | { enabled: false; backups: [] };
+
+export async function fetchBackups(): Promise<BackupStatus> {
+  const res = await fetch('/api/backups');
+  if (!res.ok) {
+    throw new Error(`Failed to load backups: ${res.statusText}`);
+  }
+  return (await res.json()) as BackupStatus;
+}
+
+export async function createBackup(): Promise<BackupInfo> {
+  const res = await fetch('/api/backups', { method: 'POST' });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Backup failed: ${res.statusText}`);
+  }
+  return ((await res.json()) as { backup: BackupInfo }).backup;
+}
+
 export async function exportDashboardData(): Promise<BackupPayload> {
   const res = await fetch('/api/export');
   if (!res.ok) {
