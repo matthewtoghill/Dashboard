@@ -136,6 +136,16 @@ export function formatShortDate(isoDate: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+/** `2026-10-27` -> `Tue, Oct 27` */
+export function formatDayDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export function formatTimestamp(ts: number): string {
   return new Date(ts).toLocaleString('en-US', {
     month: 'short',
@@ -146,11 +156,71 @@ export function formatTimestamp(ts: number): string {
   });
 }
 
+const WEEKDAYS: Record<string, number> = {
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3,
+  thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
+};
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** Adds calendar months, clamping to the target month's last day (31 Jan + 1 = 28/29 Feb). */
+function addMonthsClamped(date: Date, months: number): Date {
+  const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(date.getDate(), lastDay));
+  return target;
+}
+
+/** Next given weekday strictly after `today` (so `mon` on a Monday is a week away). */
+function nextWeekday(today: Date, weekday: number): Date {
+  return addDays(today, (weekday - today.getDay() + 7) % 7 || 7);
+}
+
+/**
+ * Resolves a quick-add date word (without the `@`, case-insensitive) to YYYY-MM-DD in local time:
+ * `today`, `tomorrow`/`tmrw`, weekdays (`mon`, `friday`, ...), `next-week` (next Monday),
+ * `eom` (end of month), `+3d` / `+2w` / `+1m`, or an ISO date. Returns null if not a date.
+ */
+export function resolveDateToken(word: string, today: Date = new Date()): string | null {
+  const w = word.toLowerCase();
+  const iso = (d: Date) => formatIsoDateFromTimestamp(d.getTime());
+
+  if (w === 'today') return iso(today);
+  if (w === 'tomorrow' || w === 'tmrw') return iso(addDays(today, 1));
+  if (w in WEEKDAYS) return iso(nextWeekday(today, WEEKDAYS[w]));
+  if (w === 'next-week') return iso(nextWeekday(today, 1));
+  if (w === 'eom') return iso(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+
+  const relative = /^\+(\d{1,3})([dwm])$/.exec(w);
+  if (relative) {
+    const n = Number(relative[1]);
+    const unit = relative[2];
+    return iso(unit === 'm' ? addMonthsClamped(today, n) : addDays(today, unit === 'w' ? n * 7 : n));
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(w)) {
+    const [y, m, d] = w.split('-').map(Number);
+    // Reject impossible dates such as 2026-02-31 (Date would roll them over)
+    return iso(new Date(y, m - 1, d)) === w ? w : null;
+  }
+  return null;
+}
+
 /**
  * Parses quick-add syntax tokens from a raw task title string:
  * - `!urgent` / `!p4`, `!high` / `!p3`, `!med` / `!medium` / `!p2`, `!low` / `!p1`
- * - `@today`, `@tomorrow`, `@YYYY-MM-DD`
+ * - `@` dates: see `resolveDateToken` (`@today`, `@fri`, `@+3d`, `@2026-11-01`, ...)
  * - `#projectName` (if matching an existing project name, case-insensitive) or `#tag`
+ * Unrecognised `@words` stay in the title.
  */
 export function parseQuickAddSyntax(
   rawInput: string,
@@ -160,7 +230,8 @@ export function parseQuickAddSyntax(
     projectId: string | null;
     dueDate: string | null;
     tags: string[];
-  }
+  },
+  today: Date = new Date()
 ): {
   title: string;
   priority: TaskPriority;
@@ -198,19 +269,12 @@ export function parseQuickAddSyntax(
       continue;
     }
 
-    if (lower === '@today') {
-      dueDate = getTodayIso();
-      continue;
-    }
-
-    if (lower === '@tomorrow' || lower === '@tmrw') {
-      dueDate = getTomorrowIso();
-      continue;
-    }
-
-    if (/^@\d{4}-\d{2}-\d{2}$/.test(token)) {
-      dueDate = token.slice(1);
-      continue;
+    if (token.startsWith('@') && token.length > 1) {
+      const resolved = resolveDateToken(token.slice(1), today);
+      if (resolved) {
+        dueDate = resolved;
+        continue;
+      }
     }
 
     if (token.startsWith('#') && token.length > 1) {

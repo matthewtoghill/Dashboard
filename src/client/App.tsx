@@ -71,6 +71,8 @@ import {
   viewTitle,
 } from './utils/taskView.ts';
 import {
+  PRIORITY_CONFIG,
+  formatDayDate,
   getTodayIso,
   parseQuickAddSyntax,
   sortOrderForMove,
@@ -368,23 +370,24 @@ export const App: React.FC = () => {
     setNewTagInput('');
   };
 
-  const handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newTitle.trim();
-    if (!trimmed) return;
-
+  /** What the quick-add bar would create: typed tokens applied on top of the pickers. */
+  const parseNewTask = (rawTitle: string) => {
     const pendingTag = newTagInput.trim().replace(/^#/, '');
     const baseTags =
-      pendingTag && !newTags.includes(pendingTag)
-        ? [...newTags, pendingTag]
-        : newTags;
-
-    const parsed = parseQuickAddSyntax(trimmed, projects, {
+      pendingTag && !newTags.includes(pendingTag) ? [...newTags, pendingTag] : newTags;
+    return parseQuickAddSyntax(rawTitle.trim(), projects, {
       priority: newPriority,
       projectId: newProjectId || null,
       dueDate: newDueDate || null,
       tags: baseTags,
     });
+  };
+  const newTaskPreview = newTitle.trim() ? parseNewTask(newTitle) : null;
+
+  const handleCreateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    const parsed = parseNewTask(newTitle);
 
     createTaskMutation.mutate({
       title: parsed.title,
@@ -923,7 +926,7 @@ export const App: React.FC = () => {
                       type="text"
                       value={newTitle}
                       onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="Add a task... Try syntax like !high #work @today (Shortcut: N)"
+                      placeholder="Add a task... e.g. Call Sam !high #work @fri or @+3d (Shortcut: N)"
                       aria-label="New task title"
                       className="w-full py-3 pr-4 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none"
                     />
@@ -939,6 +942,50 @@ export const App: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Live preview of what the typed syntax resolves to */}
+                  {newTaskPreview && (
+                    <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-2.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      <span>Creates</span>
+                      <span className="font-medium text-zinc-700 dark:text-zinc-200 truncate max-w-xs">
+                        {newTaskPreview.title}
+                      </span>
+                      {newTaskPreview.dueDate && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
+                          <Calendar className="w-3 h-3" />
+                          Due {formatDayDate(newTaskPreview.dueDate)}
+                        </span>
+                      )}
+                      {newTaskPreview.priority > 0 && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md border ${PRIORITY_CONFIG[newTaskPreview.priority].badgeClass}`}
+                        >
+                          {PRIORITY_CONFIG[newTaskPreview.priority].label}
+                        </span>
+                      )}
+                      {newTaskPreview.projectId && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              backgroundColor: projects.find(
+                                (p) => p.id === newTaskPreview.projectId
+                              )?.color,
+                            }}
+                          />
+                          {projects.find((p) => p.id === newTaskPreview.projectId)?.name}
+                        </span>
+                      )}
+                      {newTaskPreview.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Quick-add Metadata Bar */}
                   <div className="flex items-center flex-wrap gap-2 px-3.5 py-2 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-b-xl text-xs">
