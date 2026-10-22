@@ -1,0 +1,259 @@
+import {
+  Task,
+  CreateTaskInput,
+  UpdateTaskInput,
+  Project,
+  CreateProjectInput,
+  UpdateProjectInput,
+  Subtask,
+  CreateSubtaskInput,
+  UpdateSubtaskInput,
+  DashboardState,
+  QuickLink,
+  CreateQuickLinkInput,
+  WidgetConfig,
+  BackupPayload,
+} from '../shared/types.ts';
+
+export async function fetchTasks(): Promise<Task[]> {
+  const res = await fetch('/api/tasks');
+  if (!res.ok) {
+    throw new Error(`Failed to load tasks: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { tasks: Task[] };
+  return data.tasks;
+}
+
+export async function createTask(input: CreateTaskInput): Promise<Task> {
+  const res = await fetch('/api/tasks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create task: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { task: Task };
+  return data.task;
+}
+
+export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task> {
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update task: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { task: Task };
+  return data.task;
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const res = await fetch(`/api/tasks/${id}`, {
+    method: 'DELETE',
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete task: ${res.statusText}`);
+  }
+}
+
+async function postTaskIds<T>(path: string, ids: string[], label: string): Promise<T> {
+  const res = await fetch(`/api/tasks/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to ${label}: ${res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
+
+export const archiveTasks = (ids: string[]) =>
+  postTaskIds<{ archivedCount: number }>('bulk-archive', ids, 'archive tasks');
+
+export const restoreTasks = (ids: string[]) =>
+  postTaskIds<{ restoredCount: number }>('bulk-restore', ids, 'restore tasks');
+
+export const deleteTasks = (ids: string[]) =>
+  postTaskIds<{ deletedCount: number }>('bulk-delete', ids, 'delete tasks');
+
+export async function createSubtask(
+  taskId: string,
+  input: CreateSubtaskInput
+): Promise<Subtask> {
+  const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create subtask: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { subtask: Subtask };
+  return data.subtask;
+}
+
+export async function updateSubtask(
+  id: string,
+  input: UpdateSubtaskInput
+): Promise<Subtask> {
+  const res = await fetch(`/api/subtasks/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update subtask: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { subtask: Subtask };
+  return data.subtask;
+}
+
+export async function deleteSubtask(id: string): Promise<void> {
+  const res = await fetch(`/api/subtasks/${id}`, {
+    method: 'DELETE',
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete subtask: ${res.statusText}`);
+  }
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  const res = await fetch('/api/projects');
+  if (!res.ok) {
+    throw new Error(`Failed to load projects: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { projects: Project[] };
+  return data.projects;
+}
+
+export async function createProject(input: CreateProjectInput): Promise<Project> {
+  const res = await fetch('/api/projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create project: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { project: Project };
+  return data.project;
+}
+
+export async function updateProject(id: string, input: UpdateProjectInput): Promise<Project> {
+  const res = await fetch(`/api/projects/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update project: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { project: Project };
+  return data.project;
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const res = await fetch(`/api/projects/${id}`, {
+    method: 'DELETE',
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete project: ${res.statusText}`);
+  }
+}
+
+// Stage 4 API methods
+export async function fetchDashboardState(): Promise<DashboardState> {
+  const res = await fetch('/api/dashboard');
+  if (!res.ok) {
+    throw new Error(`Failed to load dashboard state: ${res.statusText}`);
+  }
+  return (await res.json()) as DashboardState;
+}
+
+export async function saveScratchpad(content: string): Promise<{ scratchpad: string }> {
+  const res = await fetch('/api/dashboard/scratchpad', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save scratchpad: ${res.statusText}`);
+  }
+  return (await res.json()) as { scratchpad: string };
+}
+
+export async function saveWidgetConfig(
+  config: Partial<WidgetConfig>
+): Promise<{ widgetConfig: WidgetConfig }> {
+  const res = await fetch('/api/dashboard/widgets', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to save widget config: ${res.statusText}`);
+  }
+  return (await res.json()) as { widgetConfig: WidgetConfig };
+}
+
+export async function createQuickLink(input: CreateQuickLinkInput): Promise<QuickLink> {
+  const res = await fetch('/api/quick-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create quick link: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { quickLink: QuickLink };
+  return data.quickLink;
+}
+
+export async function deleteQuickLink(id: string): Promise<void> {
+  const res = await fetch(`/api/quick-links/${id}`, {
+    method: 'DELETE',
+    keepalive: true,
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete quick link: ${res.statusText}`);
+  }
+}
+
+export async function exportDashboardData(): Promise<BackupPayload> {
+  const res = await fetch('/api/export');
+  if (!res.ok) {
+    throw new Error(`Failed to export data: ${res.statusText}`);
+  }
+  return (await res.json()) as BackupPayload;
+}
+
+export interface ImportResult {
+  importedTasks: number;
+  importedProjects: number;
+  importedQuickLinks: number;
+}
+
+export async function importDashboardData(payload: BackupPayload): Promise<ImportResult> {
+  const res = await fetch('/api/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { error?: string; details?: unknown }
+      | null;
+    const details = typeof body?.details === 'string' ? ` (${body.details})` : '';
+    throw new Error(`${body?.error ?? `Failed to import data: ${res.statusText}`}${details}`);
+  }
+  return (await res.json()) as ImportResult;
+}

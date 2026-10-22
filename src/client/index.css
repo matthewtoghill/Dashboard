@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Native controls (select popups, date pickers, scrollbars) follow the app theme. */
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
+/* Browsers without customizable selects: at least theme the native option list. */
+@layer base {
+  option {
+    @apply bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100;
+  }
+}
+
+/*
+ * Customizable <select> (Chromium 135+): a styled dropdown list that is still a real select,
+ * so keyboard, screen reader and form behaviour stay native. Unlayered so it overrides
+ * Tailwind's `appearance-none`, which here only means "no arrow".
+ * Dark rules are written out because the `dark:` variant can't follow a pseudo-element.
+ */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  select {
+    @apply inline-flex items-center gap-1;
+    min-block-size: auto; /* base-select adds a 24px minimum that inflates the compact pills */
+  }
+  select::picker-icon {
+    @apply text-zinc-400 transition-transform duration-150;
+    font-size: 0.7em;
+  }
+  select:open::picker-icon {
+    rotate: 180deg;
+  }
+  select.appearance-none::picker-icon {
+    display: none;
+  }
+
+  ::picker(select) {
+    @apply mt-1 p-1 rounded-lg border border-zinc-200 bg-white text-zinc-800 shadow-lg;
+    min-width: anchor-size(width);
+    max-height: 18rem;
+  }
+  .dark select::picker(select) {
+    @apply border-zinc-700 bg-zinc-900 text-zinc-100 shadow-black/40;
+  }
+
+  option {
+    @apply flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-normal cursor-pointer;
+    background-color: transparent;
+    color: inherit;
+  }
+  option::checkmark {
+    @apply text-indigo-600;
+    order: 1;
+    margin-inline-start: auto;
+  }
+  .dark option::checkmark {
+    @apply text-indigo-400;
+  }
+  option:hover,
+  option:focus-visible {
+    @apply bg-zinc-100 outline-none;
+  }
+  .dark option:hover,
+  .dark option:focus-visible {
+    @apply bg-zinc-800;
+  }
+  option:checked {
+    @apply font-semibold text-indigo-600;
+  }
+  .dark option:checked {
+    @apply text-indigo-400;
+  }
+}
