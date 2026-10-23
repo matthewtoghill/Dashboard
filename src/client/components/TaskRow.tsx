@@ -26,6 +26,7 @@ import { describeRecurrence } from '../../shared/recurrence.ts';
 import { checklistProgress } from '../utils/markdown.ts';
 import {
   PRIORITY_CONFIG,
+  formatShortDate,
   getDueDateInfo,
   getTodayIso,
   getTomorrowIso,
@@ -164,7 +165,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const priorityInfo = PRIORITY_CONFIG[task.priority];
-  const dueInfo = getDueDateInfo(task.dueDate);
+  const baseDueInfo = getDueDateInfo(task.dueDate);
+  // A completed task is no longer overdue: show the original date, muted and struck through.
+  const dueWasMissed = isDone && baseDueInfo.state === 'overdue' && task.dueDate !== null;
+  const dueInfo = dueWasMissed
+    ? {
+        ...baseDueInfo,
+        label: formatShortDate(task.dueDate!),
+        badgeClass:
+          'text-zinc-400 dark:text-zinc-500 line-through bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700',
+      }
+    : baseDueInfo;
   const project = projects.find((p) => p.id === task.projectId);
 
   const subtasks = task.subtasks ?? [];
