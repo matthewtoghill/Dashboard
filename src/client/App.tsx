@@ -25,6 +25,9 @@ import {
   Repeat,
   Settings,
   CloudDownload,
+  List,
+  CalendarDays,
+  CalendarRange,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -79,6 +82,7 @@ import {
   taskFromSession,
 } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
+import { CalendarView } from './components/CalendarView.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import {
   ConfirmDialog,
@@ -122,10 +126,12 @@ export const App: React.FC = () => {
   const updateView = (patch: Partial<ViewState>) => setView((v) => ({ ...v, ...patch }));
   // The saved view last applied. Filter changes keep it (and mark it modified); navigating elsewhere drops it.
   const [appliedViewId, setAppliedViewId] = useState<string | null>(null);
-  const setActiveNav = useCallback((nav: ActiveNavigation) => {
+  // Smart views open as a list; projects and tags keep the current layout
+  const setActiveNav = useCallback((nav: ActiveNavigation, layout?: ViewState['layout']) => {
     setAppliedViewId(null);
-    setView((v) => ({ ...v, nav }));
+    setView((v) => ({ ...v, nav, layout: layout ?? (nav.type === 'smart' ? 'list' : v.layout) }));
   }, []);
+  const openCalendar = () => setActiveNav({ type: 'smart', id: 'inbox' }, 'month');
 
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -253,6 +259,7 @@ export const App: React.FC = () => {
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
+  const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
 
   // Quick-add defaults follow the current view (else the settings default), and reset when leaving it
   useEffect(() => {
@@ -527,13 +534,9 @@ export const App: React.FC = () => {
     setNewTags([]);
   };
 
-  const handleConvertScratchpadLineToTask = (lineText: string) => {
-    const parsed = parseQuickAddSyntax(lineText, projects, {
-      priority: 0,
-      projectId: null,
-      dueDate: null,
-      tags: [],
-    });
+  /** Creates a task from quick-add text; typed tokens win over the given project and due date. */
+  const createTaskFromText = (text: string, projectId: string | null, dueDate: string | null) => {
+    const parsed = parseQuickAddSyntax(text, projects, { priority: 0, projectId, dueDate, tags: [] });
     createTaskMutation.mutate({
       title: parsed.title,
       priority: parsed.priority,
@@ -542,6 +545,16 @@ export const App: React.FC = () => {
       tags: parsed.tags,
       recurrence: parsed.recurrence,
     });
+  };
+
+  const handleConvertScratchpadLineToTask = (lineText: string) => createTaskFromText(lineText, null, null);
+
+  const handleRescheduleTask = (task: Task, dueDate: string) => {
+    const previous = task.dueDate;
+    updateTaskMutation.mutate({ id: task.id, payload: { dueDate } });
+    showToast(`Moved "${task.title}" to ${formatDayDate(dueDate)}`, () =>
+      updateTaskMutation.mutate({ id: task.id, payload: { dueDate: previous } })
+    );
   };
 
   const handleToggleTask = (task: Task) => {
@@ -803,13 +816,19 @@ export const App: React.FC = () => {
     [tasks, view, projects, today]
   );
   const {
+    filtered: filteredTasks,
     active: activeFilteredTasks,
     completed: completedFilteredTasks,
     sections: groupedSections,
     completedSection,
   } = taskList;
 
-  const currentViewTitle = viewTitle(activeNav, projects);
+  // Archive has no calendar; a saved view can't select it there, but guard anyway
+  const isCalendar = view.layout !== 'list' && !isArchiveView;
+  const currentViewTitle =
+    isCalendar && activeNav.type === 'smart' && activeNav.id === 'inbox'
+      ? 'Calendar'
+      : viewTitle(activeNav, projects);
 
   const visibleOrder = useMemo(
     () => visibleTaskOrder(taskList, showCompleted),
@@ -863,7 +882,7 @@ export const App: React.FC = () => {
         return;
       }
       // The reorder handle uses the arrow keys itself
-      if (isOverviewPage || target.closest('[data-reorder-handle]')) return;
+      if (isOverviewPage || isCalendar || target.closest('[data-reorder-handle]')) return;
 
       const rowId = target.closest<HTMLElement>('[data-task-row]')?.dataset.taskRow;
       const index = rowId ? visibleOrder.indexOf(rowId) : -1;
@@ -1082,6 +1101,8 @@ export const App: React.FC = () => {
             projects={projects}
             activeNav={activeNav}
             onSelectNav={setActiveNav}
+            isCalendar={isCalendar}
+            onOpenCalendar={openCalendar}
             onCreateProject={(name, color) =>
               createProjectMutation.mutate({ name, color })
             }
@@ -1236,6 +1257,40 @@ export const App: React.FC = () => {
                     </select>
                   </div>
 
+                  {/* List or calendar layout */}
+                  {!isArchiveView && (
+                    <div
+                      role="group"
+                      aria-label="Layout"
+                      className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
+                    >
+                      {(
+                        [
+                          ['list', 'List', List],
+                          ['month', 'Month', CalendarDays],
+                          ['week', 'Week', CalendarRange],
+                        ] as const
+                      ).map(([value, label, Icon]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => updateView({ layout: value })}
+                          aria-pressed={view.layout === value}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer ${
+                            view.layout === value
+                              ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                              : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {!isCalendar && (
+                  <>
                   {/* Group By */}
                   <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
                     <Layers className="w-3.5 h-3.5 text-zinc-400" />
@@ -1276,6 +1331,8 @@ export const App: React.FC = () => {
                       <option value="manual">Manual</option>
                     </select>
                   </div>
+                  </>
+                  )}
                 </div>
               </div>
 
@@ -1473,7 +1530,20 @@ export const App: React.FC = () => {
               )}
 
               {/* Grouped / Active Tasks Sections */}
-              {isLoading ? (
+              {isCalendar ? (
+                <CalendarView
+                  tasks={filteredTasks}
+                  projects={projects}
+                  layout={view.layout === 'week' ? 'week' : 'month'}
+                  weekStart={weekStartDay}
+                  today={today}
+                  showCompleted={showCompleted}
+                  onToggleShowCompleted={() => setShowCompleted((s) => !s)}
+                  onOpenTask={setSelectedTaskId}
+                  onReschedule={handleRescheduleTask}
+                  onQuickAdd={(text, dueDate) => createTaskFromText(text, newProjectId || null, dueDate)}
+                />
+              ) : isLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map((n) => (
                     <div
@@ -1533,7 +1603,7 @@ export const App: React.FC = () => {
               )}
 
               {/* Completed Tasks Section */}
-              {completedSection && (
+              {completedSection && !isCalendar && (
                   <section className="space-y-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
                     <div className="flex items-center justify-between px-1">
                       <button
@@ -1630,6 +1700,7 @@ export const App: React.FC = () => {
         onClose={() => setCommandPaletteOpen(false)}
         projects={projects}
         onSelectNav={setActiveNav}
+        onOpenCalendar={openCalendar}
         savedViews={savedViews}
         onApplySavedView={handleApplySavedView}
         onFocusQuickAdd={() => quickAddRef.current?.focus()}

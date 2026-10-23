@@ -23,6 +23,7 @@ export const DEFAULT_VIEW_STATE: ViewState = {
   priority: 'all',
   groupBy: 'none',
   sortBy: 'created',
+  layout: 'list',
 };
 
 export interface TaskSection {
@@ -252,7 +253,8 @@ export function sameView(a: ViewState, b: ViewState): boolean {
     a.search === b.search &&
     a.priority === b.priority &&
     a.groupBy === b.groupBy &&
-    a.sortBy === b.sortBy
+    a.sortBy === b.sortBy &&
+    a.layout === b.layout
   );
 }
 

@@ -5,6 +5,7 @@ import {
   Inbox,
   Calendar,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Folder,
   Sun,
@@ -26,6 +27,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   projects: Project[];
   onSelectNav: (nav: ActiveNavigation) => void;
+  onOpenCalendar: () => void;
   savedViews: SavedView[];
   onApplySavedView: (id: string) => void;
   onFocusQuickAdd: () => void;
@@ -53,6 +55,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onClose,
   projects,
   onSelectNav,
+  onOpenCalendar,
   savedViews,
   onApplySavedView,
   onFocusQuickAdd,
@@ -126,6 +129,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: CalendarClock,
         action: () => {
           onSelectNav({ type: 'smart', id: 'upcoming' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-calendar',
+        label: 'Go to Calendar',
+        category: 'Views',
+        icon: CalendarDays,
+        action: () => {
+          onOpenCalendar();
           onClose();
         },
       },
@@ -250,6 +263,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onClose,
     onFocusQuickAdd,
     onSelectNav,
+    onOpenCalendar,
     onToggleTheme,
     onOpenSettings,
     onOpenAdoImport,

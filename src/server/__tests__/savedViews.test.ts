@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
-import { Project, SavedView, SavedViewListSchema, Task } from '../../shared/types.ts';
+import { Project, SavedView, SavedViewListSchema, Task, ViewStateSchema } from '../../shared/types.ts';
 import { DEFAULT_VIEW_STATE, resolveSavedView, sameView } from '../../client/utils/taskView.ts';
 
 const view = (id: string, name = `View ${id}`): SavedView => ({
@@ -54,6 +54,12 @@ describe('resolveSavedView', () => {
     expect(sameView(saved, { ...saved, nav: { type: 'project', id: 'work' } })).toBe(true);
     expect(sameView(saved, { ...saved, search: 'x' })).toBe(false);
     expect(sameView(saved, { ...saved, nav: { type: 'tag', id: 'work' } })).toBe(false);
+    expect(sameView(saved, { ...saved, layout: 'month' })).toBe(false);
+  });
+
+  it('reads views saved before layouts existed as lists', () => {
+    const { layout: _layout, ...old } = view('a').view;
+    expect(ViewStateSchema.parse(old).layout).toBe('list');
   });
 });
 

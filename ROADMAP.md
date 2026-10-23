@@ -10,7 +10,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 2 | Claude skills, hooks and automations for task management | Proposed |
 | 3 | Azure DevOps work item import | **Done** (branch `roadmap/ado-import`) |
 | 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
-| 5 | Calendar view | Proposed |
+| 5 | Calendar view | **Done** (branch `roadmap/calendar`) |
 
 ## 1. Claude Session Integration
 
@@ -160,3 +160,16 @@ See tasks laid out by due date. Today and Upcoming are filtered lists only, so t
 - Should tasks without a due date appear in a side tray that you can drag onto the calendar?
 - Should completed tasks show on the calendar (struck through), or be hidden?
 - Is a day or agenda layout needed as well, or are month and week enough?
+
+### Decisions
+
+- Calendar is a layout, not a separate view. `ViewState` gains `layout` (`list`, `month` or `week`), so any project, tag or smart view can show as a calendar, and saved views remember the layout. Views saved before this read as `list`.
+- The sidebar and command palette "Calendar" entry opens All Active in month layout. Other smart views open as a list; projects and tags keep the current layout.
+- Group and sort are hidden in calendar layouts. Within a day, unfinished tasks come first, then ghosts, then done tasks, each by priority. Archive has no calendar.
+- No tray for undated tasks. Undated tasks don't appear on the calendar.
+- Completed tasks show struck through, behind the same "Show completed" toggle as the list.
+- Month and week layouts only, with no day or agenda layout.
+- Ghost entries are shown only for unfinished tasks that repeat from their due date. Tasks that repeat from completion have no fixed future dates, so they get none. Ghosts open the task but can't be dragged.
+- Drag a task to another day, or press Alt+Arrows on it (one day left or right, one week up or down). Either move shows a toast with undo.
+- Clicking an empty part of a day, or its + button, opens an inline quick-add. Typed tokens work as usual, and the due date defaults to that day.
+- Week start is a General setting (`weekStartDay`), Monday by default.

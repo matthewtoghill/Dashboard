@@ -231,6 +231,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </select>
             </label>
             <p className="text-xs text-zinc-400">Project views always add to their own project.</p>
+            <fieldset className="flex items-center gap-4">
+              <legend className="sr-only">Week starts on</legend>
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">Week starts on</span>
+              {([[1, 'Monday'], [0, 'Sunday']] as const).map(([value, label]) => (
+                <label key={value} className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="weekStartDay"
+                    checked={settings?.weekStartDay === value}
+                    onChange={() => save.mutate({ weekStartDay: value })}
+                    disabled={!settings}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
           </Section>
 
           <Section title="Overview widgets">

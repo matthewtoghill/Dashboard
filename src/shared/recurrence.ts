@@ -40,7 +40,24 @@ export function nextOccurrence(rule: Recurrence, dueDate: string | null, today: 
   return toIsoDate(next);
 }
 
-const UNIT_NAMES = { day: 'day', week: 'week', month: 'month', weekday: 'weekday' } as const;
+/**
+ * Future due dates of a fixed-schedule task, after `dueDate` and within `from`..`to` inclusive.
+ * For display only (the calendar's ghost entries); completion-based rules have no fixed dates.
+ */
+export function occurrencesBetween(rule: Recurrence, dueDate: string, from: string, to: string): string[] {
+  if (rule.from !== 'due') return [];
+  const fromDate = parseIsoDate(from);
+  const toDate = parseIsoDate(to);
+  const dates: string[] = [];
+  let next = step(rule, parseIsoDate(dueDate));
+  for (let i = 0; next <= toDate && i < 10_000; i++) {
+    if (next >= fromDate) dates.push(toIsoDate(next));
+    next = step(rule, next);
+  }
+  return dates;
+}
+
+const UNIT_NAMES ={ day: 'day', week: 'week', month: 'month', weekday: 'weekday' } as const;
 const SINGLE = { day: 'Daily', week: 'Weekly', month: 'Monthly', weekday: 'Every weekday' } as const;
 
 /** "Weekly", "Every 2 weeks", "Every weekday (after completion)" */

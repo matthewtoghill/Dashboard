@@ -161,6 +161,8 @@ export const ViewStateSchema = z.object({
   priority: z.union([TaskPrioritySchema, z.literal('all')]),
   groupBy: z.enum(['none', 'priority', 'project', 'dueDate', 'status']),
   sortBy: z.enum(['created', 'priority', 'dueDate', 'manual']),
+  /** Since roadmap 5. Saved views from before it show as a list. */
+  layout: z.enum(['list', 'month', 'week']).optional().default('list'),
 });
 
 export const MAX_SAVED_VIEWS = 50;
@@ -241,6 +243,8 @@ export const SettingsSchema = z.object({
     .array(z.string().trim().min(1).max(100))
     .max(50)
     .default(['Product Backlog Item', 'Task', 'Bug', 'User Story']),
+  /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
+  weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();

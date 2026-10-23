@@ -34,6 +34,7 @@ describe('settings', () => {
         claudeSessionTtlDays: 7,
         adoOrganization: '',
         adoWorkItemTypes: ['Product Backlog Item', 'Task', 'Bug', 'User Story'],
+        weekStartDay: 1,
       },
       envOverrides: { backupKeep: null, backupDir: null },
     });
@@ -42,6 +43,7 @@ describe('settings', () => {
     expect(updated.json().settings).toMatchObject({ backupKeep: 3, claudeSessionTtlDays: 7 });
 
     expect((await put({ backupKeep: 0 })).statusCode).toBe(400);
+    expect((await put({ weekStartDay: 2 })).statusCode).toBe(400);
     expect((await put({ backupDir: 'relative/path' })).statusCode).toBe(400);
     expect((await put({ unknown: true })).statusCode).toBe(400);
   });

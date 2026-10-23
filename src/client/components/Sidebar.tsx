@@ -4,6 +4,7 @@ import {
   Inbox,
   Calendar,
   CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Archive,
   FolderPlus,
@@ -24,6 +25,9 @@ interface SidebarProps {
   projects: Project[];
   activeNav: ActiveNavigation;
   onSelectNav: (nav: ActiveNavigation) => void;
+  /** All Active in a calendar layout, which the Calendar entry selects instead of All Active. */
+  isCalendar: boolean;
+  onOpenCalendar: () => void;
   onCreateProject: (name: string, color: string) => void;
   onUpdateProject: (id: string, name: string, color: string) => void;
   onDeleteProject: (id: string) => void;
@@ -41,6 +45,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   projects,
   activeNav,
   onSelectNav,
+  isCalendar,
+  onOpenCalendar,
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
@@ -110,6 +116,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     count?: number;
     badgeColor?: string;
     title?: string;
+    /** The Calendar entry: All Active in month layout. */
+    calendar?: true;
   }[] = [
     {
       id: 'overview',
@@ -142,6 +150,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       count: upcomingCount,
     },
     {
+      id: 'inbox',
+      label: 'Calendar',
+      icon: CalendarDays,
+      calendar: true,
+    },
+    {
       id: 'completed',
       label: 'Completed',
       icon: CheckCircle2,
@@ -166,12 +180,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <nav className="space-y-0.5" aria-label="Smart Views">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isSelected = activeNav.type === 'smart' && activeNav.id === item.id;
+              const isSelected =
+                activeNav.type === 'smart' &&
+                activeNav.id === item.id &&
+                (item.id !== 'inbox' || isCalendar === !!item.calendar);
               return (
                 <button
-                  key={item.id}
+                  key={item.calendar ? 'calendar' : item.id}
                   type="button"
-                  onClick={() => onSelectNav({ type: 'smart', id: item.id })}
+                  onClick={() => (item.calendar ? onOpenCalendar() : onSelectNav({ type: 'smart', id: item.id }))}
                   title={item.title}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                     isSelected

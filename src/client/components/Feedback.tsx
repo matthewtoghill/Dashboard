@@ -179,6 +179,7 @@ const SHORTCUTS: [string, string][] = [
   ['Delete', 'Delete'],
   ['1 – 4, 0', 'Priority Low – Urgent, None'],
   ['Alt + ↑ / ↓', 'Move (Manual sort)'],
+  ['Alt + Arrows', 'Move to another day (Calendar)'],
   ['Esc', 'Leave the list / close'],
   ['N', 'New task'],
   ['/', 'Search'],
