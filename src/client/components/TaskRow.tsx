@@ -595,16 +595,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
       {/* Inspect / Edit / Delete Buttons */}
       <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={() => onSelect?.(task)}
-          aria-label={`Open details for "${task.title}"`}
-          className="p-1.5 rounded-md text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-          title="Open task details"
-        >
-          <PanelRightOpen className="w-3.5 h-3.5" />
-        </button>
-
         {isEditing ? (
           <button
             type="button"
