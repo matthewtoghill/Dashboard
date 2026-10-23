@@ -144,6 +144,9 @@ export function formatDayDate(isoDate: string): string {
   });
 }
 
+/** `1 task`, `3 tasks` */
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
 /** `just now`, `5 minutes ago`, `3 hours ago`, `2 days ago` */
 export function formatRelativeTime(ts: number, now = Date.now()): string {
   const minutes = Math.round((now - ts) / 60_000);

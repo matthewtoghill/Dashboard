@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 export const UNDO_WINDOW_MS = 5000;
+/** Appended to confirmation messages for actions that go through the undo window. */
+export const UNDO_HINT = 'You can undo this for a few seconds afterwards.';
 
 interface PendingJob {
   ids: string[];
