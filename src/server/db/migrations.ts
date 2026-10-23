@@ -94,6 +94,20 @@ export const MIGRATIONS: string[] = [
     ALTER TABLE claude_sessions ADD COLUMN attention_message TEXT NOT NULL DEFAULT '';
     ALTER TABLE claude_sessions ADD COLUMN dismissed_at INTEGER;
   `,
+
+  // 5: Azure DevOps import. Tasks keep a link to their source item; the unique index stops a
+  // re-import creating duplicates. ado_project_links maps ADO projects to Dashboard projects.
+  `
+    ALTER TABLE tasks ADD COLUMN external_source TEXT;
+    ALTER TABLE tasks ADD COLUMN external_id TEXT;
+    ALTER TABLE tasks ADD COLUMN external_url TEXT;
+    CREATE UNIQUE INDEX idx_tasks_external ON tasks(external_source, external_id);
+    CREATE TABLE ado_project_links (
+      ado_project TEXT PRIMARY KEY,
+      project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      work_item_types TEXT
+    );
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

@@ -8,7 +8,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | :- | :--- | :--- |
 | 1 | Claude session integration | **Done** (branch `roadmap/claude-sessions`) |
 | 2 | Claude skills, hooks and automations for task management | Proposed |
-| 3 | Azure DevOps work item import | Proposed |
+| 3 | Azure DevOps work item import | **Done** (branch `roadmap/ado-import`) |
 | 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
 | 5 | Calendar view | Proposed |
 
@@ -86,6 +86,18 @@ Read outstanding Azure DevOps work and import it as linked Dashboard tasks.
 - One-way import only, or should completing a Dashboard task update the Azure DevOps item state?
 - What happens to a Dashboard task when its source item is closed or its PR is merged: auto-complete, flag it, or do nothing?
 - Single organisation, or several?
+
+### Decisions
+
+- One-way import only. The Dashboard never changes Azure DevOps items.
+- Single organisation, from Settings > Integrations, falling back to the `az devops configure` default.
+- Work items come from one org-wide WIQL query (assigned to me, not Done/Closed/Removed), filtered by type. Default types live in settings (`adoWorkItemTypes`); a mapped project can override them.
+- `az repos pr list` needs a project, so pull requests are fetched only for projects listed in `ado_project_links`: ones I authored, and ones where I am a reviewer who has not voted yet. Review PRs import as "Review: <title>".
+- `ado_project_links` (`ado_project`, `project_id` nullable, `work_item_types` nullable JSON) holds the mapping. Tasks gain `external_source`, `external_id` (`workitem/<id>` or `pr/<id>`) and `external_url`, with a unique index on source and id.
+- The destination project can be set in Settings or per group in the import dialog. Both write the same mapping, so a change in the dialog sticks for later imports.
+- Work item types are picked as chips from the types Azure DevOps reports (`az devops invoke`, `wit/workitemtypes`). A type the project doesn't have is refused, or shown amber if it was saved earlier. Types are cached in `key_value_store` (`ado_work_item_types`, per organization setting and project) and only fetched for uncached projects or on "Refresh types".
+- When a source item closes or its PR is merged or abandoned, the next fetch lists the unfinished task under "Closed in Azure DevOps" with a Complete button. Nothing completes automatically.
+- Export is version 5 and includes the project mappings.
 
 ## 4. Settings Panel
 

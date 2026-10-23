@@ -27,7 +27,14 @@ describe('settings', () => {
   it('returns defaults, merges partial updates and rejects invalid ones', async () => {
     const initial = (await app.inject({ method: 'GET', url: '/api/settings' })).json();
     expect(initial).toEqual({
-      settings: { defaultProjectId: null, backupKeep: 14, backupDir: '', claudeSessionTtlDays: 7 },
+      settings: {
+        defaultProjectId: null,
+        backupKeep: 14,
+        backupDir: '',
+        claudeSessionTtlDays: 7,
+        adoOrganization: '',
+        adoWorkItemTypes: ['Product Backlog Item', 'Task', 'Bug', 'User Story'],
+      },
       envOverrides: { backupKeep: null, backupDir: null },
     });
 

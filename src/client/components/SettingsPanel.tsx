@@ -17,6 +17,7 @@ import {
 } from '../api.ts';
 import { formatRelativeTime, tasksToCsv } from '../utils/taskUtils.ts';
 import { BackupStatusLine } from './DashboardWidgets.tsx';
+import { AdoSettings } from './AdoImport.tsx';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -361,22 +362,25 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
           <Section title="Integrations">
             {settings && (
-              <label className="flex items-center gap-4">
-                <span className="w-32 text-zinc-600 dark:text-zinc-300">Claude sessions</span>
-                <span className="inline-flex items-center gap-2 text-xs text-zinc-500">
-                  Forget unlinked after
-                  <input
-                    key={settings.claudeSessionTtlDays}
-                    type="number"
-                    min={1}
-                    max={365}
-                    defaultValue={settings.claudeSessionTtlDays}
-                    onBlur={saveOnBlur('claudeSessionTtlDays')}
-                    className={`${inputClass} w-20`}
-                  />
-                  days
-                </span>
-              </label>
+              <>
+                <label className="flex items-center gap-4">
+                  <span className="w-32 text-zinc-600 dark:text-zinc-300">Claude sessions</span>
+                  <span className="inline-flex items-center gap-2 text-xs text-zinc-500">
+                    Forget unlinked after
+                    <input
+                      key={settings.claudeSessionTtlDays}
+                      type="number"
+                      min={1}
+                      max={365}
+                      defaultValue={settings.claudeSessionTtlDays}
+                      onBlur={saveOnBlur('claudeSessionTtlDays')}
+                      className={`${inputClass} w-20`}
+                    />
+                    days
+                  </span>
+                </label>
+                <AdoSettings settings={settings} projects={projects} onSave={save.mutate} />
+              </>
             )}
           </Section>
         </div>

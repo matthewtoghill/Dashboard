@@ -10,6 +10,7 @@ import { registerDashboardRoutes } from './routes/dashboard.ts';
 import { registerBackupRoutes } from './routes/backups.ts';
 import { registerClaudeRoutes } from './routes/claude.ts';
 import { registerSettingsRoutes } from './routes/settings.ts';
+import { AzRunner, registerAdoRoutes } from './routes/ado.ts';
 import { readSettings } from './settings.ts';
 import { backupDatabase, isDailyBackupDue, resolveBackupConfig } from './backup.ts';
 
@@ -29,7 +30,7 @@ function isAllowedOrigin(origin: string): boolean {
   }
 }
 
-export async function buildApp(options?: { dbPath?: string }): Promise<{
+export async function buildApp(options?: { dbPath?: string; az?: AzRunner }): Promise<{
   app: FastifyInstance;
   db: AppDatabase;
 }> {
@@ -85,6 +86,7 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
   await registerBackupRoutes(app, sqlite, backupConfig);
   await registerClaudeRoutes(app, db);
   await registerSettingsRoutes(app, sqlite);
+  await registerAdoRoutes(app, db, options?.az);
 
   // Serve built static client in production if dist exists
   const distPath = path.resolve(process.cwd(), 'dist');

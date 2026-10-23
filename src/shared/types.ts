@@ -84,6 +84,10 @@ export const TaskSchema = z.object({
   recurrence: RecurrenceSchema.nullable().optional().default(null),
   /** The completed task this occurrence was spawned from. */
   recurrenceParentId: z.string().nullable().optional().default(null),
+  /** Where an imported task came from: 'ado' with id `workitem/<id>` or `pr/<id>`. */
+  externalSource: z.enum(['ado']).nullable().optional().default(null),
+  externalId: z.string().min(1).nullable().optional().default(null),
+  externalUrl: z.string().url().startsWith('https://').nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;
@@ -226,6 +230,17 @@ export const SettingsSchema = z.object({
   backupDir: z.string().trim().max(1000).default(''),
   /** Unlinked Claude sessions are deleted this many days after their last event. */
   claudeSessionTtlDays: z.number().int().min(1).max(365).default(7),
+  /** Organization URL; empty means the `az devops configure` default. */
+  adoOrganization: z
+    .string()
+    .trim()
+    .regex(/^(https:\/\/[^\s"%]+)?$/, 'Expected an https:// organization URL')
+    .default(''),
+  /** Work item types fetched for projects without their own list. */
+  adoWorkItemTypes: z
+    .array(z.string().trim().min(1).max(100))
+    .max(50)
+    .default(['Product Backlog Item', 'Task', 'Bug', 'User Story']),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();
@@ -235,6 +250,58 @@ export type UpdateSettingsInput = z.input<typeof UpdateSettingsInputSchema>;
 export interface SettingsResponse {
   settings: Settings;
   envOverrides: { backupKeep: string | null; backupDir: string | null };
+}
+
+// Roadmap 3: Azure DevOps import, through the az CLI (see server/ado.ts)
+/** Passed to az on the command line, so quotes, % and control characters are refused. */
+export const AdoProjectNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Project name is required')
+  .max(64)
+  .regex(/^[^"%\u0000-\u001f]+$/, 'Project name contains an invalid character');
+
+export const AdoProjectLinkSchema = z.object({
+  adoProject: AdoProjectNameSchema,
+  projectId: z.string().min(1).nullable().default(null),
+  /** Null uses the adoWorkItemTypes setting. */
+  workItemTypes: z.array(z.string().trim().min(1).max(100)).max(50).nullable().default(null),
+});
+export type AdoProjectLink = z.infer<typeof AdoProjectLinkSchema>;
+export const AdoProjectLinkListSchema = z
+  .array(AdoProjectLinkSchema)
+  .max(200)
+  .refine(
+    (list) => new Set(list.map((l) => l.adoProject.toLowerCase())).size === list.length,
+    'Each Azure DevOps project can only be listed once'
+  );
+
+export const AdoItemSchema = z.object({
+  /** `workitem/<id>` or `pr/<id>`; unique per organization. */
+  externalId: z.string().regex(/^(workitem|pr)\/\d+$/),
+  title: z.string().trim().min(1).max(500),
+  url: z.string().url().startsWith('https://'),
+  adoProject: z.string(),
+  /** Work item type, or 'Pull Request'. */
+  type: z.string(),
+  state: z.string(),
+  /** For pull requests: authored by me, or waiting for my review. */
+  role: z.enum(['author', 'reviewer']).nullable().default(null),
+});
+export type AdoItem = z.infer<typeof AdoItemSchema>;
+
+export const AdoImportInputSchema = z.object({
+  items: z.array(AdoItemSchema).min(1, 'Select at least one item').max(500),
+});
+
+/** GET /api/ado/items. */
+export interface AdoFetchResult {
+  /** Open items assigned to me; taskId is set when already imported. */
+  items: (AdoItem & { taskId: string | null })[];
+  /** Unfinished imported tasks whose source item is now closed, merged or abandoned. */
+  closed: { taskId: string; title: string; externalId: string; url: string | null; state: string }[];
+  /** Per-project failures that did not stop the rest of the fetch. */
+  warnings: string[];
 }
 
 export const DashboardStateSchema = z.object({
@@ -262,5 +329,7 @@ export const BackupPayloadSchema = z.object({
   claudeSessions: z.array(ClaudeSessionSchema).optional().default([]),
   /** Since version 4. */
   settings: SettingsSchema.optional(),
+  /** Since version 5. */
+  adoProjectLinks: z.array(AdoProjectLinkSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

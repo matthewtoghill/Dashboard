@@ -16,6 +16,7 @@ import {
   Keyboard,
   Bookmark,
   Settings,
+  CloudDownload,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -30,6 +31,7 @@ interface CommandPaletteProps {
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
   onOpenSettings: () => void;
+  onOpenAdoImport: () => void;
   onArchiveCompleted: () => void;
   onShowShortcuts: () => void;
   /** The task open in the detail drawer, if any. */
@@ -56,6 +58,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onFocusQuickAdd,
   onToggleTheme,
   onOpenSettings,
+  onOpenAdoImport,
   onArchiveCompleted,
   onShowShortcuts,
   openTask,
@@ -177,6 +180,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'act-ado-import',
+        label: 'Fetch from Azure DevOps…',
+        category: 'Actions',
+        icon: CloudDownload,
+        action: () => {
+          onClose();
+          onOpenAdoImport();
+        },
+      },
+      {
         id: 'act-archive-done',
         label: 'Archive All Completed Tasks…',
         category: 'Actions',
@@ -239,6 +252,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onSelectNav,
     onToggleTheme,
     onOpenSettings,
+    onOpenAdoImport,
     onArchiveCompleted,
     onShowShortcuts,
     openTask,

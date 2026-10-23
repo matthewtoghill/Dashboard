@@ -24,6 +24,7 @@ import {
   ArchiveRestore,
   Repeat,
   Settings,
+  CloudDownload,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -70,6 +71,7 @@ import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
+import { AdoImportDialog } from './components/AdoImport.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
@@ -155,6 +157,7 @@ export const App: React.FC = () => {
 
   const [showCompleted, setShowCompleted] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adoImportOpen, setAdoImportOpen] = useState(false);
   // Theme is per-browser: 'light' or 'dark' in localStorage, absent means follow the system
   const [theme, setTheme] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem('dashboard_theme');
@@ -186,7 +189,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Native <dialog>s handle their own keys (Esc cancels).
-      if (confirmRequest || shortcutsOpen || settingsOpen) return;
+      if (confirmRequest || shortcutsOpen || settingsOpen || adoImportOpen) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -246,7 +249,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, shortcutsOpen, settingsOpen, toast]);
+  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, shortcutsOpen, settingsOpen, adoImportOpen, toast]);
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
@@ -1040,6 +1043,16 @@ export const App: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => setAdoImportOpen(true)}
+              aria-label="Fetch from Azure DevOps"
+              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
+              title="Fetch from Azure DevOps"
+            >
+              <CloudDownload className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setSettingsOpen(true)}
               aria-label="Open settings"
               className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
@@ -1620,6 +1633,7 @@ export const App: React.FC = () => {
         onFocusQuickAdd={() => quickAddRef.current?.focus()}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAdoImport={() => setAdoImportOpen(true)}
         onArchiveCompleted={() =>
           requestArchiveCompleted(
             tasks.filter((t) => t.status === 'done'),
@@ -1649,6 +1663,15 @@ export const App: React.FC = () => {
             tasks.filter((t) => t.status === 'archived'),
             'across all projects'
           )
+        }
+      />
+
+      <AdoImportDialog
+        open={adoImportOpen}
+        onClose={() => setAdoImportOpen(false)}
+        projects={projects}
+        onImported={(count) =>
+          showToast(count === 1 ? 'Imported 1 task from Azure DevOps' : `Imported ${count} tasks from Azure DevOps`)
         }
       />
 

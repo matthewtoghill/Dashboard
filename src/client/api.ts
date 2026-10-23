@@ -18,6 +18,9 @@ import {
   UpdateClaudeSessionInput,
   SettingsResponse,
   UpdateSettingsInput,
+  AdoFetchResult,
+  AdoItem,
+  AdoProjectLink,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -358,4 +361,58 @@ export async function updateSettings(input: UpdateSettingsInput): Promise<Settin
     throw new Error(body?.error ?? `Failed to save settings: ${res.statusText}`);
   }
   return (await res.json()) as SettingsResponse;
+}
+
+/** Throws the server's error message when there is one. */
+async function failWith(res: Response, fallback: string): Promise<never> {
+  const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  throw new Error(body?.error ?? `${fallback}: ${res.statusText}`);
+}
+
+export async function fetchAdoItems(): Promise<AdoFetchResult> {
+  const res = await fetch('/api/ado/items');
+  if (!res.ok) return failWith(res, 'Failed to fetch from Azure DevOps');
+  return (await res.json()) as AdoFetchResult;
+}
+
+export async function importAdoItems(items: AdoItem[]): Promise<{ importedCount: number }> {
+  const res = await fetch('/api/ado/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) return failWith(res, 'Failed to import items');
+  return (await res.json()) as { importedCount: number };
+}
+
+export async function fetchAdoProjectLinks(): Promise<AdoProjectLink[]> {
+  const res = await fetch('/api/ado/projects');
+  if (!res.ok) return failWith(res, 'Failed to load Azure DevOps projects');
+  return ((await res.json()) as { links: AdoProjectLink[] }).links;
+}
+
+export async function saveAdoProjectLinks(links: AdoProjectLink[]): Promise<AdoProjectLink[]> {
+  const res = await fetch('/api/ado/projects', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ links }),
+  });
+  if (!res.ok) return failWith(res, 'Failed to save Azure DevOps projects');
+  return ((await res.json()) as { links: AdoProjectLink[] }).links;
+}
+
+export interface AdoWorkItemTypes {
+  types: string[];
+  /** When the oldest list was fetched from Azure DevOps; null if none could be. */
+  fetchedAt: number | null;
+}
+
+/** Served from the server's cache; `refresh` asks Azure DevOps again. */
+export async function fetchAdoWorkItemTypes(project?: string, refresh = false): Promise<AdoWorkItemTypes> {
+  const params = new URLSearchParams();
+  if (project !== undefined) params.set('project', project);
+  if (refresh) params.set('refresh', '1');
+  const res = await fetch(`/api/ado/work-item-types?${params}`);
+  if (!res.ok) return failWith(res, 'Failed to load work item types');
+  return (await res.json()) as AdoWorkItemTypes;
 }

@@ -5,6 +5,7 @@ import { AppDatabase } from '../db/index.ts';
 import { listTasks } from './tasks.ts';
 import { serializeProject } from './projects.ts';
 import { listClaudeSessions } from './claude.ts';
+import { listAdoProjectLinks } from './ado.ts';
 import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
 import {
   keyValueStore,
@@ -13,6 +14,7 @@ import {
   tasks,
   subtasks,
   claudeSessions,
+  adoProjectLinks,
   DbQuickLink,
 } from '../db/schema.ts';
 import {
@@ -222,7 +224,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 4,
+      version: 5,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -231,6 +233,7 @@ export async function registerDashboardRoutes(
       savedViews: getSavedViews(),
       claudeSessions: listClaudeSessions(db),
       settings: readSettings(db.$client),
+      adoProjectLinks: listAdoProjectLinks(db),
     };
   });
 
@@ -298,6 +301,9 @@ export async function registerDashboardRoutes(
               statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
               recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
               recurrenceParentId: t.recurrenceParentId,
+              externalSource: t.externalSource,
+              externalId: t.externalId,
+              externalUrl: t.externalUrl,
             })
             .onConflictDoNothing()
             .run();
@@ -344,6 +350,21 @@ export async function registerDashboardRoutes(
             .onConflictDoNothing()
             .run();
           importedClaudeSessions += result.changes;
+        }
+
+        for (const link of payload.adoProjectLinks) {
+          // Drop a mapping to a project that is in neither the backup nor the database
+          const projectExists =
+            link.projectId !== null &&
+            tx.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get();
+          tx.insert(adoProjectLinks)
+            .values({
+              adoProject: link.adoProject,
+              projectId: projectExists ? link.projectId : null,
+              workItemTypes: link.workItemTypes ? JSON.stringify(link.workItemTypes) : null,
+            })
+            .onConflictDoNothing()
+            .run();
         }
 
         // Only into a database with no saved settings, so an import never changes them.

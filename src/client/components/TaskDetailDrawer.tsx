@@ -15,6 +15,7 @@ import {
   Edit3,
   Repeat,
   Bot,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Task,
@@ -28,6 +29,7 @@ import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
+import { externalLinkLabel } from './AdoImport.tsx';
 import { ClaudeSessionActions, ClaudeSessionItem } from './ClaudeSessions.tsx';
 
 const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
@@ -365,6 +367,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   : 'text-zinc-900 dark:text-zinc-100'
               }`}
             />
+            {task.externalUrl && task.externalId && (
+              <a
+                href={task.externalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                <ExternalLink className="w-3 h-3" />
+                {externalLinkLabel(task.externalId)}
+              </a>
+            )}
           </div>
 
           {/* Metadata Grid */}

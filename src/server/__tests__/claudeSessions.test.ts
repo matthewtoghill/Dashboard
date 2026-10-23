@@ -234,7 +234,7 @@ describe('Claude sessions API', () => {
     const taskId = await createTask();
     await app.inject({ method: 'PATCH', url: '/api/claude/sessions/s1', payload: { taskId } });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(4);
+    expect(exported.version).toBe(5);
     expect(exported.claudeSessions).toHaveLength(1);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });

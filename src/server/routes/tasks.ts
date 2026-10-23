@@ -137,6 +137,9 @@ export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
     statusBeforeArchive: row.statusBeforeArchive ?? null,
     recurrence: parseRecurrence(row.recurrence),
     recurrenceParentId: row.recurrenceParentId ?? null,
+    externalSource: row.externalSource ?? null,
+    externalId: row.externalId ?? null,
+    externalUrl: row.externalUrl ?? null,
     subtasks: taskSubtasks,
   };
 }
