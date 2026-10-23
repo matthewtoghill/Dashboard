@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Copy, ExternalLink, ListPlus, Unlink, X, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Bot, Check, Copy, ExternalLink, Link2, ListPlus, Unlink, X, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { ClaudeSession, ClaudeSessionState, Task } from '../../shared/types.ts';
 import { formatTimestamp } from '../utils/taskUtils.ts';
 
@@ -137,43 +137,214 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
   );
 };
 
-const TaskPicker: React.FC<{
-  session: ClaudeSession;
+const inputClass =
+  'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
+
+/** Dialog for choosing the session's task among open tasks, or creating a new one to link. */
+const TaskLinkDialog: React.FC<{
+  session: ClaudeSession | null;
   tasks: Task[];
+  onClose: () => void;
   onLink: (sessionId: string, taskId: string | null) => void;
-}> = ({ session, tasks, onLink }) => (
-  <select
-    aria-label="Linked task"
-    value={session.taskId ?? ''}
-    onChange={(e) => onLink(session.sessionId, e.target.value || null)}
-    className="max-w-[10rem] text-xs px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
-  >
-    <option value="">No task</option>
-    {tasks
-      .filter((t) => t.status !== 'archived' || t.id === session.taskId)
-      .map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.title}
-        </option>
-      ))}
-  </select>
-);
+  onCreateTask: (session: ClaudeSession, title: string) => void;
+}> = ({ session, tasks, onClose, onLink, onCreateTask }) => {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [query, setQuery] = useState('');
+  const [newTitle, setNewTitle] = useState('');
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (session && !dialog.open) {
+      setQuery('');
+      setNewTitle(taskFromSession(session).title);
+      dialog.showModal();
+    }
+    if (!session && dialog.open) dialog.close();
+  }, [session]);
+
+  const linkedTask = session && tasks.find((t) => t.id === session.taskId);
+  const q = query.trim().toLowerCase();
+  const choices = tasks.filter(
+    (t) => (t.status === 'todo' || t.status === 'in_progress') && t.title.toLowerCase().includes(q)
+  );
+  const link = (taskId: string | null) => {
+    if (session) onLink(session.sessionId, taskId);
+    onClose();
+  };
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      // Keep Esc and typing away from the panel and global shortcuts underneath
+      onKeyDown={(e) => e.stopPropagation()}
+      aria-labelledby="task-link-dialog-title"
+      className="m-auto w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
+    >
+      {session && (
+        <div className="flex flex-col max-h-[80vh] text-sm">
+          <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+            <h2 id="task-link-dialog-title" className="text-base font-semibold truncate">
+              Link task to session
+            </h2>
+            <button type="button" onClick={onClose} aria-label="Close" className={iconButtonClass}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {linkedTask && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10">
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="text-zinc-500 dark:text-zinc-400">Linked: </span>
+                  {linkedTask.title}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => link(null)}
+                  className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
+                >
+                  <Unlink className="w-3.5 h-3.5" />
+                  Unlink
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <input
+                type="search"
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search open tasks"
+                aria-label="Search open tasks"
+                className={inputClass}
+              />
+              {choices.length === 0 ? (
+                <p className="py-3 text-center text-xs text-zinc-500 dark:text-zinc-400">No matching open tasks.</p>
+              ) : (
+                <ul className="max-h-72 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {choices.map((t) => (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => link(t.id)}
+                        className={`w-full flex items-center gap-2 px-2 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer ${
+                          t.id === session.taskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
+                        }`}
+                      >
+                        <span className="flex-1 truncate">{t.title}</span>
+                        {t.id === session.taskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newTitle.trim()) return;
+                onCreateTask(session, newTitle.trim());
+                onClose();
+              }}
+              className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800"
+            >
+              <label htmlFor="task-link-new-title" className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                Or create a new task
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="task-link-new-title"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className={inputClass}
+                />
+                <button
+                  type="submit"
+                  disabled={!newTitle.trim()}
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                  Create & link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </dialog>
+  );
+};
+
+/** Linked task title (opens the task), an unlink X, and the button that opens TaskLinkDialog. */
+const TaskLinkControls: React.FC<
+  { session: ClaudeSession; tasks: Task[] } & Omit<ClaudeSessionActions, 'onOpen' | 'onToggleCleared'>
+> = ({ session, tasks, onLink, onCreateTask, onOpenTask }) => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const linkedTask = tasks.find((t) => t.id === session.taskId);
+  return (
+    <>
+      {linkedTask && (
+        <span className="inline-flex items-center min-w-0 max-w-[14rem] rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
+          <button
+            type="button"
+            onClick={() => onOpenTask(linkedTask.id)}
+            title={`Open task: ${linkedTask.title}`}
+            className="min-w-0 truncate pl-2 py-1 text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+          >
+            {linkedTask.title}
+          </button>
+          <button
+            type="button"
+            onClick={() => onLink(session.sessionId, null)}
+            aria-label="Unlink task"
+            title="Unlink task"
+            className="flex-shrink-0 p-1 mr-0.5 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        aria-label={linkedTask ? 'Change linked task' : 'Link task'}
+        title={linkedTask ? 'Change linked task' : 'Link or create a task'}
+        className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
+      >
+        <Link2 className="w-3.5 h-3.5" />
+        {!linkedTask && <span>Link task</span>}
+      </button>
+      <TaskLinkDialog
+        session={dialogOpen ? session : null}
+        tasks={tasks}
+        onClose={() => setDialogOpen(false)}
+        onLink={onLink}
+        onCreateTask={onCreateTask}
+      />
+    </>
+  );
+};
 
 export interface ClaudeSessionActions {
   onOpen: (sessionId: string) => void;
+  onOpenTask: (taskId: string) => void;
   onLink: (sessionId: string, taskId: string | null) => void;
-  onCreateTask: (session: ClaudeSession) => void;
+  onCreateTask: (session: ClaudeSession, title: string) => void;
   onToggleCleared: (session: ClaudeSession) => void;
 }
 
 /**
  * One session: state, title (opens the side panel), folder and last activity, and actions.
- * With `tasks` (Overview) it has a task picker, Create task and Clear; without (task drawer),
- * an Unlink button.
+ * With `tasks` (Overview) it has the linked task and link button, and Clear; without (task
+ * drawer), an Unlink button.
  */
 export const ClaudeSessionItem: React.FC<
   { session: ClaudeSession; tasks?: Task[] } & ClaudeSessionActions
-> = ({ session, tasks, onOpen, onLink, onCreateTask, onToggleCleared }) => (
+> = ({ session, tasks, onOpen, onOpenTask, onLink, onCreateTask, onToggleCleared }) => (
   <li className="flex items-center gap-2 py-2">
     <StateBadge state={session.state} />
     <button
@@ -190,20 +361,13 @@ export const ClaudeSessionItem: React.FC<
       </span>
     </button>
     {tasks ? (
-      <>
-        <TaskPicker session={session} tasks={tasks} onLink={onLink} />
-        {!session.taskId && (
-          <button
-            type="button"
-            aria-label="Create task from session"
-            title="Create task from session"
-            onClick={() => onCreateTask(session)}
-            className={iconButtonClass}
-          >
-            <ListPlus className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </>
+      <TaskLinkControls
+        session={session}
+        tasks={tasks}
+        onOpenTask={onOpenTask}
+        onLink={onLink}
+        onCreateTask={onCreateTask}
+      />
     ) : (
       <button
         type="button"
@@ -279,7 +443,6 @@ export const ClaudeSessionPanel: React.FC<
     session: ClaudeSession | null;
     tasks: Task[];
     onClose: () => void;
-    onOpenTask: (taskId: string) => void;
   } & Omit<ClaudeSessionActions, 'onOpen'>
 > = ({ session, tasks, onClose, onOpenTask, onLink, onCreateTask, onToggleCleared }) => {
   const asideRef = useRef<HTMLElement>(null);
@@ -294,7 +457,6 @@ export const ClaudeSessionPanel: React.FC<
   }, [isOpen]);
 
   if (!session) return null;
-  const linkedTask = tasks.find((t) => t.id === session.taskId);
 
   return (
     <div
@@ -375,25 +537,13 @@ export const ClaudeSessionPanel: React.FC<
               Task
             </span>
             <div className="flex flex-wrap items-center gap-2">
-              <TaskPicker session={session} tasks={tasks} onLink={onLink} />
-              {linkedTask ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenTask(linkedTask.id)}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                >
-                  Open task
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onCreateTask(session)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer"
-                >
-                  <ListPlus className="w-3.5 h-3.5" />
-                  Create task from session
-                </button>
-              )}
+              <TaskLinkControls
+                session={session}
+                tasks={tasks}
+                onOpenTask={onOpenTask}
+                onLink={onLink}
+                onCreateTask={onCreateTask}
+              />
             </div>
           </div>
 

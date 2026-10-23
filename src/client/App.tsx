@@ -483,17 +483,19 @@ export const App: React.FC = () => {
       setSelectedTaskId(null);
       setSelectedSessionId(sessionId);
     },
+    onOpenTask: (taskId) => {
+      setSelectedSessionId(null);
+      setSelectedTaskId(taskId);
+    },
     onLink: (sessionId, taskId) => updateClaudeSessionMutation.mutate({ sessionId, input: { taskId } }),
-    // Create a task from the session, link them, and open the task to fill in the details
-    onCreateTask: async (session: ClaudeSession) => {
+    // Create a task from the session with the chosen title, and link them
+    onCreateTask: async (session: ClaudeSession, title: string) => {
       try {
-        const task = await createTaskMutation.mutateAsync(taskFromSession(session));
+        const task = await createTaskMutation.mutateAsync({ ...taskFromSession(session), title });
         await updateClaudeSessionMutation.mutateAsync({
           sessionId: session.sessionId,
           input: { taskId: task.id },
         });
-        setSelectedSessionId(null);
-        setSelectedTaskId(task.id);
       } catch (err) {
         showToast(err instanceof Error ? err.message : 'Creating task failed');
       }
@@ -1710,10 +1712,7 @@ export const App: React.FC = () => {
         session={selectedSession}
         tasks={tasks}
         onClose={() => setSelectedSessionId(null)}
-        onOpenTask={(taskId) => {
-          setSelectedSessionId(null);
-          setSelectedTaskId(taskId);
-        }}
+        onOpenTask={claudeSessionActions.onOpenTask}
         onLink={claudeSessionActions.onLink}
         onCreateTask={claudeSessionActions.onCreateTask}
         onToggleCleared={claudeSessionActions.onToggleCleared}
