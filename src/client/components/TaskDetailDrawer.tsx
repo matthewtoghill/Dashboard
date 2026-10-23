@@ -479,6 +479,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   value={newTagInput}
                   onChange={(e) => setNewTagInput(e.target.value)}
                   placeholder="+ Add tag"
+                  list="tag-suggestions"
                   aria-label="Add tag in drawer"
                   className="text-xs px-2.5 py-1 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 w-24"
                 />

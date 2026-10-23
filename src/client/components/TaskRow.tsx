@@ -349,6 +349,7 @@ Click to open details, double-click to edit title`}
                 if (e.key === 'Escape') e.currentTarget.blur();
               }}
               placeholder="tag..."
+              list="tag-suggestions"
               aria-label="New tag name"
               className="w-20 text-[11px] px-1.5 py-0.5 rounded border border-indigo-500 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none"
             />

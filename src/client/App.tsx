@@ -308,6 +308,10 @@ export const App: React.FC = () => {
             ),
     [rawTasks, pendingIds]
   );
+  const allTags = useMemo(
+    () => [...new Set(tasks.flatMap((t) => t.tags))].sort(),
+    [tasks]
+  );
   const projects = useMemo(
     () => rawProjects.filter((p) => !pendingIds.has(p.id)),
     [rawProjects, pendingIds]
@@ -1418,6 +1422,7 @@ export const App: React.FC = () => {
                           }
                         }}
                         placeholder="Add tag..."
+                        list="tag-suggestions"
                         aria-label="New task tag"
                         className="w-20 bg-transparent text-zinc-700 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none"
                       />
@@ -1565,6 +1570,12 @@ export const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      <datalist id="tag-suggestions">
+        {allTags.map((tag) => (
+          <option key={tag} value={tag} />
+        ))}
+      </datalist>
 
       {/* Slide-over Task Detail Drawer */}
       <TaskDetailDrawer
