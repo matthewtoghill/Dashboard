@@ -16,6 +16,7 @@ import {
 } from '../../shared/types.ts';
 import { Recurrence, RecurrenceSchema, nextOccurrence } from '../../shared/recurrence.ts';
 import { toIsoDate } from '../../shared/dates.ts';
+import { diffTask, listTaskEvents, recordTaskEvents } from '../taskEvents.ts';
 
 function serializeSubtask(row: DbSubtask): Subtask {
   return {
@@ -75,6 +76,7 @@ function spawnNextOccurrence(
       recurrenceParentId: completed.id,
     })
     .run();
+  recordTaskEvents(db, id, [{ kind: 'created' }], 'manual', now);
 
   for (const sub of db.select().from(subtasks).where(eq(subtasks.taskId, completed.id)).all()) {
     db.insert(subtasks)
@@ -209,7 +211,10 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       recurrence: stringifyRecurrence(input.recurrence),
     };
 
-    db.insert(tasks).values(newTask).run();
+    db.transaction(() => {
+      db.insert(tasks).values(newTask).run();
+      recordTaskEvents(db, id, [{ kind: 'created' }], 'manual', now);
+    });
 
     return reply.status(201).send({ task: getTaskWithSubtasks(id)! });
   });
@@ -276,6 +281,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
         .run();
 
       const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()!;
+      recordTaskEvents(db, id, diffTask(existing, updated), 'manual', now);
       const rule = parseRecurrence(updated.recurrence);
       if (completing && rule) {
         return { spawnedTaskId: spawnNextOccurrence(db, updated, rule, now) };
@@ -285,6 +291,15 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     });
 
     return { task: getTaskWithSubtasks(id)!, ...outcome };
+  });
+
+  // GET /api/tasks/:id/events — activity log, newest first
+  app.get<{ Params: { id: string } }>('/api/tasks/:id/events', async (request, reply) => {
+    const { id } = request.params;
+    if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) {
+      return reply.status(404).send({ error: 'Task not found' });
+    }
+    return { events: listTaskEvents(db, id) };
   });
 
   // DELETE /api/tasks/:id
@@ -302,22 +317,38 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
 
   const parseIds = (body: unknown) => BulkTaskIdsSchema.safeParse(body);
 
+  /** Runs a bulk update and logs the status change of each task it touched. */
+  const withStatusEvents = <T>(ids: string[], update: () => T): T =>
+    db.transaction(() => {
+      const before = db.select().from(tasks).where(inArray(tasks.id, ids)).all();
+      const result = update();
+      const after = new Map(
+        db.select().from(tasks).where(inArray(tasks.id, ids)).all().map((t) => [t.id, t])
+      );
+      for (const row of before) {
+        recordTaskEvents(db, row.id, diffTask(row, after.get(row.id)!));
+      }
+      return result;
+    });
+
   // POST /api/tasks/bulk-archive
   app.post('/api/tasks/bulk-archive', async (request, reply) => {
     const parsed = parseIds(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid ids', details: parsed.error.flatten() });
     }
-    const result = db
-      .update(tasks)
-      .set({
-        status: 'archived',
-        // SQLite evaluates every SET expression against the old row, so this is the prior status
-        statusBeforeArchive: sql`${tasks.status}`,
-        updatedAt: Date.now(),
-      })
-      .where(and(inArray(tasks.id, parsed.data.ids), ne(tasks.status, 'archived')))
-      .run();
+    const result = withStatusEvents(parsed.data.ids, () =>
+      db
+        .update(tasks)
+        .set({
+          status: 'archived',
+          // SQLite evaluates every SET expression against the old row, so this is the prior status
+          statusBeforeArchive: sql`${tasks.status}`,
+          updatedAt: Date.now(),
+        })
+        .where(and(inArray(tasks.id, parsed.data.ids), ne(tasks.status, 'archived')))
+        .run()
+    );
     return { archivedCount: result.changes };
   });
 
@@ -328,15 +359,17 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid ids', details: parsed.error.flatten() });
     }
-    const result = db
-      .update(tasks)
-      .set({
-        status: sql`COALESCE(${tasks.statusBeforeArchive}, CASE WHEN ${tasks.completedAt} IS NULL THEN 'todo' ELSE 'done' END)`,
-        statusBeforeArchive: null,
-        updatedAt: Date.now(),
-      })
-      .where(and(inArray(tasks.id, parsed.data.ids), eq(tasks.status, 'archived')))
-      .run();
+    const result = withStatusEvents(parsed.data.ids, () =>
+      db
+        .update(tasks)
+        .set({
+          status: sql`COALESCE(${tasks.statusBeforeArchive}, CASE WHEN ${tasks.completedAt} IS NULL THEN 'todo' ELSE 'done' END)`,
+          statusBeforeArchive: null,
+          updatedAt: Date.now(),
+        })
+        .where(and(inArray(tasks.id, parsed.data.ids), eq(tasks.status, 'archived')))
+        .run()
+    );
     return { restoredCount: result.changes };
   });
 
@@ -401,17 +434,20 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       const id = crypto.randomUUID();
       const now = Date.now();
 
-      db.insert(subtasks)
-        .values({
-          id,
-          taskId,
-          title: parseResult.data.title,
-          isCompleted: 0,
-          sortOrder: now,
-        })
-        .run();
+      db.transaction(() => {
+        db.insert(subtasks)
+          .values({
+            id,
+            taskId,
+            title: parseResult.data.title,
+            isCompleted: 0,
+            sortOrder: now,
+          })
+          .run();
 
-      db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId)).run();
+        db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId)).run();
+        recordTaskEvents(db, taskId, [{ kind: 'subtask_added', to: parseResult.data.title }], 'manual', now);
+      });
 
       const created = db.select().from(subtasks).where(eq(subtasks.id, id)).get();
       return reply.status(201).send({ subtask: serializeSubtask(created!) });
@@ -435,21 +471,32 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     }
 
     const input = parseResult.data;
-    db.update(subtasks)
-      .set({
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.isCompleted !== undefined
-          ? { isCompleted: input.isCompleted ? 1 : 0 }
-          : {}),
-        ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-      })
-      .where(eq(subtasks.id, id))
-      .run();
+    db.transaction(() => {
+      db.update(subtasks)
+        .set({
+          ...(input.title !== undefined ? { title: input.title } : {}),
+          ...(input.isCompleted !== undefined
+            ? { isCompleted: input.isCompleted ? 1 : 0 }
+            : {}),
+          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        })
+        .where(eq(subtasks.id, id))
+        .run();
 
-    db.update(tasks)
-      .set({ updatedAt: Date.now() })
-      .where(eq(tasks.id, existing.taskId))
-      .run();
+      db.update(tasks)
+        .set({ updatedAt: Date.now() })
+        .where(eq(tasks.id, existing.taskId))
+        .run();
+
+      if (input.isCompleted !== undefined && input.isCompleted !== Boolean(existing.isCompleted)) {
+        recordTaskEvents(db, existing.taskId, [
+          {
+            kind: input.isCompleted ? 'subtask_completed' : 'subtask_reopened',
+            to: input.title ?? existing.title,
+          },
+        ]);
+      }
+    });
 
     const updated = db.select().from(subtasks).where(eq(subtasks.id, id)).get();
     return { subtask: serializeSubtask(updated!) };

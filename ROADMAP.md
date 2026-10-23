@@ -11,7 +11,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 3 | Azure DevOps work item import | **Done** (branch `roadmap/ado-import`) |
 | 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
 | 5 | Calendar view | **Done** (branch `roadmap/calendar`) |
-| 6 | Task activity log | Proposed |
+| 6 | Task activity log | **Done** (branch `roadmap/activity-log`) |
 | 7 | Automatic Azure DevOps sync check | Proposed |
 | 8 | Weekly review view | Proposed |
 | 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
@@ -201,6 +201,15 @@ Keep a history of what changed on each task and when. Today only `updatedAt` sur
 - Include events in JSON export and import, or treat them as local history only?
 - Should events be pruned (for example a year after the task is archived), or kept forever?
 - Should description edits be logged? Notes change often, so logging them could drown out everything else.
+
+### Decisions
+
+- Events are included in JSON export (version 6) and import. Events for a task in neither the backup nor the database are skipped.
+- Events are kept forever; deleting a task removes them through the cascade.
+- Description, tag and recurrence edits are not logged. Subtask renames and deletes are not logged either; reopening a subtask is.
+- Linking a session to a different task logs an unlink on the old task and a link on the new one. The label is the session title, or its id when untitled.
+- All task and subtask routes record source `manual`; ADO import records `ado`. `claude` is reserved for feature 2.
+- The History section loads when first expanded, and reloads when the task's `updatedAt` or linked sessions change.
 
 ## 7. Automatic Azure DevOps Sync Check
 

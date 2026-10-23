@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
 import { adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
+import { recordTaskEvents } from '../taskEvents.ts';
 import {
   AdoFetchResult,
   AdoImportInputSchema,
@@ -403,10 +404,11 @@ export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, a
     let importedCount = 0;
     db.transaction((tx) => {
       parsed.data.items.forEach((item, i) => {
+        const id = crypto.randomUUID();
         const result = tx
           .insert(tasks)
           .values({
-            id: crypto.randomUUID(),
+            id,
             title: item.role === 'reviewer' ? `Review: ${item.title}` : item.title,
             status: 'todo',
             projectId: linkFor(links, item.adoProject)?.projectId ?? null,
@@ -419,6 +421,7 @@ export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, a
           })
           .onConflictDoNothing()
           .run();
+        if (result.changes > 0) recordTaskEvents(db, id, [{ kind: 'created' }], 'ado', now);
         importedCount += result.changes;
       });
     });

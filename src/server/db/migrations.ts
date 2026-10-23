@@ -108,6 +108,20 @@ export const MIGRATIONS: string[] = [
       work_item_types TEXT
     );
   `,
+
+  // 6: Task activity log. One row per recorded change; from/to hold the old and new values as text.
+  `
+    CREATE TABLE task_events (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      at INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      from_value TEXT,
+      to_value TEXT,
+      source TEXT NOT NULL DEFAULT 'manual'
+    );
+    CREATE INDEX idx_task_events_task ON task_events(task_id, at);
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

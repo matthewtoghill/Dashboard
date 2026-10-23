@@ -212,7 +212,7 @@ describe('Azure DevOps import', () => {
       payload: { items: [{ ...bad, url: `${ORG}_workitems/edit/9` }] },
     });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(5);
+    expect(exported.version).toBe(6);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });
     await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });

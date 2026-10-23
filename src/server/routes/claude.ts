@@ -6,6 +6,7 @@ import path from 'node:path';
 import { AppDatabase } from '../db/index.ts';
 import { claudeSessions, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
+import { recordTaskEvents } from '../taskEvents.ts';
 import {
   ClaudeHookEvent,
   ClaudeHookEventSchema,
@@ -213,17 +214,32 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
       return reply.status(400).send({ error: 'Task not found' });
     }
 
-    const result = db
-      .update(claudeSessions)
-      .set({
-        ...(taskId !== undefined ? { taskId } : {}),
-        ...(dismissed !== undefined ? { dismissedAt: dismissed ? Date.now() : null } : {}),
-      })
+    const existing = db
+      .select()
+      .from(claudeSessions)
       .where(eq(claudeSessions.sessionId, request.params.id))
-      .run();
-    if (result.changes === 0) {
+      .get();
+    if (!existing) {
       return reply.status(404).send({ error: 'Session not found' });
     }
+
+    db.transaction(() => {
+      db.update(claudeSessions)
+        .set({
+          ...(taskId !== undefined ? { taskId } : {}),
+          ...(dismissed !== undefined ? { dismissedAt: dismissed ? Date.now() : null } : {}),
+        })
+        .where(eq(claudeSessions.sessionId, request.params.id))
+        .run();
+
+      if (taskId !== undefined && taskId !== existing.taskId) {
+        const label = existing.title || existing.sessionId;
+        if (existing.taskId) {
+          recordTaskEvents(db, existing.taskId, [{ kind: 'session_unlinked', from: label }]);
+        }
+        if (taskId) recordTaskEvents(db, taskId, [{ kind: 'session_linked', to: label }]);
+      }
+    });
 
     const updated = db
       .select()

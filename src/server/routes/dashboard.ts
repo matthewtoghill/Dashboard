@@ -7,6 +7,7 @@ import { serializeProject } from './projects.ts';
 import { listClaudeSessions } from './claude.ts';
 import { listAdoProjectLinks } from './ado.ts';
 import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
+import { listTaskEvents } from '../taskEvents.ts';
 import {
   keyValueStore,
   quickLinks,
@@ -15,6 +16,7 @@ import {
   subtasks,
   claudeSessions,
   adoProjectLinks,
+  taskEvents,
   DbQuickLink,
 } from '../db/schema.ts';
 import {
@@ -243,7 +245,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 5,
+      version: 6,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -253,6 +255,7 @@ export async function registerDashboardRoutes(
       claudeSessions: listClaudeSessions(db),
       settings: readSettings(db.$client),
       adoProjectLinks: listAdoProjectLinks(db),
+      taskEvents: listTaskEvents(db),
     };
   });
 
@@ -384,6 +387,12 @@ export async function registerDashboardRoutes(
             })
             .onConflictDoNothing()
             .run();
+        }
+
+        for (const event of payload.taskEvents) {
+          // Skip history for a task that is in neither the backup nor the database
+          if (!tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, event.taskId)).get()) continue;
+          tx.insert(taskEvents).values(event).onConflictDoNothing().run();
         }
 
         // Only into a database with no saved settings, so an import never changes them.

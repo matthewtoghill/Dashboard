@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   X,
   Check,
@@ -17,6 +18,7 @@ import {
   Repeat,
   Bot,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import {
   Task,
@@ -27,7 +29,15 @@ import {
   UpdateSubtaskInput,
   ClaudeSession,
 } from '../../shared/types.ts';
-import { formatDayDate, formatTimestamp, getTodayIso, cleanTag } from '../utils/taskUtils.ts';
+import {
+  formatDayDate,
+  formatTimestamp,
+  formatRelativeTime,
+  getTodayIso,
+  cleanTag,
+  describeTaskEvent,
+} from '../utils/taskUtils.ts';
+import { fetchTaskEvents } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
@@ -763,6 +773,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               />
             )}
           </div>
+
+          <TaskHistory
+            task={task}
+            projects={projects}
+            linkedSessionIds={claudeSessions.map((s) => s.sessionId).join()}
+          />
         </div>
 
         {/* Drawer Footer: Activity Timestamps */}
@@ -779,6 +795,54 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         </div>
       </aside>
     </div>
+  );
+};
+
+const SOURCE_LABELS = { manual: null, ado: 'Azure DevOps', claude: 'Claude' } as const;
+
+/** Collapsible activity log, loaded when first expanded and refreshed after each edit. */
+const TaskHistory: React.FC<{ task: Task; projects: Project[]; linkedSessionIds: string }> = ({
+  task,
+  projects,
+  linkedSessionIds,
+}) => {
+  const [open, setOpen] = useState(false);
+  const { data: events, error } = useQuery({
+    // Session links don't touch updatedAt, so they're part of the key too
+    queryKey: ['taskEvents', task.id, task.updatedAt, linkedSessionIds],
+    queryFn: () => fetchTaskEvents(task.id),
+    enabled: open,
+  });
+
+  return (
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 cursor-pointer select-none">
+        <History className="w-3.5 h-3.5" />
+        <span>History</span>
+      </summary>
+      <div className="mt-2">
+        {error ? (
+          <p className="text-xs text-red-500">{error.message}</p>
+        ) : !events ? (
+          <p className="text-xs text-zinc-400">Loading…</p>
+        ) : events.length === 0 ? (
+          <p className="text-xs text-zinc-400 italic">No changes recorded yet.</p>
+        ) : (
+          <ul className="space-y-1">
+            {events.map((ev) => (
+              <li key={ev.id} className="text-xs text-zinc-600 dark:text-zinc-300">
+                {describeTaskEvent(ev, projects)}
+                <span className="text-zinc-400" title={formatTimestamp(ev.at)}>
+                  {' · '}
+                  {formatRelativeTime(ev.at)}
+                  {SOURCE_LABELS[ev.source] && ` · ${SOURCE_LABELS[ev.source]}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
   );
 };
 

@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { TASK_EVENT_KINDS, TASK_EVENT_SOURCES } from '../../shared/types.ts';
 
 export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
@@ -78,6 +79,18 @@ export const adoProjectLinks = sqliteTable('ado_project_links', {
   workItemTypes: text('work_item_types'), // JSON string array; null = settings default
 });
 
+export const taskEvents = sqliteTable('task_events', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id')
+    .notNull()
+    .references(() => tasks.id, { onDelete: 'cascade' }),
+  at: integer('at').notNull(),
+  kind: text('kind', { enum: TASK_EVENT_KINDS }).notNull(),
+  from: text('from_value'),
+  to: text('to_value'),
+  source: text('source', { enum: TASK_EVENT_SOURCES }).notNull().default('manual'),
+});
+
 export type DbProject = typeof projects.$inferSelect;
 export type NewDbProject = typeof projects.$inferInsert;
 
@@ -95,3 +108,5 @@ export type DbKeyValue = typeof keyValueStore.$inferSelect;
 export type DbClaudeSession = typeof claudeSessions.$inferSelect;
 
 export type DbAdoProjectLink = typeof adoProjectLinks.$inferSelect;
+
+export type DbTaskEvent = typeof taskEvents.$inferSelect;

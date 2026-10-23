@@ -92,6 +92,35 @@ export const TaskSchema = z.object({
 });
 export type Task = z.infer<typeof TaskSchema>;
 
+/** Feature 6: task activity log. from/to hold old and new values as text (ids, ISO dates, numbers). */
+export const TASK_EVENT_KINDS = [
+  'created',
+  'status',
+  'due',
+  'priority',
+  'project',
+  'title',
+  'subtask_added',
+  'subtask_completed',
+  'subtask_reopened',
+  'session_linked',
+  'session_unlinked',
+] as const;
+export const TASK_EVENT_SOURCES = ['manual', 'ado', 'claude'] as const;
+
+export const TaskEventSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  at: z.number(),
+  kind: z.enum(TASK_EVENT_KINDS),
+  from: z.string().nullable(),
+  to: z.string().nullable(),
+  source: z.enum(TASK_EVENT_SOURCES),
+});
+export type TaskEvent = z.infer<typeof TaskEventSchema>;
+export type TaskEventKind = TaskEvent['kind'];
+export type TaskEventSource = TaskEvent['source'];
+
 export const CreateTaskInputSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required'),
   description: z.string().optional().default(''),
@@ -341,5 +370,7 @@ export const BackupPayloadSchema = z.object({
   settings: SettingsSchema.optional(),
   /** Since version 5. */
   adoProjectLinks: z.array(AdoProjectLinkSchema).optional().default([]),
+  /** Since version 6. */
+  taskEvents: z.array(TaskEventSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

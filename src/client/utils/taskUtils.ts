@@ -1,4 +1,4 @@
-import { Project, Task, TaskPriority, TaskStatus } from '../../shared/types.ts';
+import { Project, Task, TaskEvent, TaskPriority, TaskStatus } from '../../shared/types.ts';
 import { addDays, addMonthsClamped, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 import { Recurrence, parseRecurrenceToken } from '../../shared/recurrence.ts';
 
@@ -163,6 +163,46 @@ export function formatRelativeTime(ts: number, now = Date.now()): string {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return plural(hours, 'hour');
   return plural(Math.round(hours / 24), 'day');
+}
+
+/** One activity log row, e.g. `Due Tue, Oct 12 → Tue, Oct 19`. */
+export function describeTaskEvent(event: TaskEvent, projects: Project[]): string {
+  const { from, to } = event;
+  const status = (s: string | null) => STATUS_LABELS[s as TaskStatus] ?? s;
+  const due = (d: string | null) => (d ? formatDayDate(d) : 'none');
+  const priority = (p: string | null) => PRIORITY_CONFIG[Number(p) as TaskPriority]?.label ?? p;
+  const project = (id: string | null) =>
+    id === null ? 'No project' : (projects.find((p) => p.id === id)?.name ?? 'Deleted project');
+
+  switch (event.kind) {
+    case 'created':
+      return 'Created';
+    case 'status':
+      if (from === 'archived') return `Restored to ${status(to)}`;
+      if (to === 'done' || to === 'archived') return status(to)!;
+      if (from === 'done') return `Reopened as ${status(to)}`;
+      return `Status ${status(from)} → ${status(to)}`;
+    case 'due':
+      if (from === null) return `Due ${due(to)}`;
+      if (to === null) return `Due date removed (was ${due(from)})`;
+      return `Due ${due(from)} → ${due(to)}`;
+    case 'priority':
+      return `Priority ${priority(from)} → ${priority(to)}`;
+    case 'project':
+      return `Project ${project(from)} → ${project(to)}`;
+    case 'title':
+      return `Renamed “${from}” → “${to}”`;
+    case 'subtask_added':
+      return `Subtask added: ${to}`;
+    case 'subtask_completed':
+      return `Subtask completed: ${to}`;
+    case 'subtask_reopened':
+      return `Subtask reopened: ${to}`;
+    case 'session_linked':
+      return `Claude session linked: ${to}`;
+    case 'session_unlinked':
+      return `Claude session unlinked: ${from}`;
+  }
 }
 
 export function formatTimestamp(ts: number): string {

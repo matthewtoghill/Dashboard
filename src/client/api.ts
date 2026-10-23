@@ -21,6 +21,7 @@ import {
   AdoFetchResult,
   AdoItem,
   AdoProjectLink,
+  TaskEvent,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -428,4 +429,13 @@ export async function fetchAdoWorkItemTypes(project?: string, refresh = false): 
   const res = await fetch(`/api/ado/work-item-types?${params}`);
   if (!res.ok) return failWith(res, 'Failed to load work item types');
   return (await res.json()) as AdoWorkItemTypes;
+}
+
+export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
+  const res = await fetch(`/api/tasks/${taskId}/events`);
+  if (!res.ok) {
+    throw new Error(`Failed to load task history: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { events: TaskEvent[] };
+  return data.events;
 }
