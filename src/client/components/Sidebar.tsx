@@ -156,8 +156,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/50 dark:bg-zinc-900/40 flex flex-col select-none">
-      <div className="p-3 space-y-6 flex-1 overflow-y-auto">
+    <aside className="w-64 flex-shrink-0 sticky top-14 max-h-[calc(100vh-3.5rem)] border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/50 dark:bg-zinc-900/40 flex flex-col select-none">
+      <div className="p-3 space-y-6 flex-1 overflow-y-auto overscroll-contain">
         {/* Smart Views */}
         <div>
           <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">

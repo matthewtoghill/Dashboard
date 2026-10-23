@@ -959,7 +959,7 @@ export const App: React.FC = () => {
       : `in "${currentViewTitle}"`;
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+    <div className="h-screen overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       {/* Top Header */}
       <header
         inert={backgroundInert}
@@ -1099,7 +1099,8 @@ export const App: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <main className="@container flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6 overflow-y-auto">
+        <main className="@container flex-1 overflow-y-auto">
+          <div className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6">
           {isOverviewPage ? (
             <>
               <ClaudeSessionsCard
@@ -1581,6 +1582,7 @@ export const App: React.FC = () => {
                 )}
             </>
           )}
+          </div>
         </main>
       </div>
 
