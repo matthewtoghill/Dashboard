@@ -64,7 +64,7 @@ import {
   ClaudeSession,
   UpdateClaudeSessionInput,
 } from '../shared/types.ts';
-import { TaskRow } from './components/TaskRow.tsx';
+import { TaskRow, TaskListHeader } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
@@ -1082,7 +1082,7 @@ export const App: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6 overflow-y-auto">
+        <main className="@container flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6 overflow-y-auto">
           {isOverviewPage ? (
             <>
               <ClaudeSessionsCard
@@ -1481,11 +1481,11 @@ export const App: React.FC = () => {
                 <div className="space-y-6">
                   {groupedSections.map((group) => (
                     <section key={group.key} className="space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      <TaskListHeader>
+                        <h3>
                           {group.label} ({group.tasks.length})
                         </h3>
-                      </div>
+                      </TaskListHeader>
                       <ReorderableTaskList
                         tasks={group.tasks}
                         enabled={canReorder}

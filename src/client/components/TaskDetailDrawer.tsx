@@ -38,6 +38,11 @@ const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] 
   { key: 'monthly', label: 'Monthly', rule: { every: 1, unit: 'month', from: 'due' } },
 ];
 
+const DRAWER_WIDTH_KEY = 'dashboard_drawer_width';
+const DRAWER_MIN_WIDTH = 360;
+const clampDrawerWidth = (w: number) =>
+  Math.round(Math.min(Math.max(w, DRAWER_MIN_WIDTH), window.innerWidth - 80));
+
 const presetKey = (rule: Recurrence | null) =>
   REPEAT_PRESETS.find(
     (p) =>
@@ -173,6 +178,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [isPreviewingNotes, setIsPreviewingNotes] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
+  const [width, setWidth] = useState(
+    () => Number(localStorage.getItem(DRAWER_WIDTH_KEY)) || 512
+  );
   const asideRef = useRef<HTMLElement>(null);
   const isOpen = task !== null;
 
@@ -195,6 +203,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   useEffect(() => {
     setIsPreviewingNotes(Boolean(task?.description.trim()));
   }, [task?.id]);
+
+  const saveWidth = (w: number) => localStorage.setItem(DRAWER_WIDTH_KEY, String(w));
 
   if (!task) return null;
 
@@ -261,8 +271,39 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         aria-modal="true"
         aria-label={`Task details: ${task.title}`}
         tabIndex={-1}
-        className="focus:outline-none w-full max-w-lg bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 h-full flex flex-col shadow-2xl overflow-hidden"
+        style={{ width }}
+        className="relative focus:outline-none max-w-full bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 h-full flex flex-col shadow-2xl overflow-hidden"
       >
+        {/* Resize handle: drag, or focus and use Left/Right arrows */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize task details"
+          aria-valuenow={width}
+          aria-valuemin={DRAWER_MIN_WIDTH}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+              setWidth(clampDrawerWidth(window.innerWidth - e.clientX));
+            }
+          }}
+          onPointerUp={() => saveWidth(width)}
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            e.preventDefault();
+            const next = clampDrawerWidth(width + (e.key === 'ArrowLeft' ? 32 : -32));
+            setWidth(next);
+            saveWidth(next);
+          }}
+          className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize touch-none focus:outline-none group/resize"
+        >
+          <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-indigo-500/60 group-focus-visible/resize:bg-indigo-500 group-active/resize:bg-indigo-500 transition-colors" />
+        </div>
+
         {/* Drawer Header */}
         <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
