@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
 import { AzError, AzRunner, describeAzFailure } from '../routes/ado.ts';
+import { externalLinkLabel, externalShortLabel } from '../../client/components/AdoImport.tsx';
 import { AdoFetchResult, Task } from '../../shared/types.ts';
 
 const ORG = 'https://dev.azure.com/acme/';
@@ -50,6 +51,13 @@ describe('describeAzFailure', () => {
     );
     expect(describeAzFailure("ERROR: Please run 'az login' to setup account.")).toMatch(/Run az login/);
     expect(describeAzFailure('WARNING: x\nERROR: TF401180: not found')).toBe('Azure CLI: TF401180: not found');
+  });
+
+  it('formats full and compact labels for external ids', () => {
+    expect(externalLinkLabel('workitem/123')).toBe('Azure DevOps work item 123');
+    expect(externalLinkLabel('pr/45')).toBe('Azure DevOps pull request 45');
+    expect(externalShortLabel('workitem/123')).toBe('#123');
+    expect(externalShortLabel('pr/45')).toBe('PR #45');
   });
 });
 

@@ -15,12 +15,15 @@ import {
   Archive,
   ArchiveRestore,
   Repeat,
+  Bot,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Task,
   Project,
   TaskPriority,
   UpdateTaskInput,
+  ClaudeSession,
 } from '../../shared/types.ts';
 import { describeRecurrence } from '../../shared/recurrence.ts';
 import { checklistProgress } from '../utils/markdown.ts';
@@ -31,6 +34,20 @@ import {
   getTodayIso,
   getTomorrowIso,
 } from '../utils/taskUtils.ts';
+import { externalLinkLabel, externalShortLabel } from './AdoImport.tsx';
+import {
+  SESSION_ROW_BADGE_STYLES,
+  STATE_STYLES,
+  primaryClaudeSession,
+} from './ClaudeSessions.tsx';
+
+/** Half-filled circle indicating an in-progress task. */
+const InProgressIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
+    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.75" />
+    <path d="M8 2a6 6 0 0 0 0 12V2Z" fill="currentColor" />
+  </svg>
+);
 
 /** Shared by TaskRow and TaskListHeader so columns line up. Wide containers only; narrow ones wrap. */
 const TASK_GRID_CLASS =
@@ -55,6 +72,8 @@ const MAX_VISIBLE_TAGS = 2;
 interface TaskRowProps {
   task: Task;
   projects: Project[];
+  claudeSessions?: ClaudeSession[];
+  onOpenSession?: (sessionId: string) => void;
   isSelected?: boolean;
   onSelect?: (task: Task) => void;
   onToggle: (task: Task) => void;
@@ -75,6 +94,8 @@ interface TaskRowProps {
 export const TaskRow: React.FC<TaskRowProps> = ({
   task,
   projects,
+  claudeSessions = [],
+  onOpenSession,
   isSelected = false,
   onSelect,
   onToggle,
@@ -89,6 +110,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   onFocusRow,
 }) => {
   const isArchived = task.status === 'archived';
+  const isInProgress = task.status === 'in_progress';
   const isDone = task.status === 'done' || (isArchived && task.completedAt !== null);
   const [draftTitle, setDraftTitle] = useState(task.title);
 
@@ -182,24 +204,30 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const completedSubtasks = subtasks.filter((s) => s.isCompleted).length;
   const hasNotes = Boolean(task.description && task.description.trim().length > 0);
   const notesChecklist = hasNotes ? checklistProgress(task.description) : null;
+  const primarySession = primaryClaudeSession(claudeSessions);
 
   return (
     <div
       data-testid={`task-row-${task.id}`}
       data-task-row={task.id}
+      data-task-status={task.status}
       tabIndex={isTabStop ? 0 : -1}
       role="group"
-      aria-label={`${task.title}${isDone ? ', completed' : ''}${isArchived ? ', archived' : ''}`}
+      aria-label={`${task.title}${isInProgress ? ', in progress' : ''}${isDone ? ', completed' : ''}${isArchived ? ', archived' : ''}`}
       onFocus={() => onFocusRow(task.id)}
       className={`group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/70 flex flex-wrap items-center gap-x-3 gap-y-2 ${TASK_GRID_CLASS} px-3.5 py-2.5 rounded-lg border transition-all duration-150 ${
         isSelected
-          ? 'border-indigo-500 dark:border-indigo-500 ring-1 ring-indigo-500/20 bg-indigo-50/20 dark:bg-indigo-950/20'
+          ? `border-indigo-500 dark:border-indigo-500 ring-1 ring-indigo-500/20 bg-indigo-50/25 dark:bg-indigo-950/25 ${
+              isInProgress ? 'border-l-3 border-l-amber-500 dark:border-l-amber-400' : ''
+            }`
           : isDone
           ? 'bg-zinc-100/60 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/50 text-zinc-400 dark:text-zinc-500'
+          : isInProgress
+          ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/60 border-l-3 border-l-amber-500 dark:border-l-amber-400 hover:border-amber-300 dark:hover:border-amber-700 shadow-2xs'
           : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-2xs'
       }`}
     >
-      {/* Title column: Checkbox + Title + Subtask/Note/Repeat indicators */}
+      {/* Title column: Checkbox + Title + Subtask/Note/Repeat/Session/ADO indicators */}
       <div className="flex items-center gap-3 basis-full @4xl:basis-auto min-w-0">
         {dragHandle}
         <button
@@ -211,15 +239,29 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               ? `"${task.title}" is archived`
               : isDone
               ? `Mark "${task.title}" as incomplete`
-              : `Mark "${task.title}" as complete`
+              : isInProgress
+              ? `Mark "${task.title}" as complete`
+              : `Mark "${task.title}" as in progress`
+          }
+          title={
+            isArchived
+              ? 'Archived'
+              : isDone
+              ? 'Completed (click to reopen as To Do)'
+              : isInProgress
+              ? 'In Progress (click to mark Completed)'
+              : 'To Do (click to mark In Progress)'
           }
           className={`flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60 ${
             isDone
               ? 'bg-indigo-600 border-indigo-600 text-white'
+              : isInProgress
+              ? 'bg-amber-500/15 dark:bg-amber-400/15 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
               : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400 bg-transparent'
           }`}
         >
           {isDone && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+          {isInProgress && <span className="w-2 h-2 rounded-xs bg-amber-500 dark:bg-amber-400" />}
         </button>
 
         <div className="flex-1 min-w-0">
@@ -235,9 +277,21 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm px-2 py-0.5 rounded border border-indigo-500 focus:outline-none"
             />
           ) : (
-            <div className="flex items-center gap-1.5 [&>*:not(:first-child)]:flex-shrink-0">
+            <div className="flex items-center gap-1.5 [&>*:not([data-task-title])]:flex-shrink-0">
+              {isInProgress && (
+                <span
+                  role="img"
+                  aria-label="In progress"
+                  title="In Progress"
+                  className="inline-flex items-center text-amber-600 dark:text-amber-400"
+                >
+                  <InProgressIcon className="w-3.5 h-3.5" />
+                </span>
+              )}
+
               <button
                 type="button"
+                data-task-title
                 onClick={() => onSelect?.(task)}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
@@ -248,9 +302,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     ? 'line-through text-zinc-400 dark:text-zinc-500'
                     : 'text-zinc-800 dark:text-zinc-100 font-medium'
                 }`}
-                title={`${task.title}
-
-Click to open details, double-click to edit title`}
+                title={`${task.title}\n\nClick to open details, double-click to edit title`}
               >
                 {task.title}
               </button>
@@ -308,6 +360,39 @@ Click to open details, double-click to edit title`}
                 </span>
               )}
 
+              {/* Linked Claude Session Indicator */}
+              {primarySession && (
+                <button
+                  type="button"
+                  onClick={() => onOpenSession?.(primarySession.sessionId)}
+                  aria-label={`Claude session (${STATE_STYLES[primarySession.state].label}): ${
+                    primarySession.title || 'Untitled session'
+                  }${claudeSessions.length > 1 ? ` (${claudeSessions.length} sessions)` : ''}`}
+                  title={`Claude session (${STATE_STYLES[primarySession.state].label}): ${
+                    primarySession.title || 'Untitled session'
+                  }${claudeSessions.length > 1 ? ` (+${claudeSessions.length - 1} more)` : ''}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${SESSION_ROW_BADGE_STYLES[primarySession.state]}`}
+                >
+                  <Bot className="w-2.5 h-2.5" />
+                  {claudeSessions.length > 1 && <span>{claudeSessions.length}</span>}
+                </button>
+              )}
+
+              {/* Linked Azure DevOps Indicator */}
+              {task.externalId && task.externalUrl && (
+                <a
+                  href={task.externalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Open ${externalLinkLabel(task.externalId)}`}
+                  title={externalLinkLabel(task.externalId)}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200/70 dark:border-zinc-700/70 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+                >
+                  <ExternalLink className="w-2.5 h-2.5" />
+                  <span>{externalShortLabel(task.externalId)}</span>
+                </a>
+              )}
             </div>
           )}
         </div>

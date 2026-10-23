@@ -295,6 +295,16 @@ export const App: React.FC = () => {
     refetchInterval: 5000,
   });
   const claudeAttentionCount = claudeSessions.filter((s) => s.state === 'needs_attention' && !s.dismissedAt).length;
+  const claudeSessionsByTaskId = useMemo(() => {
+    const map = new Map<string, ClaudeSession[]>();
+    for (const session of claudeSessions) {
+      if (!session.taskId) continue;
+      const list = map.get(session.taskId) ?? [];
+      list.push(session);
+      map.set(session.taskId, list);
+    }
+    return map;
+  }, [claudeSessions]);
 
   const invalidate = (...keys: string[]) =>
     Promise.all(keys.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
@@ -557,9 +567,14 @@ export const App: React.FC = () => {
     );
   };
 
+  /** Cycles status on checkbox click: To Do → In Progress → Completed → To Do. */
   const handleToggleTask = (task: Task) => {
     if (task.status === 'done') {
       updateTaskMutation.mutate({ id: task.id, payload: { status: 'todo' } });
+      return;
+    }
+    if (task.status === 'todo') {
+      updateTaskMutation.mutate({ id: task.id, payload: { status: 'in_progress' } });
       return;
     }
     const previous = task.status === 'in_progress' ? 'in_progress' : 'todo';
@@ -910,7 +925,7 @@ export const App: React.FC = () => {
           // Space on a focused button inside the row activates that button instead
           if ((e.key === ' ' && !onRowItself) || task.status === 'archived') return;
           e.preventDefault();
-          if (neighbour) focusTask(neighbour);
+          if (task.status === 'in_progress' && neighbour) focusTask(neighbour);
           handleToggleTask(task);
           return;
         case 'Enter':
@@ -1585,6 +1600,8 @@ export const App: React.FC = () => {
                           <TaskRow
                             task={task}
                             projects={projects}
+                            claudeSessions={claudeSessionsByTaskId.get(task.id)}
+                            onOpenSession={claudeSessionActions.onOpen}
                             isSelected={selectedTaskId === task.id}
                             onSelect={(t) => setSelectedTaskId(t.id)}
                             onToggle={handleToggleTask}
@@ -1636,6 +1653,8 @@ export const App: React.FC = () => {
                             key={task.id}
                             task={task}
                             projects={projects}
+                            claudeSessions={claudeSessionsByTaskId.get(task.id)}
+                            onOpenSession={claudeSessionActions.onOpen}
                             isSelected={selectedTaskId === task.id}
                             onSelect={(t) => setSelectedTaskId(t.id)}
                             onToggle={handleToggleTask}
@@ -1676,7 +1695,7 @@ export const App: React.FC = () => {
           updateSubtaskMutation.mutate({ subtaskId, isCompleted })
         }
         onDeleteSubtask={handleDeleteSubtask}
-        claudeSessions={claudeSessions.filter((s) => s.taskId === selectedTask?.id)}
+        claudeSessions={claudeSessionsByTaskId.get(selectedTask?.id ?? '') ?? []}
         claudeSessionActions={claudeSessionActions}
       />
 

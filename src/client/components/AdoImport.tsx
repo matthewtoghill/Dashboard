@@ -18,6 +18,12 @@ export function externalLinkLabel(externalId: string): string {
   return `Azure DevOps ${kind === 'pr' ? 'pull request' : 'work item'} ${id}`;
 }
 
+/** Compact badge text ("#123" or "PR #45") for an Azure DevOps external id. */
+export function externalShortLabel(externalId: string): string {
+  const [kind, id] = externalId.split('/');
+  return kind === 'pr' ? `PR #${id}` : `#${id}`;
+}
+
 const inputClass =
   'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
 const buttonClass =
@@ -52,7 +58,7 @@ const WorkItemTypePicker: React.FC<{
     const type = raw.trim();
     if (!type) return;
     if (!options && !loadError) {
-      setError('Still loading the work item types…');
+      setError('Still loading the work item types\u2026');
       return;
     }
     const match = options ? known(type) : type;
@@ -203,7 +209,7 @@ export const AdoSettings: React.FC<{
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
         <span>
           {refreshTypes.isPending
-            ? 'Asking Azure DevOps for work item types…'
+            ? 'Asking Azure DevOps for work item types\u2026'
             : defaultTypes?.fetchedAt
               ? `Types updated ${formatRelativeTime(defaultTypes.fetchedAt)}`
               : 'Types not loaded yet'}
@@ -438,7 +444,7 @@ export const AdoImportDialog: React.FC<{
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {isFetching && !data && <p className="text-zinc-500">Asking Azure DevOps…</p>}
+            {isFetching && !data && <p className="text-zinc-500">Asking Azure DevOps\u2026</p>}
             {error && (
               <p role="alert" className="text-red-600 dark:text-red-400">
                 {error.message}

@@ -170,15 +170,15 @@ export const Toast: React.FC<{ toast: ToastState | null; onDismiss: () => void }
 };
 
 const SHORTCUTS: [string, string][] = [
-  ['J / ↓', 'Next task'],
-  ['K / ↑', 'Previous task'],
-  ['X / Space', 'Complete or reopen'],
+  ['J / \u2193', 'Next task'],
+  ['K / \u2191', 'Previous task'],
+  ['X / Space', 'Cycle status (To Do \u2192 In Progress \u2192 Done)'],
   ['Enter', 'Open details'],
   ['E', 'Rename'],
   ['A', 'Archive or restore'],
   ['Delete', 'Delete'],
-  ['1 – 4, 0', 'Priority Low – Urgent, None'],
-  ['Alt + ↑ / ↓', 'Move (Manual sort)'],
+  ['1 \u2013 4, 0', 'Priority Low \u2013 Urgent, None'],
+  ['Alt + \u2191 / \u2193', 'Move (Manual sort)'],
   ['Alt + Arrows', 'Move to another day (Calendar)'],
   ['Esc', 'Leave the list / close'],
   ['N', 'New task'],

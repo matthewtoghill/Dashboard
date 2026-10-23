@@ -11,7 +11,11 @@ import {
   titleFromPrompt,
 } from '../routes/claude.ts';
 import { ClaudeSession, ClaudeSessionSchema } from '../../shared/types.ts';
-import { sessionLink, taskFromSession } from '../../client/components/ClaudeSessions.tsx';
+import {
+  primaryClaudeSession,
+  sessionLink,
+  taskFromSession,
+} from '../../client/components/ClaudeSessions.tsx';
 
 describe('stateForEvent', () => {
   const ev = (hook_event_name: string, extra = {}) => ({ session_id: 's', hook_event_name, ...extra });
@@ -110,6 +114,16 @@ describe('session links and tasks', () => {
     expect(taskFromSession(session).title).toBe('Claude session in Dashboard');
     expect(taskFromSession({ ...session, title: 'Fix login' }).title).toBe('Fix login');
     expect(taskFromSession(session).description).toContain(`claude --resume ${session.sessionId}`);
+  });
+
+  it('picks the most urgent and most recent session for a task row badge', () => {
+    expect(primaryClaudeSession([])).toBeNull();
+    const s1 = { ...session, sessionId: 's1', state: 'ended' as const, lastEventAt: 500 };
+    const s2 = { ...session, sessionId: 's2', state: 'running' as const, lastEventAt: 100 };
+    const s3 = { ...session, sessionId: 's3', state: 'running' as const, lastEventAt: 300 };
+    const s4 = { ...session, sessionId: 's4', state: 'needs_attention' as const, lastEventAt: 50 };
+    expect(primaryClaudeSession([s1, s2, s3])?.sessionId).toBe('s3');
+    expect(primaryClaudeSession([s1, s2, s3, s4])?.sessionId).toBe('s4');
   });
 });
 
