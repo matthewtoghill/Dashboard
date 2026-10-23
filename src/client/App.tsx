@@ -176,6 +176,15 @@ export const App: React.FC = () => {
   const toggleTheme = () => setTheme(darkMode ? 'light' : 'dark');
 
   const quickAddRef = useRef<HTMLInputElement>(null);
+  const focusQuickAdd = useCallback(() => {
+    if (
+      activeNav.type === 'smart' &&
+      (activeNav.id === 'overview' || activeNav.id === 'completed' || activeNav.id === 'archived')
+    ) {
+      setActiveNav({ type: 'smart', id: 'inbox' });
+    }
+    setTimeout(() => quickAddRef.current?.focus(), 20);
+  }, [activeNav, setActiveNav]);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -243,10 +252,7 @@ export const App: React.FC = () => {
 
       if (e.key.toLowerCase() === 'n' || e.key.toLowerCase() === 'c') {
         e.preventDefault();
-        if (activeNav.type === 'smart' && activeNav.id === 'overview') {
-          setActiveNav({ type: 'smart', id: 'inbox' });
-        }
-        setTimeout(() => quickAddRef.current?.focus(), 20);
+        focusQuickAdd();
       } else if (e.key === '/') {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -255,7 +261,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, shortcutsOpen, settingsOpen, adoImportOpen, toast]);
+  }, [commandPaletteOpen, selectedTaskId, focusQuickAdd, confirmRequest, shortcutsOpen, settingsOpen, adoImportOpen, toast]);
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
@@ -1722,7 +1728,7 @@ export const App: React.FC = () => {
         onOpenCalendar={openCalendar}
         savedViews={savedViews}
         onApplySavedView={handleApplySavedView}
-        onFocusQuickAdd={() => quickAddRef.current?.focus()}
+        onFocusQuickAdd={focusQuickAdd}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAdoImport={() => setAdoImportOpen(true)}

@@ -89,7 +89,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: Plus,
         action: () => {
           onClose();
-          setTimeout(() => onFocusQuickAdd(), 20);
+          onFocusQuickAdd();
         },
       },
       {
