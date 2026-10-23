@@ -11,6 +11,10 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 3 | Azure DevOps work item import | **Done** (branch `roadmap/ado-import`) |
 | 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
 | 5 | Calendar view | **Done** (branch `roadmap/calendar`) |
+| 6 | Task activity log | Proposed |
+| 7 | Automatic Azure DevOps sync check | Proposed |
+| 8 | Weekly review view | Proposed |
+| 9 | Custom right-click menu | Proposed |
 
 ## 1. Claude Session Integration
 
@@ -173,3 +177,99 @@ See tasks laid out by due date. Today and Upcoming are filtered lists only, so t
 - Drag a task to another day, or press Alt+Arrows on it (one day left or right, one week up or down). Either move shows a toast with undo.
 - Clicking an empty part of a day, or its + button, opens an inline quick-add. Typed tokens work as usual, and the due date defaults to that day.
 - Week start is a General setting (`weekStartDay`), Monday by default.
+
+## 6. Task Activity Log
+
+Keep a history of what changed on each task and when. Today only `updatedAt` survives an edit, so there is no record of status changes, due dates being pushed back, or changes made by imports and automations.
+
+### Scope
+
+- **Recorded events:** create, status change (including complete, archive and restore), due date, priority, project and title changes, subtask added or completed, and Claude session linked or unlinked.
+- **Source:** each event records who made it: `manual`, `ado` (import) or `claude` (feature 2), so automated changes are easy to tell apart.
+- **Drawer section:** a collapsible "History" section at the bottom of the task drawer, newest first, showing compact rows such as "Due 12 Oct → 19 Oct · 3 days ago".
+
+### Design Notes
+
+- New table, roughly `task_events` (`id`, `task_id`, `at`, `kind`, `from`, `to`, `source`), with `on delete cascade` on `task_id`.
+- Write events in the task and subtask routes in `src/server/routes/tasks.ts`, inside the same transaction as the change. Compare old and new values there rather than logging every field on every PATCH.
+- Moves that are not edits (manual reorder, rebalancing `sortOrder`) are not logged, the same rule as `updatedAt`.
+- Undo of a delete or complete records the reversal as a new event rather than removing the earlier one.
+- The data can feed later trends, for example how often a task is rescheduled or how long it sat `in_progress`.
+
+### Open Questions
+
+- Include events in JSON export and import, or treat them as local history only?
+- Should events be pruned (for example a year after the task is archived), or kept forever?
+- Should description edits be logged? Notes change often, so logging them could drown out everything else.
+
+## 7. Automatic Azure DevOps Sync Check
+
+Check Azure DevOps in the background so new work and closed items show up without opening the import dialog.
+
+### Scope
+
+- **Scheduled fetch:** the server runs the existing work item and pull request fetch on a timer.
+- **Overview badge:** shows counts of new assigned items not yet imported, pull requests awaiting my review, and linked tasks whose source item has closed or been merged.
+- **Click-through:** the badge opens the existing import dialog with the cached results, so nothing is fetched twice.
+- **Setting:** an interval in Settings > Integrations, with an option to turn the check off.
+
+### Design Notes
+
+- Reuse the fetch logic behind `GET /api/ado/items` in `src/server/routes/ado.ts`. Store the last result and its timestamp in `key_value_store`, and serve it to the Overview from there.
+- Still one-way and still manual. The check only reports; importing and completing stay as they are now (see feature 3 decisions).
+- Skip the check quietly when `az` is missing or not logged in, and show the last error in Settings instead of repeating it on every run.
+- Run the first check shortly after startup, then on the interval. Do not overlap runs if `az` is slow.
+
+### Open Questions
+
+- Default interval: 15, 30 or 60 minutes?
+- Should "new" mean not imported, or not seen since the last time the dialog was opened? The latter needs a stored list of dismissed ids.
+- Should the import dialog refetch on open as it does now, or show the cached result with a "Refresh" button?
+
+## 8. Weekly Review View
+
+A guided pass over tasks that have gone stale, so the list stays trustworthy.
+
+### Scope
+
+- **Review set:** overdue tasks, `in_progress` tasks not updated in N days, `todo` tasks not updated in N days, and undated `todo` tasks.
+- **One at a time:** shows one task with its details and a progress count ("4 of 17"), with keys for the common actions: reschedule, mark in progress, complete, archive, open in the drawer, and keep (skip with no change).
+- **Entry points:** a smart nav entry ("Review") in the sidebar and command palette, with a count badge.
+
+### Design Notes
+
+- The review set is a pure filter in `src/client/utils/taskView.ts`, tested alongside the existing view helpers. The data needed (`status`, `dueDate`, `updatedAt`) already exists.
+- Subtask edits already bump the task's `updatedAt`, so a task with recent subtask progress does not count as stale.
+- "Keep" must stop a task reappearing straight away. Either bump `updatedAt` on keep, or record a `reviewedAt` per task.
+- Reschedule reuses the natural-language date parser from quick-add.
+- The staleness threshold (N days) is a General setting, 14 days by default.
+
+### Open Questions
+
+- Bump `updatedAt` on "keep", or add a separate `reviewedAt` column so keeping a task isn't counted as an edit?
+- Should the view remember progress if closed partway through, or start again each time?
+- Is a reminder useful, for example a badge on the Overview when no review has been done in a week?
+
+## 9. Custom Right-Click Menu
+
+Replace the browser's context menu with Dashboard actions on tasks and projects. Today task actions are spread across hover buttons and inline controls on `TaskRow`, and there is no right-click handling anywhere in the client.
+
+### Scope
+
+- **Task rows and calendar entries:** open, edit title, set status (todo, in progress, done), priority, due date (today, tomorrow, next week, pick a date), move to project, add tag, copy title or link, open the Azure DevOps item, archive or restore, and delete.
+- **Sidebar projects:** rename, change colour, and delete.
+- **Keyboard:** the Menu key and Shift+F10 open the menu for the focused row. Arrow keys, Enter and Escape work inside it, and submenus (project, priority, due date) open with Right Arrow.
+- Every action shows the same toast and undo as its existing button.
+
+### Design Notes
+
+- One `ContextMenu` component, positioned at the pointer and kept inside the viewport, with `role="menu"` and `menuitem` roles. No menu library.
+- Menu items call the handlers `TaskRow` and `Sidebar` already receive, so no new server endpoints are needed.
+- Holding Shift while right-clicking falls through to the browser menu, so copying text and the browser's spellcheck still work. Text inputs always get the browser menu.
+- Right-clicking a ghost (recurring) entry on the calendar offers only "Open task".
+- If multi-select is added later, the menu acts on the whole selection.
+
+### Open Questions
+
+- Should hover buttons on `TaskRow` be removed once the menu exists, or kept so actions stay discoverable?
+- Are Claude session rows in scope (link to task, dismiss, copy resume command)?
