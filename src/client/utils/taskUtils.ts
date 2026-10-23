@@ -144,6 +144,13 @@ export function formatDayDate(isoDate: string): string {
   });
 }
 
+/** A tag as typed, without surrounding spaces or a leading `#`. */
+export const cleanTag = (text: string) => text.trim().replace(/^#/, '');
+
+/** The error's message, or `fallback` for non-Error values. */
+export const errorMessage = (err: unknown, fallback: string) =>
+  err instanceof Error ? err.message : fallback;
+
 /** `1 task`, `3 tasks` */
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 

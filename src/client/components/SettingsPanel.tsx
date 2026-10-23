@@ -15,7 +15,7 @@ import {
   ImportResult,
   updateSettings,
 } from '../api.ts';
-import { formatRelativeTime, tasksToCsv } from '../utils/taskUtils.ts';
+import { formatRelativeTime, tasksToCsv, errorMessage } from '../utils/taskUtils.ts';
 import { BackupStatusLine } from './DashboardWidgets.tsx';
 import { AdoSettings } from './AdoImport.tsx';
 
@@ -148,7 +148,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       );
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     } catch (err) {
-      setImportStatus(err instanceof Error ? err.message : 'Import failed.');
+      setImportStatus(errorMessage(err, 'Import failed.'));
     }
   };
 

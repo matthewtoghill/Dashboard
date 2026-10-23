@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckSquare,
-  Plus,
   Sun,
   Moon,
   ChevronDown,
@@ -10,24 +9,12 @@ import {
   Sparkles,
   AlertCircle,
   Search,
-  Layers,
-  ArrowUpDown,
-  Flag,
-  Folder,
-  Calendar,
-  Tag,
   X,
   PanelLeft,
   Command,
-  Trash2,
   Archive,
-  ArchiveRestore,
-  Repeat,
   Settings,
   CloudDownload,
-  List,
-  CalendarDays,
-  CalendarRange,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -48,7 +35,6 @@ import {
 } from './api.ts';
 import {
   Task,
-  TaskPriority,
   WidgetConfig,
   WidgetConfigSchema,
   DashboardState,
@@ -73,6 +59,8 @@ import {
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { CalendarView } from './components/CalendarView.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
+import { QuickAddBar } from './components/QuickAddBar.tsx';
+import { TaskListToolbar } from './components/TaskListToolbar.tsx';
 import {
   ConfirmDialog,
   ConfirmRequest,
@@ -84,12 +72,9 @@ import { DeferredHandle, UNDO_HINT, useDeferredDelete } from './utils/useDeferre
 import { useTaskMutations } from './utils/useTaskMutations.ts';
 import { useGlobalShortcuts } from './utils/useGlobalShortcuts.ts';
 import { useTaskListKeyboard } from './utils/useTaskListKeyboard.ts';
-import { describeRecurrence } from '../shared/recurrence.ts';
 import {
   ActiveNavigation,
   DEFAULT_VIEW_STATE,
-  GroupByOption,
-  SortByOption,
   ViewState,
   buildTaskList,
   resolveSavedView,
@@ -98,11 +83,9 @@ import {
   visibleTaskOrder,
 } from './utils/taskView.ts';
 import {
-  PRIORITY_CONFIG,
-  formatDayDate,
   getTodayIso,
-  parseQuickAddSyntax,
   plural,
+  errorMessage,
 } from './utils/taskUtils.ts';
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
@@ -141,13 +124,8 @@ export const App: React.FC = () => {
         : { message, onUndo: undo.undo, onPause: undo.pause, onResume: undo.resume }
     );
 
-  // Quick-add form state
-  const [newTitle, setNewTitle] = useState('');
-  const [newPriority, setNewPriority] = useState<TaskPriority>(0);
+  // Quick-add project picker; calendar quick-add uses it too
   const [newProjectId, setNewProjectId] = useState<string>('');
-  const [newDueDate, setNewDueDate] = useState<string>('');
-  const [newTagInput, setNewTagInput] = useState<string>('');
-  const [newTags, setNewTags] = useState<string[]>([]);
 
   const [showCompleted, setShowCompleted] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -209,10 +187,9 @@ export const App: React.FC = () => {
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
   const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
 
-  // Quick-add defaults follow the current view (else the settings default), and reset when leaving it
+  // The quick-add project follows the current view (else the settings default), and resets when leaving it
   useEffect(() => {
     setNewProjectId(activeNav.type === 'project' ? activeNav.id : defaultProjectId);
-    setNewDueDate(activeNav.type === 'smart' && activeNav.id === 'today' ? getTodayIso() : '');
   }, [activeNav, defaultProjectId]);
 
   // Queries
@@ -258,7 +235,7 @@ export const App: React.FC = () => {
     Promise.all(keys.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
 
   const { pendingIds, schedule } = useDeferredDelete((err) => {
-    showToast(err instanceof Error ? err.message : 'Delete failed');
+    showToast(errorMessage(err, 'Delete failed'));
     invalidate('tasks', 'projects', 'dashboard');
   });
 
@@ -380,7 +357,7 @@ export const App: React.FC = () => {
   const updateClaudeSessionMutation = useMutation({
     mutationFn: ({ sessionId, input }: { sessionId: string; input: UpdateClaudeSessionInput }) =>
       updateClaudeSession(sessionId, input),
-    onError: (err) => showToast(err instanceof Error ? err.message : 'Updating session failed'),
+    onError: (err) => showToast(errorMessage(err, 'Updating session failed')),
     onSettled: () => invalidate('claudeSessions'),
   });
   const selectedSession = claudeSessions.find((s) => s.sessionId === selectedSessionId) ?? null;
@@ -404,7 +381,7 @@ export const App: React.FC = () => {
           input: { taskId: task.id },
         });
       } catch (err) {
-        showToast(err instanceof Error ? err.message : 'Creating task failed');
+        showToast(errorMessage(err, 'Creating task failed'));
       }
     },
     onToggleCleared: (session: ClaudeSession) => {
@@ -417,48 +394,6 @@ export const App: React.FC = () => {
       }
     },
   };
-
-  const handleAddQuickTag = () => {
-    const cleaned = newTagInput.trim().replace(/^#/, '');
-    if (cleaned && !newTags.includes(cleaned)) {
-      setNewTags((prev) => [...prev, cleaned]);
-    }
-    setNewTagInput('');
-  };
-
-  /** What the quick-add bar would create: typed tokens applied on top of the pickers. */
-  const parseNewTask = (rawTitle: string) => {
-    const pendingTag = newTagInput.trim().replace(/^#/, '');
-    const baseTags =
-      pendingTag && !newTags.includes(pendingTag) ? [...newTags, pendingTag] : newTags;
-    return parseQuickAddSyntax(rawTitle.trim(), projects, {
-      priority: newPriority,
-      projectId: newProjectId || null,
-      dueDate: newDueDate || null,
-      tags: baseTags,
-    });
-  };
-  const newTaskPreview = newTitle.trim() ? parseNewTask(newTitle) : null;
-
-  const handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-    const parsed = parseNewTask(newTitle);
-
-    createTaskMutation.mutate({
-      title: parsed.title,
-      priority: parsed.priority,
-      projectId: parsed.projectId,
-      dueDate: parsed.dueDate,
-      tags: parsed.tags,
-      recurrence: parsed.recurrence,
-    });
-
-    setNewTitle('');
-    setNewTagInput('');
-    setNewTags([]);
-  };
-
 
   const handleConvertScratchpadLineToTask = (lineText: string) => createTaskFromText(lineText, null, null);
 
@@ -519,7 +454,7 @@ export const App: React.FC = () => {
   };
   const changeSavedViews = (update: (list: SavedView[]) => SavedView[]) =>
     writeSavedViews(update).catch((err) => {
-      showToast(err instanceof Error ? err.message : 'Saving views failed');
+      showToast(errorMessage(err, 'Saving views failed'));
       void invalidate('dashboard');
     });
 
@@ -618,6 +553,20 @@ export const App: React.FC = () => {
   const backgroundInert = selectedTask !== null || selectedSession !== null || commandPaletteOpen;
   // Drag-to-reorder only makes sense in one flat, manually sorted list
   const canReorder = sortBy === 'manual' && groupBy === 'none';
+  // Shared by the full (Overview) and compact (above the task list) widget layouts
+  const widgetProps: Omit<React.ComponentProps<typeof DashboardWidgets>, 'mode'> = {
+    tasks,
+    projects,
+    scratchpad,
+    quickLinks,
+    widgetConfig,
+    onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
+    onConvertLineToTask: handleConvertScratchpadLineToTask,
+    onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
+    onDeleteQuickLink: handleDeleteQuickLink,
+    onUpdateWidgetConfig: (cfg) => saveWidgetConfigMutation.mutate(cfg),
+    onSelectSmartView: (v) => setActiveNav({ type: 'smart', id: v }),
+  };
   const viewScope =
     activeNav.type === 'smart' && (activeNav.id === 'inbox' || activeNav.id === 'completed')
       ? 'across all projects'
@@ -777,19 +726,7 @@ export const App: React.FC = () => {
               />
               <DashboardWidgets
                 mode="full"
-                tasks={tasks}
-                projects={projects}
-                scratchpad={scratchpad}
-                quickLinks={quickLinks}
-                widgetConfig={widgetConfig}
-                onSaveScratchpad={(content) => saveScratchpadMutation.mutate(content)}
-                onConvertLineToTask={handleConvertScratchpadLineToTask}
-                onCreateQuickLink={(title, url, category) =>
-                  createQuickLinkMutation.mutate({ title, url, category })
-                }
-                onDeleteQuickLink={handleDeleteQuickLink}
-                onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
-                onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
+                {...widgetProps}
                 onSelectProject={(id) => setActiveNav({ type: 'project', id })}
                 taskWidgetActions={{
                   projects,
@@ -807,77 +744,23 @@ export const App: React.FC = () => {
               {/* Collapsible Summary Widgets Bar above Task Views */}
               <DashboardWidgets
                 mode="compact"
-                tasks={tasks}
-                projects={projects}
-                scratchpad={scratchpad}
-                quickLinks={quickLinks}
-                widgetConfig={widgetConfig}
-                onSaveScratchpad={(content) => saveScratchpadMutation.mutate(content)}
-                onConvertLineToTask={handleConvertScratchpadLineToTask}
-                onCreateQuickLink={(title, url, category) =>
-                  createQuickLinkMutation.mutate({ title, url, category })
-                }
-                onDeleteQuickLink={handleDeleteQuickLink}
-                onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
-                onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
+                {...widgetProps}
               />
 
-              {/* View Title & List Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-zinc-200/70 dark:border-zinc-800/70">
-                <div className="flex items-center gap-2.5">
-                  {activeNav.type === 'project' && (
-                    <span
-                      className="w-3 h-3 rounded-full"
-                      style={{
-                        backgroundColor:
-                          projects.find((p) => p.id === activeNav.id)?.color ?? '#6366f1',
-                      }}
-                    />
-                  )}
-                  <h2 className="text-xl font-bold tracking-tight">{currentViewTitle}</h2>
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                    {isCompletedView
-                      ? completedFilteredTasks.length
-                      : activeFilteredTasks.length}
-                  </span>
-                </div>
-
-                {/* Grouping, Sorting, Priority Filter Toolbar */}
-                <div className="flex items-center flex-wrap gap-2">
-                  {isCompletedView && completedFilteredTasks.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        requestArchiveCompleted(completedFilteredTasks, 'shown in this view')
-                      }
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer"
-                    >
-                      <Archive className="w-3.5 h-3.5" />
-                      <span>Archive {completedFilteredTasks.length} completed</span>
-                    </button>
-                  )}
-
-                  {isArchiveView && activeFilteredTasks.length > 0 && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleRestoreTasks(activeFilteredTasks)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer"
-                      >
-                        <ArchiveRestore className="w-3.5 h-3.5" />
-                        <span>Restore {activeFilteredTasks.length}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => requestDeleteArchived(activeFilteredTasks)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 hover:bg-red-100 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete {activeFilteredTasks.length} permanently</span>
-                      </button>
-                    </>
-                  )}
-
+              <TaskListToolbar
+                view={view}
+                updateView={updateView}
+                title={currentViewTitle}
+                projects={projects}
+                isCalendar={isCalendar}
+                activeCount={activeFilteredTasks.length}
+                completedCount={completedFilteredTasks.length}
+                onArchiveCompleted={() =>
+                  requestArchiveCompleted(completedFilteredTasks, 'shown in this view')
+                }
+                onRestoreAll={() => handleRestoreTasks(activeFilteredTasks)}
+                onDeleteAll={() => requestDeleteArchived(activeFilteredTasks)}
+                savedViewControls={
                   <SavedViewControls
                     appliedView={appliedView}
                     isModified={appliedView !== null && !sameView(appliedView.view, view)}
@@ -885,295 +768,19 @@ export const App: React.FC = () => {
                     onSaveNew={handleSaveNewView}
                     onUpdate={handleUpdateAppliedView}
                   />
+                }
+              />
 
-                  {/* Filter by Priority */}
-                  <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
-                    <Flag className="w-3.5 h-3.5 text-zinc-400" />
-                    <span className="text-zinc-400 hidden sm:inline">Priority:</span>
-                    <select
-                      aria-label="Filter by priority"
-                      value={priorityFilter}
-                      onChange={(e) =>
-                        updateView({
-                          priority:
-                            e.target.value === 'all'
-                              ? 'all'
-                              : (Number(e.target.value) as TaskPriority),
-                        })
-                      }
-                      className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                    >
-                      <option value="all">All</option>
-                      <option value={4}>Urgent</option>
-                      <option value={3}>High</option>
-                      <option value={2}>Medium</option>
-                      <option value={1}>Low</option>
-                      <option value={0}>None</option>
-                    </select>
-                  </div>
-
-                  {/* List or calendar layout */}
-                  {!isArchiveView && (
-                    <div
-                      role="group"
-                      aria-label="Layout"
-                      className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
-                    >
-                      {(
-                        [
-                          ['list', 'List', List],
-                          ['month', 'Month', CalendarDays],
-                          ['week', 'Week', CalendarRange],
-                        ] as const
-                      ).map(([value, label, Icon]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => updateView({ layout: value })}
-                          aria-pressed={view.layout === value}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer ${
-                            view.layout === value
-                              ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
-                              : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
-                          }`}
-                        >
-                          <Icon className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">{label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isCalendar && (
-                  <>
-                  {/* Group By */}
-                  <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
-                    <Layers className="w-3.5 h-3.5 text-zinc-400" />
-                    <span className="text-zinc-400 hidden sm:inline">Group:</span>
-                    <select
-                      aria-label="Group tasks by"
-                      value={groupBy}
-                      onChange={(e) => updateView({ groupBy: e.target.value as GroupByOption })}
-                      className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                    >
-                      <option value="none">None</option>
-                      <option value="priority">Priority</option>
-                      <option value="project">Project</option>
-                      <option value="dueDate">Due Date</option>
-                      <option value="status">Status</option>
-                    </select>
-                  </div>
-
-                  {sortBy === 'manual' && groupBy !== 'none' && (
-                    <span className="text-[11px] text-zinc-400">
-                      Set Group to None to drag-reorder
-                    </span>
-                  )}
-
-                  {/* Sort By */}
-                  <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
-                    <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
-                    <span className="text-zinc-400 hidden sm:inline">Sort:</span>
-                    <select
-                      aria-label="Sort tasks by"
-                      value={sortBy}
-                      onChange={(e) => updateView({ sortBy: e.target.value as SortByOption })}
-                      className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                    >
-                      <option value="created">Newest</option>
-                      <option value="priority">Priority</option>
-                      <option value="dueDate">Due Date</option>
-                      <option value="manual">Manual</option>
-                    </select>
-                  </div>
-                  </>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Add Bar with Metadata Pickers & Syntax Support */}
               {!isCompletedView && !isArchiveView && (
-                <form
-                  onSubmit={handleCreateTask}
-                  className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs focus-within:border-indigo-500 dark:focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/15 transition-all"
-                >
-                  <div className="flex items-center">
-                    <div className="pl-3.5 pr-2 text-zinc-400">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                    <input
-                      ref={quickAddRef}
-                      type="text"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="Add a task... e.g. Call Sam !high #work @fri ~weekly (Shortcut: N)"
-                      aria-label="New task title"
-                      className="w-full py-3 pr-4 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none"
-                    />
-                    {newTitle.trim() && (
-                      <div className="pr-2.5">
-                        <button
-                          type="submit"
-                          disabled={createTaskMutation.isPending}
-                          className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Live preview of what the typed syntax resolves to */}
-                  {newTaskPreview && (
-                    <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-2.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-                      <span>Creates</span>
-                      <span className="font-medium text-zinc-700 dark:text-zinc-200 truncate max-w-xs">
-                        {newTaskPreview.title}
-                      </span>
-                      {newTaskPreview.dueDate && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
-                          <Calendar className="w-3 h-3" />
-                          Due {formatDayDate(newTaskPreview.dueDate)}
-                        </span>
-                      )}
-                      {newTaskPreview.priority > 0 && (
-                        <span
-                          className={`px-1.5 py-0.5 rounded-md border ${PRIORITY_CONFIG[newTaskPreview.priority].badgeClass}`}
-                        >
-                          {PRIORITY_CONFIG[newTaskPreview.priority].label}
-                        </span>
-                      )}
-                      {newTaskPreview.projectId && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
-                          <span
-                            className="w-2 h-2 rounded-full"
-                            style={{
-                              backgroundColor: projects.find(
-                                (p) => p.id === newTaskPreview.projectId
-                              )?.color,
-                            }}
-                          />
-                          {projects.find((p) => p.id === newTaskPreview.projectId)?.name}
-                        </span>
-                      )}
-                      {newTaskPreview.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                      {newTaskPreview.recurrence && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700">
-                          <Repeat className="w-3 h-3" />
-                          {describeRecurrence(newTaskPreview.recurrence)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Quick-add Metadata Bar */}
-                  <div className="flex items-center flex-wrap gap-2 px-3.5 py-2 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-b-xl text-xs">
-                    {/* Priority Picker */}
-                    <div className="inline-flex items-center gap-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1">
-                      <Flag className="w-3 h-3 text-zinc-400" />
-                      <select
-                        aria-label="New task priority"
-                        value={newPriority}
-                        onChange={(e) =>
-                          setNewPriority(Number(e.target.value) as TaskPriority)
-                        }
-                        className="bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                      >
-                        <option value={0}>No Priority</option>
-                        <option value={1}>Low</option>
-                        <option value={2}>Medium</option>
-                        <option value={3}>High</option>
-                        <option value={4}>Urgent</option>
-                      </select>
-                    </div>
-
-                    {/* Project Picker */}
-                    <div className="inline-flex items-center gap-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1">
-                      <Folder className="w-3 h-3 text-zinc-400" />
-                      <select
-                        aria-label="New task project"
-                        value={newProjectId}
-                        onChange={(e) => setNewProjectId(e.target.value)}
-                        className="bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                      >
-                        <option value="">No Project</option>
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Due Date Picker */}
-                    <div className="inline-flex items-center gap-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1">
-                      <Calendar className="w-3 h-3 text-zinc-400" />
-                      <input
-                        type="date"
-                        aria-label="New task due date"
-                        value={newDueDate}
-                        onChange={(e) => setNewDueDate(e.target.value)}
-                        className="bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                      />
-                      {newDueDate && (
-                        <button
-                          type="button"
-                          onClick={() => setNewDueDate('')}
-                          aria-label="Clear new task due date"
-                          className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Tag Input */}
-                    <div className="inline-flex items-center gap-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1">
-                      <Tag className="w-3 h-3 text-zinc-400" />
-                      <input
-                        type="text"
-                        value={newTagInput}
-                        onChange={(e) => setNewTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ',') {
-                            e.preventDefault();
-                            handleAddQuickTag();
-                          }
-                        }}
-                        placeholder="Add tag..."
-                        list="tag-suggestions"
-                        aria-label="New task tag"
-                        className="w-20 bg-transparent text-zinc-700 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none"
-                      />
-                    </div>
-
-                    {/* Added Tags Preview */}
-                    {newTags.map((t) => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
-                      >
-                        <span>#{t}</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setNewTags((prev) => prev.filter((item) => item !== t))
-                          }
-                          className="hover:text-red-500 cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </form>
+                <QuickAddBar
+                  projects={projects}
+                  activeNav={activeNav}
+                  projectId={newProjectId}
+                  onProjectIdChange={setNewProjectId}
+                  onCreate={(input) => createTaskMutation.mutate(input)}
+                  isCreating={createTaskMutation.isPending}
+                  inputRef={quickAddRef}
+                />
               )}
 
               {/* Error state */}

@@ -27,7 +27,7 @@ import {
   UpdateSubtaskInput,
   ClaudeSession,
 } from '../../shared/types.ts';
-import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.ts';
+import { formatDayDate, formatTimestamp, getTodayIso, cleanTag } from '../utils/taskUtils.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
@@ -285,7 +285,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = newTagInput.trim().replace(/^#/, '');
+    const cleaned = cleanTag(newTagInput);
     if (cleaned && !task.tags.includes(cleaned)) {
       onUpdateTask(task.id, { tags: [...task.tags, cleaned] });
     }

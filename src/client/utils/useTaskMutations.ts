@@ -21,6 +21,7 @@ import {
   parseQuickAddSyntax,
   plural,
   sortOrderForMove,
+  errorMessage,
 } from './taskUtils.ts';
 
 interface TaskMutationOptions {
@@ -154,7 +155,7 @@ export function useTaskMutations({
     const reordered = [...others.slice(0, targetIndex), moved, ...others.slice(targetIndex)];
     reorderTasks(reordered.map((t) => t.id)).then(
       () => invalidateTasks(),
-      (err) => showToast(err instanceof Error ? err.message : 'Reorder failed')
+      (err) => showToast(errorMessage(err, 'Reorder failed'))
     );
   };
 
@@ -199,7 +200,7 @@ export function useTaskMutations({
       await invalidateTasks();
       showToast(message, () => void runRestore(ids));
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Archive failed');
+      showToast(errorMessage(err, 'Archive failed'));
     }
   };
 
@@ -214,7 +215,7 @@ export function useTaskMutations({
         showToast(
           list.length === 1 ? `Restored "${list[0].title}"` : `Restored ${plural(list.length, 'task')}`
         ),
-      (err) => showToast(err instanceof Error ? err.message : 'Restore failed')
+      (err) => showToast(errorMessage(err, 'Restore failed'))
     );
   };
 

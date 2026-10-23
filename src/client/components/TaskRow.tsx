@@ -33,6 +33,7 @@ import {
   getDueDateInfo,
   getTodayIso,
   getTomorrowIso,
+  cleanTag,
 } from '../utils/taskUtils.ts';
 import { externalLinkLabel, externalShortLabel } from './AdoImport.tsx';
 import {
@@ -243,7 +244,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const handleAddTag = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleaned = newTagText.trim().replace(/^#/, '');
+    const cleaned = cleanTag(newTagText);
     if (cleaned && !task.tags.includes(cleaned)) {
       onUpdate(task.id, { tags: [...task.tags, cleaned] });
     }
