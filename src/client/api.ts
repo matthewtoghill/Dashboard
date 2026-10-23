@@ -16,6 +16,8 @@ import {
   SavedView,
   ClaudeSession,
   UpdateClaudeSessionInput,
+  SettingsResponse,
+  UpdateSettingsInput,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -335,4 +337,25 @@ export async function updateClaudeSession(
     throw new Error(`Failed to update session: ${res.statusText}`);
   }
   return ((await res.json()) as { session: ClaudeSession }).session;
+}
+
+export async function fetchSettings(): Promise<SettingsResponse> {
+  const res = await fetch('/api/settings');
+  if (!res.ok) {
+    throw new Error(`Failed to load settings: ${res.statusText}`);
+  }
+  return (await res.json()) as SettingsResponse;
+}
+
+export async function updateSettings(input: UpdateSettingsInput): Promise<SettingsResponse> {
+  const res = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `Failed to save settings: ${res.statusText}`);
+  }
+  return (await res.json()) as SettingsResponse;
 }

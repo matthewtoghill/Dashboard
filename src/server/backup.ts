@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Settings } from '../shared/types.ts';
 
 /**
  * Local database backups.
@@ -27,12 +28,19 @@ export interface BackupInfo {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FILE_PATTERN = /^dashboard-.+\.db$/;
 
-/** `BACKUP_DIR` (default: `backups/` next to the database) and `BACKUP_KEEP` (default 14). */
-export function resolveBackupConfig(dbPath: string): BackupConfig {
-  const keep = Number(process.env.BACKUP_KEEP ?? 14);
+/**
+ * The `BACKUP_DIR` and `BACKUP_KEEP` environment variables win over the saved settings.
+ * Changing the folder only affects new backups; existing ones stay where they are.
+ */
+export function resolveBackupConfig(
+  dbPath: string,
+  settings: Pick<Settings, 'backupDir' | 'backupKeep'>
+): BackupConfig {
+  const envKeep = Number(process.env.BACKUP_KEEP);
   return {
-    dir: process.env.BACKUP_DIR ?? path.join(path.dirname(dbPath), 'backups'),
-    keep: Number.isInteger(keep) && keep > 0 ? keep : 14,
+    dir:
+      process.env.BACKUP_DIR || settings.backupDir || path.join(path.dirname(dbPath), 'backups'),
+    keep: Number.isInteger(envKeep) && envKeep > 0 ? envKeep : settings.backupKeep,
   };
 }
 

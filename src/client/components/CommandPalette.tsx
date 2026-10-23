@@ -15,6 +15,7 @@ import {
   X,
   Keyboard,
   Bookmark,
+  Settings,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -28,6 +29,7 @@ interface CommandPaletteProps {
   onApplySavedView: (id: string) => void;
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
+  onOpenSettings: () => void;
   onArchiveCompleted: () => void;
   onShowShortcuts: () => void;
   /** The task open in the detail drawer, if any. */
@@ -53,6 +55,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onApplySavedView,
   onFocusQuickAdd,
   onToggleTheme,
+  onOpenSettings,
   onArchiveCompleted,
   onShowShortcuts,
   openTask,
@@ -164,6 +167,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'act-settings',
+        label: 'Open Settings',
+        category: 'Preferences',
+        icon: Settings,
+        action: () => {
+          onClose();
+          onOpenSettings();
+        },
+      },
+      {
         id: 'act-archive-done',
         label: 'Archive All Completed Tasks…',
         category: 'Actions',
@@ -225,6 +238,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onFocusQuickAdd,
     onSelectNav,
     onToggleTheme,
+    onOpenSettings,
     onArchiveCompleted,
     onShowShortcuts,
     openTask,

@@ -5,6 +5,7 @@ import { AppDatabase } from '../db/index.ts';
 import { listTasks } from './tasks.ts';
 import { serializeProject } from './projects.ts';
 import { listClaudeSessions } from './claude.ts';
+import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
 import {
   keyValueStore,
   quickLinks,
@@ -221,7 +222,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 3,
+      version: 4,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -229,6 +230,7 @@ export async function registerDashboardRoutes(
       quickLinks: allLinks,
       savedViews: getSavedViews(),
       claudeSessions: listClaudeSessions(db),
+      settings: readSettings(db.$client),
     };
   });
 
@@ -342,6 +344,12 @@ export async function registerDashboardRoutes(
             .onConflictDoNothing()
             .run();
           importedClaudeSessions += result.changes;
+        }
+
+        // Only into a database with no saved settings, so an import never changes them.
+        // The backup folder is machine-specific and not carried over.
+        if (payload.settings && !hasSavedSettings(db.$client)) {
+          writeSettings(db.$client, { ...payload.settings, backupDir: '' });
         }
 
         if (payload.scratchpad !== undefined) {

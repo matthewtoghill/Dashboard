@@ -5,8 +5,9 @@ import path from 'node:path';
 import * as schema from './schema.ts';
 import { MIGRATIONS, runMigrations } from './migrations.ts';
 import { backupDatabase, resolveBackupConfig } from '../backup.ts';
+import { readSettings } from '../settings.ts';
 
-export type AppDatabase = BetterSQLite3Database<typeof schema>;
+export type AppDatabase = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
 
 export function createDatabase(dbFilePath?: string): {
   db: AppDatabase;
@@ -31,7 +32,7 @@ export function createDatabase(dbFilePath?: string): {
   try {
     // Snapshot existing data before changing its schema (skipped for new, empty databases)
     if (resolvedPath !== ':memory:' && needsMigration(sqlite)) {
-      backupDatabase(sqlite, resolveBackupConfig(resolvedPath));
+      backupDatabase(sqlite, resolveBackupConfig(resolvedPath, readSettings(sqlite)));
     }
     runMigrations(sqlite);
   } catch (err) {

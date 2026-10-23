@@ -9,7 +9,6 @@ import {
   readHostSessionId,
   stateForEvent,
   titleFromPrompt,
-  UNLINKED_SESSION_TTL_MS,
 } from '../routes/claude.ts';
 import { ClaudeSession, ClaudeSessionSchema } from '../../shared/types.ts';
 import { sessionLink, taskFromSession } from '../../client/components/ClaudeSessions.tsx';
@@ -216,7 +215,7 @@ describe('Claude sessions API', () => {
     expect((await list())[0].taskId).toBeNull();
   });
 
-  it('prunes unlinked sessions after a week of silence but keeps linked ones', async () => {
+  it('prunes unlinked sessions after the configured days of silence but keeps linked ones', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(1_000_000_000_000);
     await post({ session_id: 'old-unlinked', hook_event_name: 'SessionEnd', cwd: '/x' });
@@ -224,7 +223,8 @@ describe('Claude sessions API', () => {
     const taskId = await createTask();
     await app.inject({ method: 'PATCH', url: '/api/claude/sessions/old-linked', payload: { taskId } });
 
-    vi.setSystemTime(1_000_000_000_000 + UNLINKED_SESSION_TTL_MS + 1);
+    await app.inject({ method: 'PUT', url: '/api/settings', payload: { claudeSessionTtlDays: 2 } });
+    vi.setSystemTime(1_000_000_000_000 + 2 * 24 * 60 * 60 * 1000 + 1);
     await post({ session_id: 'fresh', hook_event_name: 'SessionStart', cwd: '/x' });
     expect((await list()).map((s) => s.sessionId).sort()).toEqual(['fresh', 'old-linked']);
   });
@@ -234,7 +234,7 @@ describe('Claude sessions API', () => {
     const taskId = await createTask();
     await app.inject({ method: 'PATCH', url: '/api/claude/sessions/s1', payload: { taskId } });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(3);
+    expect(exported.version).toBe(4);
     expect(exported.claudeSessions).toHaveLength(1);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });

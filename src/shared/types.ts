@@ -215,6 +215,28 @@ export const UpdateClaudeSessionInputSchema = z.object({
 });
 export type UpdateClaudeSessionInput = z.input<typeof UpdateClaudeSessionInputSchema>;
 
+// Roadmap 4: settings, stored as JSON under the `settings` key of key_value_store.
+// Theme stays per-browser in localStorage; widget visibility stays under `widget_config`.
+export const SettingsSchema = z.object({
+  /** Quick-add project outside project views; ignored if the project no longer exists. */
+  defaultProjectId: z.string().min(1).nullable().default(null),
+  /** Overridden by the BACKUP_KEEP environment variable. */
+  backupKeep: z.number().int().min(1).max(1000).default(14),
+  /** Absolute path; empty means `backups/` next to the database. Overridden by BACKUP_DIR. */
+  backupDir: z.string().trim().max(1000).default(''),
+  /** Unlinked Claude sessions are deleted this many days after their last event. */
+  claudeSessionTtlDays: z.number().int().min(1).max(365).default(7),
+});
+export type Settings = z.infer<typeof SettingsSchema>;
+export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();
+export type UpdateSettingsInput = z.input<typeof UpdateSettingsInputSchema>;
+
+/** GET/PUT /api/settings. `envOverrides` holds the raw environment value that wins, if any. */
+export interface SettingsResponse {
+  settings: Settings;
+  envOverrides: { backupKeep: string | null; backupDir: string | null };
+}
+
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),
   widgetConfig: WidgetConfigSchema,
@@ -238,5 +260,7 @@ export const BackupPayloadSchema = z.object({
   savedViews: SavedViewListSchema.optional().default([]),
   /** Since version 3. */
   claudeSessions: z.array(ClaudeSessionSchema).optional().default([]),
+  /** Since version 4. */
+  settings: SettingsSchema.optional(),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

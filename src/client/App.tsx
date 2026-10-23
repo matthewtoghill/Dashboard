@@ -23,6 +23,7 @@ import {
   Archive,
   ArchiveRestore,
   Repeat,
+  Settings,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -49,6 +50,7 @@ import {
   deleteQuickLink,
   importDashboardData,
   saveSavedViews,
+  fetchSettings,
 } from './api.ts';
 import {
   Task,
@@ -56,7 +58,6 @@ import {
   UpdateTaskInput,
   WidgetConfig,
   WidgetConfigSchema,
-  BackupPayload,
   DashboardState,
   SavedView,
   MAX_SAVED_VIEWS,
@@ -68,6 +69,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
+import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
@@ -152,31 +154,39 @@ export const App: React.FC = () => {
   const [newTags, setNewTags] = useState<string[]>([]);
 
   const [showCompleted, setShowCompleted] = useState(true);
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Theme is per-browser: 'light' or 'dark' in localStorage, absent means follow the system
+  const [theme, setTheme] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem('dashboard_theme');
-    if (saved) return saved === 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return saved === 'light' || saved === 'dark' ? saved : 'system';
   });
+  const [systemDark, setSystemDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+  const darkMode = theme === 'system' ? systemDark : theme === 'dark';
+  const toggleTheme = () => setTheme(darkMode ? 'light' : 'dark');
 
   const quickAddRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-      localStorage.setItem('dashboard_theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('dashboard_theme', 'light');
-    }
-  }, [darkMode]);
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    if (theme === 'system') localStorage.removeItem('dashboard_theme');
+    else localStorage.setItem('dashboard_theme', theme);
+  }, [darkMode, theme]);
 
   // Global Keyboard Shortcuts (N/C for Quick-Add, / for Search, Ctrl+K for Command Palette, Escape to close Drawer)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Native <dialog>s handle their own keys (Esc cancels).
-      if (confirmRequest || shortcutsOpen) return;
+      if (confirmRequest || shortcutsOpen || settingsOpen) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -236,13 +246,16 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, shortcutsOpen, toast]);
+  }, [commandPaletteOpen, selectedTaskId, activeNav, confirmRequest, shortcutsOpen, settingsOpen, toast]);
 
-  // Quick-add defaults follow the current view, and reset when leaving it
+  const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
+  const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
+
+  // Quick-add defaults follow the current view (else the settings default), and reset when leaving it
   useEffect(() => {
-    setNewProjectId(activeNav.type === 'project' ? activeNav.id : '');
+    setNewProjectId(activeNav.type === 'project' ? activeNav.id : defaultProjectId);
     setNewDueDate(activeNav.type === 'smart' && activeNav.id === 'today' ? getTodayIso() : '');
-  }, [activeNav]);
+  }, [activeNav, defaultProjectId]);
 
   // Queries
   const {
@@ -755,12 +768,12 @@ export const App: React.FC = () => {
     });
   };
 
-  const requestDeleteArchived = (archived: Task[]) => {
+  const requestDeleteArchived = (archived: Task[], scope = 'shown in this view') => {
     const count = plural(archived.length, 'archived task');
     setConfirmRequest({
       title: 'Permanently delete archived tasks?',
       message:
-        `${count} shown in this view (and their subtasks) will be permanently deleted.\n` +
+        `${count} ${scope} (and their subtasks) will be permanently deleted.\n` +
         UNDO_HINT,
       confirmLabel: `Delete ${archived.length}`,
       onConfirm: () => {
@@ -1023,7 +1036,17 @@ export const App: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setDarkMode((d) => !d)}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Open settings"
+              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleTheme}
               aria-label="Toggle color theme"
               className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
               title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -1081,9 +1104,6 @@ export const App: React.FC = () => {
                 }
                 onDeleteQuickLink={handleDeleteQuickLink}
                 onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
-                onImportBackup={(payload: BackupPayload) =>
-                  importBackupMutation.mutateAsync(payload)
-                }
                 onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
                 onSelectProject={(id) => setActiveNav({ type: 'project', id })}
               />
@@ -1105,9 +1125,6 @@ export const App: React.FC = () => {
                 }
                 onDeleteQuickLink={handleDeleteQuickLink}
                 onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
-                onImportBackup={(payload: BackupPayload) =>
-                  importBackupMutation.mutateAsync(payload)
-                }
                 onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
               />
 
@@ -1590,7 +1607,8 @@ export const App: React.FC = () => {
         savedViews={savedViews}
         onApplySavedView={handleApplySavedView}
         onFocusQuickAdd={() => quickAddRef.current?.focus()}
-        onToggleTheme={() => setDarkMode((d) => !d)}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setSettingsOpen(true)}
         onArchiveCompleted={() =>
           requestArchiveCompleted(
             tasks.filter((t) => t.status === 'done'),
@@ -1603,6 +1621,24 @@ export const App: React.FC = () => {
           task.status === 'archived' ? handleRestoreTasks([task]) : handleArchiveTask(task)
         }
         darkMode={darkMode}
+      />
+
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        onChangeTheme={setTheme}
+        tasks={tasks}
+        projects={projects}
+        widgetConfig={widgetConfig}
+        onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
+        onImportBackup={(payload) => importBackupMutation.mutateAsync(payload)}
+        onDeleteArchived={() =>
+          requestDeleteArchived(
+            tasks.filter((t) => t.status === 'archived'),
+            'across all projects'
+          )
+        }
       />
 
       <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />

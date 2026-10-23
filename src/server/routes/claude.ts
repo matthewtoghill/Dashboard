@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { AppDatabase } from '../db/index.ts';
 import { claudeSessions, tasks } from '../db/schema.ts';
+import { readSettings } from '../settings.ts';
 import {
   ClaudeHookEvent,
   ClaudeHookEventSchema,
@@ -13,8 +14,7 @@ import {
   UpdateClaudeSessionInputSchema,
 } from '../../shared/types.ts';
 
-/** Sessions with no linked task are deleted this long after their last event. */
-export const UNLINKED_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Notifications that don't need the user: "waiting for input" after 60s idle, login success
 const QUIET_NOTIFICATIONS = new Set(['idle_prompt', 'auth_success']);
@@ -181,13 +181,15 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     return reply.status(204).send();
   });
 
-  // GET /api/claude/sessions — newest activity first; prunes old unlinked sessions
+  // GET /api/claude/sessions — newest activity first; prunes unlinked sessions older than
+  // the claudeSessionTtlDays setting
   app.get('/api/claude/sessions', async () => {
+    const ttlMs = readSettings(db.$client).claudeSessionTtlDays * DAY_MS;
     db.delete(claudeSessions)
       .where(
         and(
           isNull(claudeSessions.taskId),
-          lt(claudeSessions.lastEventAt, Date.now() - UNLINKED_SESSION_TTL_MS)
+          lt(claudeSessions.lastEventAt, Date.now() - ttlMs)
         )
       )
       .run();

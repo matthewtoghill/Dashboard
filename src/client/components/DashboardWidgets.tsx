@@ -10,21 +10,15 @@ import {
   Plus,
   Trash2,
   ArrowUpRight,
-  Download,
-  Upload,
-  Settings2,
   ChevronDown,
   ChevronUp,
   Sparkles,
-  FileJson,
-  FileSpreadsheet,
 } from 'lucide-react';
 import {
   Task,
   Project,
   QuickLink,
   WidgetConfig,
-  BackupPayload,
 } from '../../shared/types.ts';
 import {
   completionsByDay,
@@ -33,10 +27,9 @@ import {
   formatRelativeTime,
   getTodayIso,
   projectProgress,
-  tasksToCsv,
 } from '../utils/taskUtils.ts';
 import { parseIsoDate } from '../../shared/dates.ts';
-import { exportDashboardData, ImportResult, fetchBackups, createBackup } from '../api.ts';
+import { fetchBackups, createBackup } from '../api.ts';
 
 interface DashboardWidgetsProps {
   mode: 'full' | 'compact';
@@ -50,7 +43,6 @@ interface DashboardWidgetsProps {
   onCreateQuickLink: (title: string, url: string, category?: string) => void;
   onDeleteQuickLink: (id: string) => void;
   onUpdateWidgetConfig: (config: Partial<WidgetConfig>) => void;
-  onImportBackup: (payload: BackupPayload) => Promise<ImportResult>;
   onSelectSmartView?: (view: 'today' | 'inbox' | 'completed') => void;
   onSelectProject?: (projectId: string) => void;
 }
@@ -67,7 +59,6 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   onCreateQuickLink,
   onDeleteQuickLink,
   onUpdateWidgetConfig,
-  onImportBackup,
   onSelectSmartView,
   onSelectProject,
 }) => {
@@ -81,9 +72,6 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Dev');
 
-  const [showWidgetSettings, setShowWidgetSettings] = useState(false);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scratchpad autosave: debounce while typing, flush on blur, unmount and page hide.
   // savedRef is the last value sent; server echoes of it must not overwrite newer typing.
@@ -155,55 +143,6 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
     setLinkTitle('');
     setLinkUrl('');
     setIsAddingLink(false);
-  };
-
-  const handleExportJson = async () => {
-    const data = await exportDashboardData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dashboard-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportCsv = () => {
-    const csv = tasksToCsv(tasks, projects);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dashboard-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    let parsed: BackupPayload;
-    try {
-      parsed = JSON.parse(await file.text()) as BackupPayload;
-    } catch {
-      setImportStatus('Invalid JSON backup file.');
-      return;
-    }
-    setImportStatus('Importing…');
-    try {
-      const result = await onImportBackup(parsed);
-      setImportStatus(
-        `Backup restored: ${result.importedTasks} tasks, ${result.importedProjects} projects, ` +
-          `${result.importedQuickLinks} links, ${result.importedSavedViews} saved views, ` +
-          `${result.importedClaudeSessions} Claude sessions added ` +
-          '(existing items were left unchanged).'
-      );
-    } catch (err) {
-      setImportStatus(err instanceof Error ? err.message : 'Import failed.');
-    }
   };
 
   // Ring SVG math
@@ -384,132 +323,15 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   // Full Dashboard Overview Home Page
   return (
     <div className="space-y-6">
-      {/* Top Toolbar: Customize Widgets & Data Portability */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200/70 dark:border-zinc-800/70">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Dashboard Overview</h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Daily progress, scratchpad, quick links, and local data backup
-          </p>
-        </div>
-
-        <div className="flex items-center flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setShowWidgetSettings((s) => !s)}
-            aria-label="Customize dashboard widgets"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer"
-          >
-            <Settings2 className="w-3.5 h-3.5" />
-            <span>Widgets</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportJson}
-            aria-label="Export JSON backup"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer"
-          >
-            <FileJson className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Export JSON</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            aria-label="Export CSV tasks"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Export CSV</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Import JSON backup"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Import JSON</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json"
-            onChange={handleImportFileChange}
-            className="hidden"
-          />
-        </div>
+      {/* Widgets, export and import live in the settings panel */}
+      <div className="pb-3 border-b border-zinc-200/70 dark:border-zinc-800/70">
+        <h2 className="text-xl font-bold tracking-tight">Dashboard Overview</h2>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          Daily progress, scratchpad, quick links, and local data backup
+        </p>
       </div>
 
       <BackupStatusLine />
-
-      {importStatus && (
-        <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-medium">
-          {importStatus}
-        </div>
-      )}
-
-      {/* Modular Widget Toggles Bar */}
-      {showWidgetSettings && (
-        <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center flex-wrap gap-4 text-xs shadow-xs">
-          <span className="font-semibold uppercase tracking-wider text-zinc-400">
-            Active Widgets:
-          </span>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={widgetConfig.showStats}
-              onChange={(e) => onUpdateWidgetConfig({ showStats: e.target.checked })}
-              className="rounded text-indigo-600"
-            />
-            <span>Progress & Stats</span>
-          </label>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={widgetConfig.showScratchpad}
-              onChange={(e) =>
-                onUpdateWidgetConfig({ showScratchpad: e.target.checked })
-              }
-              className="rounded text-indigo-600"
-            />
-            <span>Quick Scratchpad</span>
-          </label>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={widgetConfig.showTrends}
-              onChange={(e) => onUpdateWidgetConfig({ showTrends: e.target.checked })}
-              className="rounded text-indigo-600"
-            />
-            <span>Trends & Project Progress</span>
-          </label>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={widgetConfig.showQuickLinks}
-              onChange={(e) =>
-                onUpdateWidgetConfig({ showQuickLinks: e.target.checked })
-              }
-              className="rounded text-indigo-600"
-            />
-            <span>Quick Links Launcher</span>
-          </label>
-          <label className="inline-flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={widgetConfig.showHeaderSummary}
-              onChange={(e) =>
-                onUpdateWidgetConfig({ showHeaderSummary: e.target.checked })
-              }
-              className="rounded text-indigo-600"
-            />
-            <span>Show Summary Bar in Task Views</span>
-          </label>
-        </div>
-      )}
 
       {/* 1. Stats & Progress Ring Cards */}
       {widgetConfig.showStats && (
@@ -1032,7 +854,7 @@ const ProjectProgressCard: React.FC<{
 };
 
 /** "Last backup: 3 hours ago · Back up now" for the Overview page. */
-const BackupStatusLine: React.FC = () => {
+export const BackupStatusLine: React.FC = () => {
   const queryClient = useQueryClient();
   const { data } = useQuery({ queryKey: ['backups'], queryFn: fetchBackups });
   const backupNow = useMutation({

@@ -9,7 +9,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 1 | Claude session integration | **Done** (branch `roadmap/claude-sessions`) |
 | 2 | Claude skills, hooks and automations for task management | Proposed |
 | 3 | Azure DevOps work item import | Proposed |
-| 4 | Settings panel | Proposed |
+| 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
 | 5 | Calendar view | Proposed |
 
 ## 1. Claude Session Integration
@@ -111,6 +111,16 @@ One place in the UI to configure the Dashboard, instead of environment variables
 
 - Should theme move server-side (shared across browsers) or stay per-browser in `localStorage`?
 - Should changing the backup folder move existing backups, or only apply to new ones?
+
+### Decisions
+
+- Theme stays per-browser in `localStorage`. The panel offers light, dark, or system (follows the OS).
+- Changing the backup folder applies to new backups only. Existing backups stay where they are, and the panel lists the current folder only.
+- Widget visibility stays under `widget_config`. The `settings` key holds the default quick-add project, backup count and folder, and the Claude session retention days (previously a fixed week).
+- `BACKUP_KEEP` and `BACKUP_DIR` still win over saved settings, and the panel shows when they do. Settings are read on each use, so changes apply without a restart.
+- Export includes settings (version 4). Import only applies them to a database with no saved settings, and never carries over the backup folder.
+- Widget toggles, JSON/CSV export and JSON import moved from the Overview toolbar into the panel. The Overview keeps the "Last backup" line.
+- Week start waits for the calendar view (feature 5); Azure DevOps settings wait for feature 3.
 
 ## 5. Calendar View
 

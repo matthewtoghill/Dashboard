@@ -9,6 +9,8 @@ import { registerProjectRoutes } from './routes/projects.ts';
 import { registerDashboardRoutes } from './routes/dashboard.ts';
 import { registerBackupRoutes } from './routes/backups.ts';
 import { registerClaudeRoutes } from './routes/claude.ts';
+import { registerSettingsRoutes } from './routes/settings.ts';
+import { readSettings } from './settings.ts';
 import { backupDatabase, isDailyBackupDue, resolveBackupConfig } from './backup.ts';
 
 const ALLOWED_HOSTNAMES = new Set(
@@ -45,14 +47,17 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
   });
 
   const { db, sqlite, dbPath } = createDatabase(options?.dbPath);
-  const backupConfig = dbPath === ':memory:' ? null : resolveBackupConfig(dbPath);
+  // Re-read on each use so changes in the settings panel apply without a restart
+  const backupConfig =
+    dbPath === ':memory:' ? null : () => resolveBackupConfig(dbPath, readSettings(sqlite));
 
   // Daily backup: checked at startup and hourly, so frequent dev restarts don't pile up copies
   let backupTimer: NodeJS.Timeout | undefined;
   if (backupConfig) {
     const dailyBackup = () => {
       try {
-        if (isDailyBackupDue(backupConfig.dir)) backupDatabase(sqlite, backupConfig);
+        const config = backupConfig();
+        if (isDailyBackupDue(config.dir)) backupDatabase(sqlite, config);
       } catch (err) {
         app.log.error(err, 'Daily backup failed');
       }
@@ -75,10 +80,11 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
   await registerProjectRoutes(app, db);
   await registerDashboardRoutes(app, db, {
     // Snapshot before an import changes data; null when backups are disabled
-    beforeImport: backupConfig ? () => backupDatabase(sqlite, backupConfig) : null,
+    beforeImport: backupConfig ? () => backupDatabase(sqlite, backupConfig()) : null,
   });
   await registerBackupRoutes(app, sqlite, backupConfig);
   await registerClaudeRoutes(app, db);
+  await registerSettingsRoutes(app, sqlite);
 
   // Serve built static client in production if dist exists
   const distPath = path.resolve(process.cwd(), 'dist');
