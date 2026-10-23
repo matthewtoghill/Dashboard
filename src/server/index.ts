@@ -104,7 +104,7 @@ const isMain =
   path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMain) {
-  const port = Number(process.env.PORT ?? 3001);
+  const port = Number(process.env.PORT ?? 3444);
   const host = process.env.HOST ?? '127.0.0.1';
 
   buildApp()

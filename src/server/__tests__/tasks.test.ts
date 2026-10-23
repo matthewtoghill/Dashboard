@@ -303,14 +303,14 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     const rebound = await app.inject({
       method: 'GET',
       url: '/api/export',
-      headers: { host: 'evil.example:3001' },
+      headers: { host: 'evil.example:3444' },
     });
     expect(rebound.statusCode).toBe(403);
 
     const devProxy = await app.inject({
       method: 'GET',
       url: '/api/tasks',
-      headers: { host: '127.0.0.1:3001', origin: 'http://localhost:5173' },
+      headers: { host: '127.0.0.1:3444', origin: 'http://localhost:5444' },
     });
     expect(devProxy.statusCode).toBe(200);
   });
@@ -366,7 +366,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
       },
     });
     expect(imported.statusCode).toBe(200);
-    expect(imported.json()).toEqual({ importedTasks: 1, importedProjects: 0, importedQuickLinks: 1, importedSavedViews: 0 });
+    expect(imported.json()).toEqual({ importedTasks: 1, importedProjects: 0, importedQuickLinks: 1, importedSavedViews: 0, importedClaudeSessions: 0 });
     const state = (await app.inject({ method: 'GET', url: '/api/dashboard' })).json();
     expect(state.quickLinks[0].url).toBe('https://javascript:alert(1)');
   });
