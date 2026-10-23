@@ -391,6 +391,26 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     const link = linkRes.json().quickLink;
     expect(link.url).toBe('https://github.com');
 
+    // 2b. Edit the quick link
+    const editRes = await app.inject({
+      method: 'PUT',
+      url: `/api/quick-links/${link.id}`,
+      payload: { title: 'GitHub PRs', url: 'github.com/pulls', category: 'Work' },
+    });
+    expect(editRes.statusCode).toBe(200);
+    expect(editRes.json().quickLink).toMatchObject({
+      id: link.id,
+      title: 'GitHub PRs',
+      url: 'https://github.com/pulls',
+      category: 'Work',
+    });
+    const missingRes = await app.inject({
+      method: 'PUT',
+      url: '/api/quick-links/nope',
+      payload: { title: 'X', url: 'x.com' },
+    });
+    expect(missingRes.statusCode).toBe(404);
+
     // 3. Update widget config
     const cfgRes = await app.inject({
       method: 'PUT',

@@ -195,6 +195,25 @@ export async function registerDashboardRoutes(
     return reply.status(201).send({ quickLink: serializeQuickLink(created!) });
   });
 
+  // PUT /api/quick-links/:id: replaces title, url and category
+  app.put<{ Params: { id: string } }>('/api/quick-links/:id', async (request, reply) => {
+    const { id } = request.params;
+    const parsed = CreateQuickLinkInputSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: 'Invalid quick link payload',
+        details: parsed.error.flatten(),
+      });
+    }
+    const { title, url, category } = parsed.data;
+    const result = db.update(quickLinks).set({ title, url, category }).where(eq(quickLinks.id, id)).run();
+    if (result.changes === 0) {
+      return reply.status(404).send({ error: 'Quick link not found' });
+    }
+    const updated = db.select().from(quickLinks).where(eq(quickLinks.id, id)).get();
+    return { quickLink: serializeQuickLink(updated!) };
+  });
+
   // DELETE /api/quick-links/:id
   app.delete<{ Params: { id: string } }>('/api/quick-links/:id', async (request, reply) => {
     const { id } = request.params;

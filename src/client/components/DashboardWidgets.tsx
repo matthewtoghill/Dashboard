@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Plus,
   Trash2,
+  Pencil,
   ArrowUpRight,
   ChevronDown,
   ChevronUp,
@@ -42,6 +43,7 @@ interface DashboardWidgetsProps {
   onSaveScratchpad: (content: string) => void;
   onConvertLineToTask: (lineText: string) => void;
   onCreateQuickLink: (title: string, url: string, category?: string) => void;
+  onUpdateQuickLink: (id: string, title: string, url: string, category: string) => void;
   onDeleteQuickLink: (id: string) => void;
   onUpdateWidgetConfig: (config: Partial<WidgetConfig>) => void;
   onSelectSmartView?: (view: 'today' | 'inbox' | 'completed') => void;
@@ -62,6 +64,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   onSaveScratchpad,
   onConvertLineToTask,
   onCreateQuickLink,
+  onUpdateQuickLink,
   onDeleteQuickLink,
   onUpdateWidgetConfig,
   onSelectSmartView,
@@ -79,6 +82,28 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkCategory, setLinkCategory] = useState('Dev');
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+
+  const closeLinkForm = () => {
+    setIsAddingLink(false);
+    setEditingLinkId(null);
+    setLinkTitle('');
+    setLinkUrl('');
+  };
+
+  const toggleAddLink = () => {
+    if (isAddingLink) return closeLinkForm();
+    setEditingLinkId(null);
+    setIsAddingLink(true);
+  };
+
+  const startEditLink = (link: QuickLink) => {
+    setEditingLinkId(link.id);
+    setLinkTitle(link.title);
+    setLinkUrl(link.url);
+    setLinkCategory(link.category);
+    setIsAddingLink(true);
+  };
 
 
   // Scratchpad autosave: debounce while typing, flush on blur, unmount and page hide.
@@ -147,10 +172,13 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   const handleAddLinkSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!linkTitle.trim() || !linkUrl.trim()) return;
-    onCreateQuickLink(linkTitle.trim(), linkUrl.trim(), linkCategory.trim() || 'General');
-    setLinkTitle('');
-    setLinkUrl('');
-    setIsAddingLink(false);
+    const category = linkCategory.trim() || 'General';
+    if (editingLinkId) {
+      onUpdateQuickLink(editingLinkId, linkTitle.trim(), linkUrl.trim(), category);
+    } else {
+      onCreateQuickLink(linkTitle.trim(), linkUrl.trim(), category);
+    }
+    closeLinkForm();
   };
 
   // Ring SVG math
@@ -257,7 +285,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsAddingLink((v) => !v)}
+                  onClick={toggleAddLink}
                   className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                 >
                   + Add Link
@@ -552,7 +580,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
 
               <button
                 type="button"
-                onClick={() => setIsAddingLink((v) => !v)}
+                onClick={toggleAddLink}
                 aria-label="Add quick link"
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
               >
@@ -572,7 +600,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                     value={linkTitle}
                     onChange={(e) => setLinkTitle(e.target.value)}
                     placeholder="Title (e.g. GitHub PRs)"
-                    aria-label="New link title"
+                    aria-label={editingLinkId ? 'Link title' : 'New link title'}
                     autoFocus
                     className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
                   />
@@ -581,7 +609,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     placeholder="URL (e.g. github.com)"
-                    aria-label="New link URL"
+                    aria-label={editingLinkId ? 'Link URL' : 'New link URL'}
                     className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
                   />
                   <input
@@ -589,14 +617,14 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                     value={linkCategory}
                     onChange={(e) => setLinkCategory(e.target.value)}
                     placeholder="Category (e.g. Work)"
-                    aria-label="New link category"
+                    aria-label={editingLinkId ? 'Link category' : 'New link category'}
                     className="text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
                   />
                 </div>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsAddingLink(false)}
+                    onClick={closeLinkForm}
                     className="px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-700 cursor-pointer"
                   >
                     Cancel
@@ -605,7 +633,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                     type="submit"
                     className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer"
                   >
-                    Save Bookmark
+                    {editingLinkId ? 'Update Bookmark' : 'Save Bookmark'}
                   </button>
                 </div>
               </form>
@@ -648,14 +676,24 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                         </span>
                       </div>
                     </a>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteQuickLink(link.id)}
-                      aria-label={`Delete quick link ${link.title}`}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-opacity cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => startEditLink(link)}
+                        aria-label={`Edit quick link ${link.title}`}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteQuickLink(link.id)}
+                        aria-label={`Delete quick link ${link.title}`}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

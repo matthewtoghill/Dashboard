@@ -28,6 +28,7 @@ import {
   saveScratchpad,
   saveWidgetConfig,
   createQuickLink,
+  updateQuickLink,
   deleteQuickLink,
   importDashboardData,
   saveSavedViews,
@@ -42,6 +43,7 @@ import {
   MAX_SAVED_VIEWS,
   ClaudeSession,
   UpdateClaudeSessionInput,
+  CreateQuickLinkInput,
 } from '../shared/types.ts';
 import { TaskRow, TaskListHeader } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -351,6 +353,12 @@ export const App: React.FC = () => {
     },
   });
 
+  const updateQuickLinkMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: CreateQuickLinkInput }) => updateQuickLink(id, input),
+    onError: (err) => showToast(errorMessage(err, 'Updating link failed')),
+    onSettled: () => invalidate('dashboard'),
+  });
+
   const importBackupMutation = useMutation({
     mutationFn: importDashboardData,
     // The server takes a safety backup first, so the backup list changes too
@@ -605,6 +613,8 @@ export const App: React.FC = () => {
     onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
     onConvertLineToTask: handleConvertScratchpadLineToTask,
     onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
+    onUpdateQuickLink: (id, title, url, category) =>
+      updateQuickLinkMutation.mutate({ id, input: { title, url, category } }),
     onDeleteQuickLink: handleDeleteQuickLink,
     onUpdateWidgetConfig: (cfg) => saveWidgetConfigMutation.mutate(cfg),
     onSelectSmartView: (v) => setActiveNav({ type: 'smart', id: v }),

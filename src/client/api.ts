@@ -250,6 +250,19 @@ export async function createQuickLink(input: CreateQuickLinkInput): Promise<Quic
   return data.quickLink;
 }
 
+export async function updateQuickLink(id: string, input: CreateQuickLinkInput): Promise<QuickLink> {
+  const res = await fetch(`/api/quick-links/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update quick link: ${res.statusText}`);
+  }
+  const data = (await res.json()) as { quickLink: QuickLink };
+  return data.quickLink;
+}
+
 export async function deleteQuickLink(id: string): Promise<void> {
   const res = await fetch(`/api/quick-links/${id}`, {
     method: 'DELETE',
