@@ -15,6 +15,7 @@ import {
   BackupPayload,
   SavedView,
   ClaudeSession,
+  UpdateClaudeSessionInput,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -321,14 +322,17 @@ export async function fetchClaudeSessions(): Promise<ClaudeSession[]> {
   return ((await res.json()) as { sessions: ClaudeSession[] }).sessions;
 }
 
-export async function linkClaudeSession(sessionId: string, taskId: string | null): Promise<ClaudeSession> {
+export async function updateClaudeSession(
+  sessionId: string,
+  input: UpdateClaudeSessionInput
+): Promise<ClaudeSession> {
   const res = await fetch(`/api/claude/sessions/${encodeURIComponent(sessionId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ taskId }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) {
-    throw new Error(`Failed to link session: ${res.statusText}`);
+    throw new Error(`Failed to update session: ${res.statusText}`);
   }
   return ((await res.json()) as { session: ClaudeSession }).session;
 }

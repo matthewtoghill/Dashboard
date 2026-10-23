@@ -1,8 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { buildApp } from '../index.ts';
-import { stateForEvent, titleFromPrompt, UNLINKED_SESSION_TTL_MS } from '../routes/claude.ts';
-import { ClaudeSession } from '../../shared/types.ts';
+import {
+  detailsForEvent,
+  readHostSessionId,
+  stateForEvent,
+  titleFromPrompt,
+  UNLINKED_SESSION_TTL_MS,
+} from '../routes/claude.ts';
+import { ClaudeSession, ClaudeSessionSchema } from '../../shared/types.ts';
+import { sessionLink, taskFromSession } from '../../client/components/ClaudeSessions.tsx';
 
 describe('stateForEvent', () => {
   const ev = (hook_event_name: string, extra = {}) => ({ session_id: 's', hook_event_name, ...extra });
@@ -34,6 +44,73 @@ describe('titleFromPrompt', () => {
   it('uses the first line, trimmed and capped at 80 characters', () => {
     expect(titleFromPrompt('  Fix the build\nmore detail')).toBe('Fix the build');
     expect(titleFromPrompt('x'.repeat(100))).toHaveLength(80);
+  });
+});
+
+describe('detailsForEvent', () => {
+  const ev = (hook_event_name: string, extra = {}) => ({ session_id: 's', hook_event_name, ...extra });
+
+  it('records the last prompt and tool, and why the session needs the user', () => {
+    expect(detailsForEvent(ev('UserPromptSubmit', { prompt: ' hi ' }), 'running')).toEqual({
+      lastPrompt: 'hi',
+      attentionMessage: '',
+    });
+    expect(detailsForEvent(ev('PermissionRequest', { tool_name: 'Bash' }), 'needs_attention')).toEqual({
+      lastTool: 'Bash',
+      attentionMessage: 'Claude needs permission to use Bash',
+    });
+    expect(detailsForEvent(ev('Notification', { message: 'Waiting' }), 'needs_attention')).toEqual({
+      attentionMessage: 'Waiting',
+    });
+    // A quiet notification leaves the attention message alone
+    expect(detailsForEvent(ev('Notification', { notification_type: 'idle_prompt' }), null)).toEqual({});
+  });
+});
+
+describe('readHostSessionId', () => {
+  it('reads the desktop id from the session registry only when the session id matches', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-sessions-'));
+    const write = (pid: string, entry: object) =>
+      fs.writeFileSync(path.join(dir, `${pid}.json`), JSON.stringify(entry));
+    write('100', { sessionId: 'abc', hostSessionId: 'local_6e92-aa' });
+    write('200', { sessionId: 'abc', hostSessionId: 'javascript:alert(1)' });
+    try {
+      expect(readHostSessionId('100', 'abc', dir)).toBe('local_6e92-aa');
+      expect(readHostSessionId('100', 'other', dir)).toBeNull();
+      expect(readHostSessionId('200', 'abc', dir)).toBeNull();
+      expect(readHostSessionId('../100', 'abc', dir)).toBeNull();
+      expect(readHostSessionId('999', 'abc', dir)).toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('session links and tasks', () => {
+  const session = ClaudeSessionSchema.parse({
+    sessionId: '0f8e3c1a-2b4d-4e6f-8a9b-1c2d3e4f5a6b',
+    cwd: 'C:\\Repos\\Dashboard',
+    title: '',
+    state: 'idle',
+    taskId: null,
+    startedAt: 1,
+    lastEventAt: 1,
+  });
+
+  it('opens desktop sessions in the desktop app and others through the terminal handler', () => {
+    expect(sessionLink({ ...session, entrypoint: 'claude-desktop', hostSessionId: 'local_abc' }).url).toBe(
+      'claude://code/continue?session=local_abc'
+    );
+    expect(sessionLink({ ...session, entrypoint: 'claude-desktop' }).url).toBe(
+      `claude-resume://${session.sessionId}`
+    );
+    expect(sessionLink({ ...session, entrypoint: 'cli' }).url).toBe(`claude-resume://${session.sessionId}`);
+  });
+
+  it('titles a task after the session, or its folder when untitled', () => {
+    expect(taskFromSession(session).title).toBe('Claude session in Dashboard');
+    expect(taskFromSession({ ...session, title: 'Fix login' }).title).toBe('Fix login');
+    expect(taskFromSession(session).description).toContain(`claude --resume ${session.sessionId}`);
   });
 });
 
@@ -72,6 +149,42 @@ describe('Claude sessions API', () => {
 
     await post({ ...base, hook_event_name: 'SessionEnd' });
     expect((await list())[0].state).toBe('ended');
+  });
+
+  it('records the client from the hook headers', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/claude/events',
+      headers: { 'x-claude-entrypoint': 'cli', 'x-claude-pid': '1' },
+      payload: { session_id: 's', hook_event_name: 'SessionStart' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/api/claude/events',
+      headers: { 'x-claude-entrypoint': 'Bad Value!' },
+      payload: { session_id: 's', hook_event_name: 'Stop' },
+    });
+    expect((await list())[0]).toMatchObject({ entrypoint: 'cli', hostSessionId: null });
+  });
+
+  it('clears a session until it starts again or needs the user', async () => {
+    const dismiss = (dismissed: boolean) =>
+      app.inject({ method: 'PATCH', url: '/api/claude/sessions/s', payload: { dismissed } });
+    await post({ session_id: 's', hook_event_name: 'Stop' });
+    expect((await dismiss(true)).json().session.dismissedAt).toEqual(expect.any(Number));
+
+    await post({ session_id: 's', hook_event_name: 'PostToolUse' });
+    await post({ session_id: 's', hook_event_name: 'SessionEnd' });
+    expect((await list())[0].dismissedAt).not.toBeNull();
+
+    await post({ session_id: 's', hook_event_name: 'PermissionRequest' });
+    expect((await list())[0].dismissedAt).toBeNull();
+
+    await dismiss(true);
+    expect((await dismiss(false)).json().session.dismissedAt).toBeNull();
+    expect(
+      (await app.inject({ method: 'PATCH', url: '/api/claude/sessions/s', payload: {} })).statusCode
+    ).toBe(400);
   });
 
   it('rejects events without a session id', async () => {

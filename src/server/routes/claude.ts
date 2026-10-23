@@ -1,5 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { AppDatabase } from '../db/index.ts';
 import { claudeSessions, tasks } from '../db/schema.ts';
 import {
@@ -7,7 +10,7 @@ import {
   ClaudeHookEventSchema,
   ClaudeSession,
   ClaudeSessionState,
-  LinkClaudeSessionInputSchema,
+  UpdateClaudeSessionInputSchema,
 } from '../../shared/types.ts';
 
 /** Sessions with no linked task are deleted this long after their last event. */
@@ -43,8 +46,64 @@ export function stateForEvent(event: ClaudeHookEvent): ClaudeSessionState | null
 
 /** First line of the first prompt, as a readable session title. */
 export function titleFromPrompt(prompt: string): string {
-  const line = prompt.trim().split('\n')[0].trim();
-  return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+  return clip(prompt.trim().split('\n')[0].trim(), 80);
+}
+
+/** Clipped copy of free text from a hook (prompts can be pages long). */
+function clip(text: string, max = 500): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** Panel details an event updates: last prompt, last tool, and why the session needs the user. */
+export function detailsForEvent(
+  event: ClaudeHookEvent,
+  state: ClaudeSessionState | null
+): { lastPrompt?: string; lastTool?: string; attentionMessage?: string } {
+  const details: { lastPrompt?: string; lastTool?: string; attentionMessage?: string } = {};
+  if (event.hook_event_name === 'UserPromptSubmit' && event.prompt) details.lastPrompt = clip(event.prompt.trim());
+  if (event.tool_name) details.lastTool = event.tool_name;
+  if (state === 'needs_attention') {
+    details.attentionMessage = clip(
+      event.message ??
+        (event.tool_name === 'AskUserQuestion'
+          ? 'Claude is asking a question'
+          : `Claude needs permission${event.tool_name ? ` to use ${event.tool_name}` : ''}`)
+    );
+  } else if (state) {
+    details.attentionMessage = '';
+  }
+  return details;
+}
+
+/** A cleared session comes back when it starts again or needs the user. */
+export function reactivates(event: ClaudeHookEvent, state: ClaudeSessionState | null): boolean {
+  return (
+    event.hook_event_name === 'SessionStart' ||
+    event.hook_event_name === 'UserPromptSubmit' ||
+    state === 'needs_attention'
+  );
+}
+
+/**
+ * The desktop app's id (local_...) for a session, from Claude Code's live session registry
+ * (~/.claude/sessions/<pid>.json). Undocumented format, so any surprise just means no deep link.
+ */
+export function readHostSessionId(
+  pid: string,
+  sessionId: string,
+  dir = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude'), 'sessions')
+): string | null {
+  if (!/^\d{1,10}$/.test(pid)) return null;
+  try {
+    const entry = JSON.parse(fs.readFileSync(path.join(dir, `${pid}.json`), 'utf8'));
+    return entry?.sessionId === sessionId &&
+      typeof entry.hostSessionId === 'string' &&
+      /^local_[A-Za-z0-9-]{1,64}$/.test(entry.hostSessionId)
+      ? entry.hostSessionId
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function listClaudeSessions(db: AppDatabase): ClaudeSession[] {
@@ -56,7 +115,8 @@ export function listClaudeSessions(db: AppDatabase): ClaudeSession[] {
 }
 
 export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase) {
-  // POST /api/claude/events — a Claude Code hook's stdin JSON, piped through curl.
+  // POST /api/claude/events — a Claude Code hook's stdin JSON, piped through curl, with the
+  // X-Claude-Entrypoint and X-Claude-Pid headers from the hook's environment (both optional).
   // PostToolUse payloads carry whole tool outputs, hence the large body limit.
   app.post('/api/claude/events', { bodyLimit: 20 * 1024 * 1024 }, async (request, reply) => {
     const parsed = ClaudeHookEventSchema.safeParse(request.body);
@@ -71,6 +131,21 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     const state = stateForEvent(event);
     const title =
       event.hook_event_name === 'UserPromptSubmit' && event.prompt ? titleFromPrompt(event.prompt) : '';
+    const header = (name: string) => {
+      const value = request.headers[name];
+      return typeof value === 'string' ? value.trim() : '';
+    };
+    const entrypoint = /^[a-z0-9-]{1,40}$/.test(header('x-claude-entrypoint'))
+      ? header('x-claude-entrypoint')
+      : '';
+    // Re-read on every desktop event: a resumed session runs in a new process
+    const hostSessionId =
+      entrypoint === 'claude-desktop' ? readHostSessionId(header('x-claude-pid'), event.session_id) : null;
+    const details = {
+      ...detailsForEvent(event, state),
+      ...(entrypoint ? { entrypoint } : {}),
+      ...(hostSessionId ? { hostSessionId } : {}),
+    };
 
     const existing = db
       .select()
@@ -84,6 +159,8 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
           ...(state ? { state } : {}),
           ...(event.cwd ? { cwd: event.cwd } : {}),
           ...(!existing.title && title ? { title } : {}),
+          ...details,
+          ...(reactivates(event, state) ? { dismissedAt: null } : {}),
           lastEventAt: now,
         })
         .where(eq(claudeSessions.sessionId, event.session_id))
@@ -97,6 +174,7 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
           state: state ?? 'running',
           startedAt: now,
           lastEventAt: now,
+          ...details,
         })
         .run();
     }
@@ -116,23 +194,29 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     return { sessions: listClaudeSessions(db) };
   });
 
-  // PATCH /api/claude/sessions/:id — link to a task, or unlink with { taskId: null }
+  // PATCH /api/claude/sessions/:id — { taskId } links (null unlinks); { dismissed } clears or restores
   app.patch<{ Params: { id: string } }>('/api/claude/sessions/:id', async (request, reply) => {
-    const parsed = LinkClaudeSessionInputSchema.safeParse(request.body);
+    const parsed = UpdateClaudeSessionInputSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
         error: 'Invalid session update payload',
         details: parsed.error.flatten(),
       });
     }
-    const { taskId } = parsed.data;
+    const { taskId, dismissed } = parsed.data;
+    if (taskId === undefined && dismissed === undefined) {
+      return reply.status(400).send({ error: 'Nothing to update' });
+    }
     if (taskId && !db.select().from(tasks).where(eq(tasks.id, taskId)).get()) {
       return reply.status(400).send({ error: 'Task not found' });
     }
 
     const result = db
       .update(claudeSessions)
-      .set({ taskId })
+      .set({
+        ...(taskId !== undefined ? { taskId } : {}),
+        ...(dismissed !== undefined ? { dismissedAt: dismissed ? Date.now() : null } : {}),
+      })
       .where(eq(claudeSessions.sessionId, request.params.id))
       .run();
     if (result.changes === 0) {

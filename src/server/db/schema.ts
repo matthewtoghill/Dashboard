@@ -61,6 +61,12 @@ export const claudeSessions = sqliteTable('claude_sessions', {
   taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
   startedAt: integer('started_at').notNull(),
   lastEventAt: integer('last_event_at').notNull(),
+  entrypoint: text('entrypoint').notNull().default(''),
+  hostSessionId: text('host_session_id'),
+  lastPrompt: text('last_prompt').notNull().default(''),
+  lastTool: text('last_tool').notNull().default(''),
+  attentionMessage: text('attention_message').notNull().default(''),
+  dismissedAt: integer('dismissed_at'),
 });
 
 export type DbProject = typeof projects.$inferSelect;

@@ -28,7 +28,7 @@ import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
-import { ClaudeSessionItem } from './ClaudeSessions.tsx';
+import { ClaudeSessionActions, ClaudeSessionItem } from './ClaudeSessions.tsx';
 
 const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
   { key: 'none', label: 'Does not repeat', rule: null },
@@ -153,7 +153,7 @@ interface TaskDetailDrawerProps {
   onDeleteSubtask: (subtaskId: string) => void;
   /** Sessions linked to this task. */
   claudeSessions: ClaudeSession[];
-  onLinkClaudeSession: (sessionId: string, taskId: string | null) => void;
+  claudeSessionActions: ClaudeSessionActions;
 }
 
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -166,7 +166,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onToggleSubtask,
   onDeleteSubtask,
   claudeSessions,
-  onLinkClaudeSession,
+  claudeSessionActions,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -546,7 +546,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </label>
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                 {claudeSessions.map((s) => (
-                  <ClaudeSessionItem key={s.sessionId} session={s} onLink={onLinkClaudeSession} />
+                  <ClaudeSessionItem key={s.sessionId} session={s} {...claudeSessionActions} />
                 ))}
               </ul>
             </div>

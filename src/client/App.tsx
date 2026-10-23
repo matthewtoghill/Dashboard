@@ -42,7 +42,7 @@ import {
   deleteProject,
   fetchDashboardState,
   fetchClaudeSessions,
-  linkClaudeSession,
+  updateClaudeSession,
   saveScratchpad,
   saveWidgetConfig,
   createQuickLink,
@@ -60,13 +60,20 @@ import {
   DashboardState,
   SavedView,
   MAX_SAVED_VIEWS,
+  ClaudeSession,
+  UpdateClaudeSessionInput,
 } from '../shared/types.ts';
 import { TaskRow } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
-import { ClaudeSessionsCard } from './components/ClaudeSessions.tsx';
+import {
+  ClaudeSessionActions,
+  ClaudeSessionPanel,
+  ClaudeSessionsCard,
+  taskFromSession,
+} from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import {
@@ -118,6 +125,7 @@ export const App: React.FC = () => {
 
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -263,7 +271,7 @@ export const App: React.FC = () => {
     queryFn: fetchClaudeSessions,
     refetchInterval: 5000,
   });
-  const claudeAttentionCount = claudeSessions.filter((s) => s.state === 'needs_attention').length;
+  const claudeAttentionCount = claudeSessions.filter((s) => s.state === 'needs_attention' && !s.dismissedAt).length;
 
   const invalidate = (...keys: string[]) =>
     Promise.all(keys.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
@@ -419,14 +427,44 @@ export const App: React.FC = () => {
     onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups', 'claudeSessions'),
   });
 
-  const linkClaudeSessionMutation = useMutation({
-    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string | null }) =>
-      linkClaudeSession(sessionId, taskId),
-    onError: (err) => showToast(err instanceof Error ? err.message : 'Linking session failed'),
+  const updateClaudeSessionMutation = useMutation({
+    mutationFn: ({ sessionId, input }: { sessionId: string; input: UpdateClaudeSessionInput }) =>
+      updateClaudeSession(sessionId, input),
+    onError: (err) => showToast(err instanceof Error ? err.message : 'Updating session failed'),
     onSettled: () => invalidate('claudeSessions'),
   });
-  const handleLinkClaudeSession = (sessionId: string, taskId: string | null) =>
-    linkClaudeSessionMutation.mutate({ sessionId, taskId });
+  const selectedSession = claudeSessions.find((s) => s.sessionId === selectedSessionId) ?? null;
+
+  const claudeSessionActions: ClaudeSessionActions = {
+    onOpen: (sessionId) => {
+      setSelectedTaskId(null);
+      setSelectedSessionId(sessionId);
+    },
+    onLink: (sessionId, taskId) => updateClaudeSessionMutation.mutate({ sessionId, input: { taskId } }),
+    // Create a task from the session, link them, and open the task to fill in the details
+    onCreateTask: async (session: ClaudeSession) => {
+      try {
+        const task = await createTaskMutation.mutateAsync(taskFromSession(session));
+        await updateClaudeSessionMutation.mutateAsync({
+          sessionId: session.sessionId,
+          input: { taskId: task.id },
+        });
+        setSelectedSessionId(null);
+        setSelectedTaskId(task.id);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Creating task failed');
+      }
+    },
+    onToggleCleared: (session: ClaudeSession) => {
+      const dismissed = !session.dismissedAt;
+      const setDismissed = (value: boolean) =>
+        updateClaudeSessionMutation.mutate({ sessionId: session.sessionId, input: { dismissed: value } });
+      setDismissed(dismissed);
+      if (dismissed) {
+        showToast(`Cleared "${session.title || 'Untitled session'}"`, () => setDismissed(false));
+      }
+    },
+  };
 
   const handleAddQuickTag = () => {
     const cleaned = newTagInput.trim().replace(/^#/, '');
@@ -789,7 +827,7 @@ export const App: React.FC = () => {
   // the handler always sees current state.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId) return;
+      if (confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (
@@ -892,7 +930,7 @@ export const App: React.FC = () => {
   const totalDoneCount = tasks.filter((t) => t.status === 'done').length;
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
-  const backgroundInert = selectedTask !== null || commandPaletteOpen;
+  const backgroundInert = selectedTask !== null || selectedSession !== null || commandPaletteOpen;
   // Drag-to-reorder only makes sense in one flat, manually sorted list
   const canReorder = sortBy === 'manual' && groupBy === 'none';
   const viewScope =
@@ -1027,7 +1065,7 @@ export const App: React.FC = () => {
               <ClaudeSessionsCard
                 sessions={claudeSessions}
                 tasks={tasks}
-                onLink={handleLinkClaudeSession}
+                {...claudeSessionActions}
               />
               <DashboardWidgets
                 mode="full"
@@ -1526,7 +1564,21 @@ export const App: React.FC = () => {
         }
         onDeleteSubtask={handleDeleteSubtask}
         claudeSessions={claudeSessions.filter((s) => s.taskId === selectedTask?.id)}
-        onLinkClaudeSession={handleLinkClaudeSession}
+        claudeSessionActions={claudeSessionActions}
+      />
+
+      {/* Slide-over Claude Session Panel */}
+      <ClaudeSessionPanel
+        session={selectedSession}
+        tasks={tasks}
+        onClose={() => setSelectedSessionId(null)}
+        onOpenTask={(taskId) => {
+          setSelectedSessionId(null);
+          setSelectedTaskId(taskId);
+        }}
+        onLink={claudeSessionActions.onLink}
+        onCreateTask={claudeSessionActions.onCreateTask}
+        onToggleCleared={claudeSessionActions.onToggleCleared}
       />
 
       {/* Command Palette (Ctrl+K) */}

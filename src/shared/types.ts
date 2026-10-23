@@ -184,6 +184,16 @@ export const ClaudeSessionSchema = z.object({
   taskId: z.string().nullable(),
   startedAt: z.number(),
   lastEventAt: z.number(),
+  /** Client that started the session, from CLAUDE_CODE_ENTRYPOINT: claude-desktop, cli, ... */
+  entrypoint: z.string().optional().default(''),
+  /** The desktop app's own id for the session (local_...), used for claude:// deep links. */
+  hostSessionId: z.string().nullable().optional().default(null),
+  lastPrompt: z.string().optional().default(''),
+  lastTool: z.string().optional().default(''),
+  /** Message of the last notification that needed the user. */
+  attentionMessage: z.string().optional().default(''),
+  /** Set when cleared from the Overview; cleared again when the session becomes active. */
+  dismissedAt: z.number().nullable().optional().default(null),
 });
 export type ClaudeSession = z.infer<typeof ClaudeSessionSchema>;
 
@@ -199,9 +209,11 @@ export const ClaudeHookEventSchema = z.object({
 });
 export type ClaudeHookEvent = z.input<typeof ClaudeHookEventSchema>;
 
-export const LinkClaudeSessionInputSchema = z.object({
-  taskId: z.string().min(1).nullable(),
+export const UpdateClaudeSessionInputSchema = z.object({
+  taskId: z.string().min(1).nullable().optional(),
+  dismissed: z.boolean().optional(),
 });
+export type UpdateClaudeSessionInput = z.input<typeof UpdateClaudeSessionInputSchema>;
 
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),

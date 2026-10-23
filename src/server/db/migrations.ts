@@ -83,6 +83,17 @@ export const MIGRATIONS: string[] = [
     );
     CREATE INDEX idx_claude_sessions_task_id ON claude_sessions(task_id);
   `,
+
+  // 4: Claude session details for the side panel, the desktop app's session id for deep
+  // links, and "cleared" sessions hidden from the Overview until they become active again
+  `
+    ALTER TABLE claude_sessions ADD COLUMN entrypoint TEXT NOT NULL DEFAULT '';
+    ALTER TABLE claude_sessions ADD COLUMN host_session_id TEXT;
+    ALTER TABLE claude_sessions ADD COLUMN last_prompt TEXT NOT NULL DEFAULT '';
+    ALTER TABLE claude_sessions ADD COLUMN last_tool TEXT NOT NULL DEFAULT '';
+    ALTER TABLE claude_sessions ADD COLUMN attention_message TEXT NOT NULL DEFAULT '';
+    ALTER TABLE claude_sessions ADD COLUMN dismissed_at INTEGER;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */
