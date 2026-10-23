@@ -61,6 +61,8 @@ import { CalendarView } from './components/CalendarView.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
 import { TaskListToolbar } from './components/TaskListToolbar.tsx';
+import { ContextMenuHost, MenuContent } from './components/ContextMenu.tsx';
+import { projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
 import {
   ConfirmDialog,
   ConfirmRequest,
@@ -282,6 +284,7 @@ export const App: React.FC = () => {
     handleUpdateTask,
     handleRescheduleTask,
     handleToggleTask,
+    handleSetStatus,
     handleMoveTask,
     handleDeleteTask,
     handleArchiveTask,
@@ -531,7 +534,7 @@ export const App: React.FC = () => {
   );
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
-  const { rowFocusProps } = useTaskListKeyboard({
+  const { rowFocusProps, startEditing } = useTaskListKeyboard({
     tasks,
     visibleOrder,
     enabled: !(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId),
@@ -544,6 +547,45 @@ export const App: React.FC = () => {
     onDelete: handleDeleteTask,
     onUpdate: handleUpdateTask,
   });
+
+  // Right-click menus: list rows rename inline; calendar and widget entries open the drawer instead
+  const resolveContextMenu = (target: HTMLElement): MenuContent | null => {
+    const projectId = target.closest<HTMLElement>('[data-menu-project]')?.dataset.menuProject;
+    const project = projects.find((p) => p.id === projectId);
+    if (project) {
+      return {
+        label: project.name,
+        items: projectMenuItems(
+          project,
+          (id, name, color) => updateProjectMutation.mutate({ id, name, color }),
+          handleDeleteProject
+        ),
+      };
+    }
+    const entry = target.closest<HTMLElement>('[data-task-row], [data-menu-task]');
+    const task = tasks.find((t) => t.id === (entry?.dataset.taskRow ?? entry?.dataset.menuTask));
+    if (!entry || !task) return null;
+    const isListRow = entry.dataset.taskRow !== undefined;
+    return {
+      label: task.title,
+      items: taskMenuItems(task, entry.dataset.menuGhost !== undefined, {
+        projects,
+        onOpen: setSelectedTaskId,
+        onRename: isListRow ? startEditing : setSelectedTaskId,
+        onSetStatus: handleSetStatus,
+        onUpdate: handleUpdateTask,
+        onReschedule: handleRescheduleTask,
+        onCopyTitle: (t) =>
+          navigator.clipboard.writeText(t.title).then(
+            () => showToast(`Copied "${t.title}"`),
+            () => showToast('Copying failed')
+          ),
+        onArchive: handleArchiveTask,
+        onRestore: (t) => handleRestoreTasks([t]),
+        onDelete: handleDeleteTask,
+      }),
+    };
+  };
 
   const totalActiveCount = tasks.filter(
     (t) => t.status !== 'done' && t.status !== 'archived'
@@ -1010,6 +1052,7 @@ export const App: React.FC = () => {
       <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />
       <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <Toast toast={toast} onDismiss={() => setToast(null)} />
+      <ContextMenuHost resolve={resolveContextMenu} />
     </div>
   );
 };

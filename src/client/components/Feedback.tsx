@@ -180,6 +180,7 @@ const SHORTCUTS: [string, string][] = [
   ['1 \u2013 4, 0', 'Priority Low \u2013 Urgent, None'],
   ['Alt + \u2191 / \u2193', 'Move (Manual sort)'],
   ['Alt + Arrows', 'Move to another day (Calendar)'],
+  ['Menu / Shift + F10', 'Task or project menu'],
   ['Esc', 'Leave the list / close'],
   ['N', 'New task'],
   ['/', 'Search'],

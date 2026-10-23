@@ -163,5 +163,5 @@ export function useTaskListKeyboard({
     },
   });
 
-  return { rowFocusProps };
+  return { rowFocusProps, startEditing: setEditingTaskId };
 }

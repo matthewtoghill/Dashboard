@@ -351,6 +351,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 return (
                   <div
                     key={project.id}
+                    data-menu-project={project.id}
                     className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
                       isSelected
                         ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium'

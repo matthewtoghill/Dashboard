@@ -11,7 +11,7 @@ import {
   updateSubtask,
   deleteSubtask,
 } from '../api.ts';
-import { Project, Task, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
+import { Project, Task, TaskStatus, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
 import { nextOccurrence } from '../../shared/recurrence.ts';
 import { ConfirmRequest } from '../components/Feedback.tsx';
 import { DeferredHandle, UNDO_HINT } from './useDeferredDelete.ts';
@@ -126,6 +126,17 @@ export function useTaskMutations({
       updateTaskMutation.mutate({ id: task.id, payload: { status: 'in_progress' } });
       return;
     }
+    completeTask(task);
+  };
+
+  /** Sets a status directly (context menu); completing shows the same toast and undo as the checkbox. */
+  const handleSetStatus = (task: Task, status: TaskStatus) => {
+    if (status === task.status) return;
+    if (status === 'done') completeTask(task);
+    else updateTaskMutation.mutate({ id: task.id, payload: { status } });
+  };
+
+  const completeTask = (task: Task) => {
     const previous = task.status === 'in_progress' ? 'in_progress' : 'todo';
     updateTaskMutation.mutate({ id: task.id, payload: { status: 'done' } });
     const nextDue = task.recurrence
@@ -271,6 +282,7 @@ export function useTaskMutations({
     handleUpdateTask,
     handleRescheduleTask,
     handleToggleTask,
+    handleSetStatus,
     handleMoveTask,
     handleDeleteTask,
     handleArchiveTask,

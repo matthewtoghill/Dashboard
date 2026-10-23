@@ -60,7 +60,7 @@ const WidgetTaskRow: React.FC<{ task: Task; meta?: React.ReactNode; actions: Tas
 }) => {
   const project = actions.projects.find((p) => p.id === task.projectId);
   return (
-    <li className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+    <li data-menu-task={task.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
       <TaskStatusCheckbox task={task} onToggle={actions.onToggleTask} />
       {project && (
         <span

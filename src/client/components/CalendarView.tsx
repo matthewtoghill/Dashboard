@@ -97,6 +97,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         key={ghost ? `${task.id}:${day}` : task.id}
         type="button"
         data-calendar-task={ghost ? undefined : task.id}
+        data-menu-task={task.id}
+        data-menu-ghost={ghost || undefined}
         draggable={!ghost}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';

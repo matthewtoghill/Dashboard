@@ -14,7 +14,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 6 | Task activity log | Proposed |
 | 7 | Automatic Azure DevOps sync check | Proposed |
 | 8 | Weekly review view | Proposed |
-| 9 | Custom right-click menu | Proposed |
+| 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
 
 ## 1. Claude Session Integration
 
@@ -269,7 +269,10 @@ Replace the browser's context menu with Dashboard actions on tasks and projects.
 - Right-clicking a ghost (recurring) entry on the calendar offers only "Open task".
 - If multi-select is added later, the menu acts on the whole selection.
 
-### Open Questions
+### Decisions
 
-- Should hover buttons on `TaskRow` be removed once the menu exists, or kept so actions stay discoverable?
-- Are Claude session rows in scope (link to task, dismiss, copy resume command)?
+- Hover buttons and inline controls on `TaskRow` stay, so actions remain discoverable.
+- "Copy link" was dropped: tasks have no URLs. "Copy title" and "Open in Azure DevOps" remain.
+- "Pick a date", "Add tag" and project "Rename" are inline inputs inside a submenu.
+- Overview task widget rows get the task menu too. Claude session rows are out of scope.
+- On calendar and widget entries, "Edit title" opens the task drawer, since they have no inline editor.
