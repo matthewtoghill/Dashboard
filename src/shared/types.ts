@@ -145,6 +145,10 @@ export const WidgetConfigSchema = z.object({
   showQuickLinks: z.boolean().default(true),
   showTrends: z.boolean().default(true),
   showHeaderSummary: z.boolean().default(true),
+  showAgenda: z.boolean().default(true),
+  showInProgress: z.boolean().default(true),
+  showStale: z.boolean().default(true),
+  showAdo: z.boolean().default(true),
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
@@ -245,6 +249,8 @@ export const SettingsSchema = z.object({
     .default(['Product Backlog Item', 'Task', 'Bug', 'User Story']),
   /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
+  /** The Overview's stale widget lists to-do tasks untouched for this many days. */
+  staleTaskDays: z.number().int().min(1).max(365).default(14),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();

@@ -30,6 +30,7 @@ import {
 } from '../utils/taskUtils.ts';
 import { parseIsoDate } from '../../shared/dates.ts';
 import { fetchBackups, createBackup } from '../api.ts';
+import { AdoCard, AgendaCard, InProgressCard, StaleCard, TaskWidgetActions } from './TaskWidgets.tsx';
 
 interface DashboardWidgetsProps {
   mode: 'full' | 'compact';
@@ -45,6 +46,10 @@ interface DashboardWidgetsProps {
   onUpdateWidgetConfig: (config: Partial<WidgetConfig>) => void;
   onSelectSmartView?: (view: 'today' | 'inbox' | 'completed') => void;
   onSelectProject?: (projectId: string) => void;
+  /** Full mode only: the task widgets and their settings. */
+  taskWidgetActions?: TaskWidgetActions;
+  staleTaskDays?: number;
+  onOpenAdoImport?: () => void;
 }
 
 export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
@@ -61,6 +66,9 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
   onUpdateWidgetConfig,
   onSelectSmartView,
   onSelectProject,
+  taskWidgetActions,
+  staleTaskDays = 14,
+  onOpenAdoImport,
 }) => {
   const stats = computeDashboardStats(tasks);
 
@@ -449,11 +457,31 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
         </div>
       )}
 
+      {/* Agenda & In Progress */}
+      {taskWidgetActions && (widgetConfig.showAgenda || widgetConfig.showInProgress) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {widgetConfig.showAgenda && <AgendaCard tasks={tasks} actions={taskWidgetActions} />}
+          {widgetConfig.showInProgress && <InProgressCard tasks={tasks} actions={taskWidgetActions} />}
+        </div>
+      )}
+
       {/* 2. Completion Trend & Per-Project Progress */}
       {widgetConfig.showTrends && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <CompletionTrendCard tasks={tasks} />
           <ProjectProgressCard tasks={tasks} projects={projects} onSelectProject={onSelectProject} />
+        </div>
+      )}
+
+      {/* Stale tasks & Azure DevOps */}
+      {(widgetConfig.showStale || widgetConfig.showAdo) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {widgetConfig.showStale && taskWidgetActions && (
+            <StaleCard tasks={tasks} days={staleTaskDays} actions={taskWidgetActions} />
+          )}
+          {widgetConfig.showAdo && onOpenAdoImport && (
+            <AdoCard tasks={tasks} onOpenAdoImport={onOpenAdoImport} />
+          )}
         </div>
       )}
 

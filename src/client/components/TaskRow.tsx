@@ -67,6 +67,75 @@ export const TaskListHeader: React.FC<{ children: React.ReactNode }> = ({ childr
   </div>
 );
 
+/** Cycles To Do → In Progress → Completed → To Do through `onToggle`. */
+export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) => void }> = ({
+  task,
+  onToggle,
+}) => {
+  const isArchived = task.status === 'archived';
+  const isInProgress = task.status === 'in_progress';
+  const isDone = task.status === 'done' || (isArchived && task.completedAt !== null);
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(task)}
+      disabled={isArchived}
+      aria-label={
+        isArchived
+          ? `"${task.title}" is archived`
+          : isDone
+          ? `Mark "${task.title}" as incomplete`
+          : isInProgress
+          ? `Mark "${task.title}" as complete`
+          : `Mark "${task.title}" as in progress`
+      }
+      title={
+        isArchived
+          ? 'Archived'
+          : isDone
+          ? 'Completed (click to reopen as To Do)'
+          : isInProgress
+          ? 'In Progress (click to mark Completed)'
+          : 'To Do (click to mark In Progress)'
+      }
+      className={`flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60 ${
+        isDone
+          ? 'bg-indigo-600 border-indigo-600 text-white'
+          : isInProgress
+          ? 'bg-amber-500/15 dark:bg-amber-400/15 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+          : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400 bg-transparent'
+      }`}
+    >
+      {isDone && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+      {isInProgress && <span className="w-2 h-2 rounded-xs bg-amber-500 dark:bg-amber-400" />}
+    </button>
+  );
+};
+
+/** Bot badge in the colour of the most urgent linked session; nothing without sessions. */
+export const ClaudeSessionBadge: React.FC<{
+  sessions: ClaudeSession[];
+  onOpenSession?: (sessionId: string) => void;
+}> = ({ sessions, onOpenSession }) => {
+  const primarySession = primaryClaudeSession(sessions);
+  if (!primarySession) return null;
+  const label = `Claude session (${STATE_STYLES[primarySession.state].label}): ${
+    primarySession.title || 'Untitled session'
+  }`;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenSession?.(primarySession.sessionId)}
+      aria-label={`${label}${sessions.length > 1 ? ` (${sessions.length} sessions)` : ''}`}
+      title={`${label}${sessions.length > 1 ? ` (+${sessions.length - 1} more)` : ''}`}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${SESSION_ROW_BADGE_STYLES[primarySession.state]}`}
+    >
+      <Bot className="w-2.5 h-2.5" />
+      {sessions.length > 1 && <span>{sessions.length}</span>}
+    </button>
+  );
+};
+
 const MAX_VISIBLE_TAGS = 2;
 
 interface TaskRowProps {
@@ -204,7 +273,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const completedSubtasks = subtasks.filter((s) => s.isCompleted).length;
   const hasNotes = Boolean(task.description && task.description.trim().length > 0);
   const notesChecklist = hasNotes ? checklistProgress(task.description) : null;
-  const primarySession = primaryClaudeSession(claudeSessions);
 
   return (
     <div
@@ -230,39 +298,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       {/* Title column: Checkbox + Title + Subtask/Note/Repeat/Session/ADO indicators */}
       <div className="flex items-center gap-3 basis-full @4xl:basis-auto min-w-0">
         {dragHandle}
-        <button
-          type="button"
-          onClick={() => onToggle(task)}
-          disabled={isArchived}
-          aria-label={
-            isArchived
-              ? `"${task.title}" is archived`
-              : isDone
-              ? `Mark "${task.title}" as incomplete`
-              : isInProgress
-              ? `Mark "${task.title}" as complete`
-              : `Mark "${task.title}" as in progress`
-          }
-          title={
-            isArchived
-              ? 'Archived'
-              : isDone
-              ? 'Completed (click to reopen as To Do)'
-              : isInProgress
-              ? 'In Progress (click to mark Completed)'
-              : 'To Do (click to mark In Progress)'
-          }
-          className={`flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60 ${
-            isDone
-              ? 'bg-indigo-600 border-indigo-600 text-white'
-              : isInProgress
-              ? 'bg-amber-500/15 dark:bg-amber-400/15 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
-              : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400 bg-transparent'
-          }`}
-        >
-          {isDone && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-          {isInProgress && <span className="w-2 h-2 rounded-xs bg-amber-500 dark:bg-amber-400" />}
-        </button>
+        <TaskStatusCheckbox task={task} onToggle={onToggle} />
 
         <div className="flex-1 min-w-0">
           {isEditing ? (
@@ -361,22 +397,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               )}
 
               {/* Linked Claude Session Indicator */}
-              {primarySession && (
-                <button
-                  type="button"
-                  onClick={() => onOpenSession?.(primarySession.sessionId)}
-                  aria-label={`Claude session (${STATE_STYLES[primarySession.state].label}): ${
-                    primarySession.title || 'Untitled session'
-                  }${claudeSessions.length > 1 ? ` (${claudeSessions.length} sessions)` : ''}`}
-                  title={`Claude session (${STATE_STYLES[primarySession.state].label}): ${
-                    primarySession.title || 'Untitled session'
-                  }${claudeSessions.length > 1 ? ` (+${claudeSessions.length - 1} more)` : ''}`}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${SESSION_ROW_BADGE_STYLES[primarySession.state]}`}
-                >
-                  <Bot className="w-2.5 h-2.5" />
-                  {claudeSessions.length > 1 && <span>{claudeSessions.length}</span>}
-                </button>
-              )}
+              <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
 
               {/* Linked Azure DevOps Indicator */}
               {task.externalId && task.externalUrl && (

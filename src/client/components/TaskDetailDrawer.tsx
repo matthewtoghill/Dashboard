@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Check,
+  GripVertical,
   Plus,
   Trash2,
   Calendar,
@@ -23,6 +24,7 @@ import {
   TaskPriority,
   TaskStatus,
   UpdateTaskInput,
+  UpdateSubtaskInput,
   ClaudeSession,
 } from '../../shared/types.ts';
 import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.ts';
@@ -156,7 +158,7 @@ interface TaskDetailDrawerProps {
   onUpdateTask: (id: string, payload: UpdateTaskInput) => void;
   onDeleteTask: (id: string) => void;
   onCreateSubtask: (taskId: string, title: string) => void;
-  onToggleSubtask: (subtaskId: string, isCompleted: boolean) => void;
+  onUpdateSubtask: (subtaskId: string, input: UpdateSubtaskInput) => void;
   onDeleteSubtask: (subtaskId: string) => void;
   /** Sessions linked to this task. */
   claudeSessions: ClaudeSession[];
@@ -170,7 +172,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onUpdateTask,
   onDeleteTask,
   onCreateSubtask,
-  onToggleSubtask,
+  onUpdateSubtask,
   onDeleteSubtask,
   claudeSessions,
   claudeSessionActions,
@@ -180,6 +182,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [isPreviewingNotes, setIsPreviewingNotes] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [dragSubtaskId, setDragSubtaskId] = useState<string | null>(null);
+  // Insertion point in the full list (0..subtasks.length), shown as a line
+  const [subtaskDropIndex, setSubtaskDropIndex] = useState<number | null>(null);
   const [width, setWidth] = useState(
     () => Number(localStorage.getItem(DRAWER_WIDTH_KEY)) || 512
   );
@@ -243,6 +249,38 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (!trimmed) return;
     onCreateSubtask(task.id, trimmed);
     setNewSubtaskTitle('');
+  };
+
+  const saveSubtaskTitle = (id: string, current: string, value: string) => {
+    setEditingSubtaskId(null);
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== current) onUpdateSubtask(id, { title: trimmed });
+  };
+
+  const resetSubtaskDrag = () => {
+    setDragSubtaskId(null);
+    setSubtaskDropIndex(null);
+  };
+
+  const commitSubtaskDrop = () => {
+    const from = subtasks.findIndex((s) => s.id === dragSubtaskId);
+    if (from !== -1 && subtaskDropIndex !== null) {
+      const target = subtaskDropIndex > from ? subtaskDropIndex - 1 : subtaskDropIndex;
+      if (target !== from) {
+        // Slot between the neighbours' sortOrder values (floats are fine; column is a plain number)
+        const others = subtasks.filter((s) => s.id !== dragSubtaskId);
+        const prev = others[target - 1]?.sortOrder;
+        const next = others[target]?.sortOrder;
+        const sortOrder =
+          prev !== undefined && next !== undefined
+            ? (prev + next) / 2
+            : prev !== undefined
+              ? prev + 1
+              : next! - 1;
+        onUpdateSubtask(subtasks[from].id, { sortOrder });
+      }
+    }
+    resetSubtaskDrag();
   };
 
   const handleAddTag = (e: React.FormEvent) => {
@@ -526,15 +564,55 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             )}
 
             {/* Subtask List */}
-            <div className="space-y-1.5">
-              {subtasks.map((sub) => (
+            <div
+              className="space-y-1.5"
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setSubtaskDropIndex(null);
+                }
+              }}
+            >
+              {subtasks.map((sub, index) => (
                 <div
                   key={sub.id}
-                  className="group flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/30"
+                  onDragOver={(e) => {
+                    if (dragSubtaskId === null) return;
+                    e.preventDefault();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setSubtaskDropIndex(e.clientY > rect.top + rect.height / 2 ? index + 1 : index);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    commitSubtaskDrop();
+                  }}
+                  className={`group relative flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/30 ${
+                    dragSubtaskId === sub.id ? 'opacity-40' : ''
+                  }`}
                 >
+                  {subtaskDropIndex === index && <SubtaskDropLine position="top" />}
+                  {subtaskDropIndex === subtasks.length && index === subtasks.length - 1 && (
+                    <SubtaskDropLine position="bottom" />
+                  )}
                   <button
                     type="button"
-                    onClick={() => onToggleSubtask(sub.id, !sub.isCompleted)}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', sub.id);
+                      const row = e.currentTarget.parentElement;
+                      if (row) e.dataTransfer.setDragImage(row, 16, 16);
+                      setDragSubtaskId(sub.id);
+                    }}
+                    onDragEnd={resetSubtaskDrag}
+                    aria-label={`Reorder subtask "${sub.title}" (drag)`}
+                    title="Drag to reorder"
+                    className="-ml-1.5 p-0.5 rounded text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 cursor-grab active:cursor-grabbing flex-shrink-0"
+                  >
+                    <GripVertical className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSubtask(sub.id, { isCompleted: !sub.isCompleted })}
                     aria-label={
                       sub.isCompleted
                         ? `Mark subtask "${sub.title}" incomplete`
@@ -548,15 +626,36 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   >
                     {sub.isCompleted && <Check className="w-3 h-3 stroke-[2.5]" />}
                   </button>
-                  <span
-                    className={`flex-1 text-xs sm:text-sm truncate ${
-                      sub.isCompleted
-                        ? 'line-through text-zinc-400 dark:text-zinc-500'
-                        : 'text-zinc-800 dark:text-zinc-200'
-                    }`}
-                  >
-                    {sub.title}
-                  </span>
+                  {editingSubtaskId === sub.id ? (
+                    <input
+                      autoFocus
+                      defaultValue={sub.title}
+                      aria-label={`Edit subtask "${sub.title}"`}
+                      onBlur={(e) => saveSubtaskTitle(sub.id, sub.title, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          e.currentTarget.value = sub.title; // revert so the blur save is a no-op
+                          setEditingSubtaskId(null);
+                        }
+                      }}
+                      className="flex-1 min-w-0 text-xs sm:text-sm bg-transparent border-b border-indigo-500 outline-none text-zinc-800 dark:text-zinc-200"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingSubtaskId(sub.id)}
+                      title="Click to edit"
+                      className={`flex-1 min-w-0 text-left text-xs sm:text-sm truncate cursor-text ${
+                        sub.isCompleted
+                          ? 'line-through text-zinc-400 dark:text-zinc-500'
+                          : 'text-zinc-800 dark:text-zinc-200'
+                      }`}
+                    >
+                      {sub.title}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onDeleteSubtask(sub.id)}
@@ -682,3 +781,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     </div>
   );
 };
+
+const SubtaskDropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
+  <div
+    aria-hidden
+    className={`absolute inset-x-0 h-0.5 rounded-full bg-indigo-500 pointer-events-none ${
+      position === 'top' ? '-top-1' : '-bottom-1'
+    }`}
+  />
+);

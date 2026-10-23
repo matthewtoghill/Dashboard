@@ -35,6 +35,7 @@ describe('settings', () => {
         adoOrganization: '',
         adoWorkItemTypes: ['Product Backlog Item', 'Task', 'Bug', 'User Story'],
         weekStartDay: 1,
+        staleTaskDays: 14,
       },
       envOverrides: { backupKeep: null, backupDir: null },
     });

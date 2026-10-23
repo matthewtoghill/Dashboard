@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Project, Task } from '../../shared/types.ts';
-import { completionsByDay, projectProgress } from '../../client/utils/taskUtils.ts';
+import {
+  adoSummary,
+  agendaGroups,
+  completionsByDay,
+  projectProgress,
+  staleTasks,
+} from '../../client/utils/taskUtils.ts';
 
 const TODAY = '2026-10-22';
 const localMidnight = (y: number, m: number, d: number) => new Date(y, m - 1, d).getTime();
@@ -109,5 +115,80 @@ describe('projectProgress', () => {
   it('omits the No project row when every task has a project', () => {
     const rows = projectProgress([task({ projectId: 'work' })], projects);
     expect(rows.some((r) => r.projectId === null)).toBe(false);
+  });
+});
+
+describe('agendaGroups', () => {
+  it('puts open overdue tasks first, then one group per day in the window', () => {
+    const groups = agendaGroups(
+      [
+        task({ title: 'late', dueDate: '2026-10-20' }),
+        task({ title: 'later', dueDate: '2026-10-15' }),
+        task({ title: 'today low', dueDate: TODAY, priority: 1 }),
+        task({ title: 'today urgent', dueDate: TODAY, priority: 4 }),
+        task({ title: 'last day', dueDate: '2026-10-28', status: 'in_progress' }),
+        task({ title: 'outside', dueDate: '2026-10-29' }),
+        task({ title: 'done', dueDate: TODAY, status: 'done' }),
+        task({ title: 'archived', dueDate: '2026-10-20', status: 'archived' }),
+        task({ title: 'undated' }),
+      ],
+      7,
+      TODAY
+    );
+    expect(groups.map((g) => [g.date, g.tasks.map((t) => t.title)])).toEqual([
+      [null, ['later', 'late']],
+      [TODAY, ['today urgent', 'today low']],
+      ['2026-10-28', ['last day']],
+    ]);
+  });
+
+  it('has no overdue group when nothing is overdue', () => {
+    expect(agendaGroups([task({ dueDate: '2026-10-23' })], 7, TODAY).map((g) => g.date)).toEqual([
+      '2026-10-23',
+    ]);
+  });
+});
+
+describe('staleTasks', () => {
+  const now = localMidnight(2026, 10, 22);
+  const daysAgo = (n: number) => now - n * 24 * 60 * 60 * 1000;
+
+  it('lists to-do tasks untouched for the threshold, oldest first, skipping scheduled ones', () => {
+    const stale = staleTasks(
+      [
+        task({ title: 'old', updatedAt: daysAgo(20) }),
+        task({ title: 'older', updatedAt: daysAgo(30) }),
+        task({ title: 'exactly', updatedAt: daysAgo(14) }),
+        task({ title: 'fresh', updatedAt: daysAgo(13) }),
+        task({ title: 'overdue', updatedAt: daysAgo(20), dueDate: '2026-10-01' }),
+        task({ title: 'scheduled', updatedAt: daysAgo(20), dueDate: '2026-11-01' }),
+        task({ title: 'due today', updatedAt: daysAgo(20), dueDate: TODAY }),
+        task({ title: 'started', updatedAt: daysAgo(20), status: 'in_progress' }),
+        task({ title: 'done', updatedAt: daysAgo(20), status: 'done' }),
+      ],
+      14,
+      now,
+      TODAY
+    );
+    expect(stale.map((t) => t.title)).toEqual(['older', 'old', 'overdue', 'exactly']);
+  });
+});
+
+describe('adoSummary', () => {
+  it('counts open imported work items and pull requests, and the newest import time', () => {
+    const ado = (overrides: Partial<Task>) => task({ externalSource: 'ado', ...overrides });
+    expect(
+      adoSummary([
+        ado({ externalId: 'workitem/1', createdAt: 100 }),
+        ado({ externalId: 'workitem/2', status: 'in_progress', createdAt: 300 }),
+        ado({ externalId: 'pr/3', createdAt: 200 }),
+        ado({ externalId: 'workitem/4', status: 'done', createdAt: 500 }),
+        task({ createdAt: 900 }),
+      ])
+    ).toEqual({ openWorkItems: 2, openPullRequests: 1, lastImportAt: 500 });
+  });
+
+  it('has no import time without imported tasks', () => {
+    expect(adoSummary([task({})]).lastImportAt).toBeNull();
   });
 });

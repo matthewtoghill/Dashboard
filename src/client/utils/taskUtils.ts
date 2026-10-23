@@ -375,6 +375,68 @@ export function projectProgress(tasks: Task[], projects: Project[]): ProjectProg
   return result.sort((a, b) => b.total - b.done - (a.total - a.done));
 }
 
+const isOpen = (t: Task) => t.status === 'todo' || t.status === 'in_progress';
+const byPriorityThenOrder = (a: Task, b: Task) => b.priority - a.priority || a.sortOrder - b.sortOrder;
+
+export interface AgendaGroup {
+  /** Null for the overdue group. */
+  date: string | null;
+  tasks: Task[];
+}
+
+/** Open overdue tasks (oldest due first), then one group per day from today for `days` days; empty days are left out. */
+export function agendaGroups(tasks: Task[], days = 7, today: string = getTodayIso()): AgendaGroup[] {
+  const end = toIsoDate(addDays(parseIsoDate(today), days - 1));
+  const open = tasks.filter((t) => isOpen(t) && t.dueDate !== null && t.dueDate <= end);
+  const overdue = open
+    .filter((t) => t.dueDate! < today)
+    .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!) || byPriorityThenOrder(a, b));
+  const byDay = new Map<string, Task[]>();
+  for (const t of open) if (t.dueDate! >= today) byDay.set(t.dueDate!, [...(byDay.get(t.dueDate!) ?? []), t]);
+  const groups: AgendaGroup[] = [...byDay.keys()]
+    .sort()
+    .map((date) => ({ date, tasks: byDay.get(date)!.sort(byPriorityThenOrder) }));
+  return overdue.length > 0 ? [{ date: null, tasks: overdue }, ...groups] : groups;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** To-do tasks untouched for `days` days, oldest first; tasks due today or later are scheduled, not stale. */
+export function staleTasks(
+  tasks: Task[],
+  days: number,
+  now = Date.now(),
+  today: string = formatIsoDateFromTimestamp(now)
+): Task[] {
+  return tasks
+    .filter(
+      (t) =>
+        t.status === 'todo' &&
+        t.updatedAt <= now - days * DAY_MS &&
+        (t.dueDate === null || t.dueDate < today)
+    )
+    .sort((a, b) => a.updatedAt - b.updatedAt);
+}
+
+export interface AdoSummary {
+  openWorkItems: number;
+  openPullRequests: number;
+  /** createdAt of the newest imported task, or null when nothing was imported. */
+  lastImportAt: number | null;
+}
+
+export function adoSummary(tasks: Task[]): AdoSummary {
+  const summary: AdoSummary = { openWorkItems: 0, openPullRequests: 0, lastImportAt: null };
+  for (const t of tasks) {
+    if (t.externalSource !== 'ado') continue;
+    summary.lastImportAt = Math.max(summary.lastImportAt ?? 0, t.createdAt);
+    if (!isOpen(t)) continue;
+    if (t.externalId?.startsWith('pr/')) summary.openPullRequests++;
+    else summary.openWorkItems++;
+  }
+  return summary;
+}
+
 export interface DashboardStats {
   totalActive: number;
   totalCompleted: number;

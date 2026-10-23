@@ -60,6 +60,7 @@ import {
   Task,
   TaskPriority,
   UpdateTaskInput,
+  UpdateSubtaskInput,
   WidgetConfig,
   WidgetConfigSchema,
   DashboardState,
@@ -401,13 +402,8 @@ export const App: React.FC = () => {
   });
 
   const updateSubtaskMutation = useMutation({
-    mutationFn: ({
-      subtaskId,
-      isCompleted,
-    }: {
-      subtaskId: string;
-      isCompleted: boolean;
-    }) => updateSubtask(subtaskId, { isCompleted }),
+    mutationFn: ({ subtaskId, ...input }: { subtaskId: string } & UpdateSubtaskInput) =>
+      updateSubtask(subtaskId, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
@@ -1143,7 +1139,7 @@ export const App: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <main className="@container flex-1 overflow-y-auto">
+        <main className="@container relative flex-1 overflow-y-auto">
           <div className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6">
           {isOverviewPage ? (
             <>
@@ -1168,6 +1164,15 @@ export const App: React.FC = () => {
                 onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
                 onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
                 onSelectProject={(id) => setActiveNav({ type: 'project', id })}
+                taskWidgetActions={{
+                  projects,
+                  claudeSessionsByTaskId,
+                  onToggleTask: handleToggleTask,
+                  onOpenTask: claudeSessionActions.onOpenTask,
+                  onOpenSession: claudeSessionActions.onOpen,
+                }}
+                staleTaskDays={settingsData?.settings.staleTaskDays}
+                onOpenAdoImport={() => setAdoImportOpen(true)}
               />
             </>
           ) : (
@@ -1699,8 +1704,8 @@ export const App: React.FC = () => {
         onCreateSubtask={(taskId, title) =>
           createSubtaskMutation.mutate({ taskId, title })
         }
-        onToggleSubtask={(subtaskId, isCompleted) =>
-          updateSubtaskMutation.mutate({ subtaskId, isCompleted })
+        onUpdateSubtask={(subtaskId, input) =>
+          updateSubtaskMutation.mutate({ subtaskId, ...input })
         }
         onDeleteSubtask={handleDeleteSubtask}
         claudeSessions={claudeSessionsByTaskId.get(selectedTask?.id ?? '') ?? []}

@@ -27,6 +27,10 @@ const WIDGET_LABELS: [keyof WidgetConfig, string][] = [
   ['showTrends', 'Trends & project progress'],
   ['showQuickLinks', 'Quick links launcher'],
   ['showHeaderSummary', 'Summary bar in task views'],
+  ['showAgenda', 'Up next agenda'],
+  ['showInProgress', 'In progress tasks'],
+  ['showStale', 'Stale tasks'],
+  ['showAdo', 'Azure DevOps summary'],
 ];
 
 const inputClass =
@@ -116,7 +120,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   /** Text and number fields save on blur, and only when changed. */
   const saveOnBlur =
-    (key: 'backupKeep' | 'backupDir' | 'claudeSessionTtlDays') =>
+    (key: 'backupKeep' | 'backupDir' | 'claudeSessionTtlDays' | 'staleTaskDays') =>
     (e: React.FocusEvent<HTMLInputElement>) => {
       const value = e.target.type === 'number' ? Number(e.target.value) : e.target.value.trim();
       if (settings && value !== settings[key]) save.mutate({ [key]: value } as UpdateSettingsInput);
@@ -263,6 +267,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </div>
+            {settings && (
+              <label className="flex items-center gap-4">
+                <span className="w-32 text-zinc-600 dark:text-zinc-300">Stale tasks</span>
+                <span className="inline-flex items-center gap-2 text-xs text-zinc-500">
+                  Untouched for
+                  <input
+                    key={settings.staleTaskDays}
+                    type="number"
+                    min={1}
+                    max={365}
+                    defaultValue={settings.staleTaskDays}
+                    onBlur={saveOnBlur('staleTaskDays')}
+                    className={`${inputClass} w-20`}
+                  />
+                  days
+                </span>
+              </label>
+            )}
           </Section>
 
           <Section title="Backups">
