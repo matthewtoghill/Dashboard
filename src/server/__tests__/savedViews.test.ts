@@ -88,10 +88,10 @@ describe('Saved views API', () => {
     expect((await json('GET', '/api/dashboard')).body.savedViews).toEqual([view('b')]);
   });
 
-  it('exports version 2 with saved views and imports them merged by id', async () => {
+  it('exports saved views (since version 2) and saved views and imports them merged by id', async () => {
     await json('PUT', '/api/dashboard/saved-views', { savedViews: [view('a', 'Mine')] });
     const exported = (await json('GET', '/api/export')).body;
-    expect(exported.version).toBe(2);
+    expect(exported.version).toBeGreaterThanOrEqual(2);
     expect(exported.savedViews).toEqual([view('a', 'Mine')]);
 
     // Fresh database: round trip restores the views

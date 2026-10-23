@@ -8,6 +8,7 @@ import { registerTaskRoutes } from './routes/tasks.ts';
 import { registerProjectRoutes } from './routes/projects.ts';
 import { registerDashboardRoutes } from './routes/dashboard.ts';
 import { registerBackupRoutes } from './routes/backups.ts';
+import { registerClaudeRoutes } from './routes/claude.ts';
 import { backupDatabase, isDailyBackupDue, resolveBackupConfig } from './backup.ts';
 
 const ALLOWED_HOSTNAMES = new Set(
@@ -77,6 +78,7 @@ export async function buildApp(options?: { dbPath?: string }): Promise<{
     beforeImport: backupConfig ? () => backupDatabase(sqlite, backupConfig) : null,
   });
   await registerBackupRoutes(app, sqlite, backupConfig);
+  await registerClaudeRoutes(app, db);
 
   // Serve built static client in production if dist exists
   const distPath = path.resolve(process.cwd(), 'dist');

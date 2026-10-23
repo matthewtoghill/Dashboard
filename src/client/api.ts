@@ -14,6 +14,7 @@ import {
   WidgetConfig,
   BackupPayload,
   SavedView,
+  ClaudeSession,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -293,6 +294,7 @@ export interface ImportResult {
   importedProjects: number;
   importedQuickLinks: number;
   importedSavedViews: number;
+  importedClaudeSessions: number;
 }
 
 export async function importDashboardData(payload: BackupPayload): Promise<ImportResult> {
@@ -309,4 +311,24 @@ export async function importDashboardData(payload: BackupPayload): Promise<Impor
     throw new Error(`${body?.error ?? `Failed to import data: ${res.statusText}`}${details}`);
   }
   return (await res.json()) as ImportResult;
+}
+
+export async function fetchClaudeSessions(): Promise<ClaudeSession[]> {
+  const res = await fetch('/api/claude/sessions');
+  if (!res.ok) {
+    throw new Error(`Failed to load Claude sessions: ${res.statusText}`);
+  }
+  return ((await res.json()) as { sessions: ClaudeSession[] }).sessions;
+}
+
+export async function linkClaudeSession(sessionId: string, taskId: string | null): Promise<ClaudeSession> {
+  const res = await fetch(`/api/claude/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to link session: ${res.statusText}`);
+  }
+  return ((await res.json()) as { session: ClaudeSession }).session;
 }

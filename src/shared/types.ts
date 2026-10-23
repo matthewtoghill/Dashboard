@@ -172,6 +172,37 @@ export const SavedViewListSchema = z
   .max(MAX_SAVED_VIEWS, `At most ${MAX_SAVED_VIEWS} saved views`)
   .refine((list) => new Set(list.map((v) => v.id)).size === list.length, 'Saved view ids must be unique');
 
+// Roadmap 1: Claude Code sessions, reported by hooks posting to /api/claude/events
+export const ClaudeSessionStateSchema = z.enum(['running', 'idle', 'needs_attention', 'ended']);
+export type ClaudeSessionState = z.infer<typeof ClaudeSessionStateSchema>;
+
+export const ClaudeSessionSchema = z.object({
+  sessionId: z.string().min(1),
+  cwd: z.string(),
+  title: z.string(),
+  state: ClaudeSessionStateSchema,
+  taskId: z.string().nullable(),
+  startedAt: z.number(),
+  lastEventAt: z.number(),
+});
+export type ClaudeSession = z.infer<typeof ClaudeSessionSchema>;
+
+/** The fields we use from a Claude Code hook's stdin JSON; the rest is ignored. */
+export const ClaudeHookEventSchema = z.object({
+  session_id: z.string().min(1),
+  hook_event_name: z.string(),
+  cwd: z.string().optional().default(''),
+  prompt: z.string().optional(),
+  tool_name: z.string().optional(),
+  notification_type: z.string().optional(),
+  message: z.string().optional(),
+});
+export type ClaudeHookEvent = z.input<typeof ClaudeHookEventSchema>;
+
+export const LinkClaudeSessionInputSchema = z.object({
+  taskId: z.string().min(1).nullable(),
+});
+
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),
   widgetConfig: WidgetConfigSchema,
@@ -193,5 +224,7 @@ export const BackupPayloadSchema = z.object({
   quickLinks: z.array(QuickLinkSchema).optional().default([]),
   /** Since version 2. */
   savedViews: SavedViewListSchema.optional().default([]),
+  /** Since version 3. */
+  claudeSessions: z.array(ClaudeSessionSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

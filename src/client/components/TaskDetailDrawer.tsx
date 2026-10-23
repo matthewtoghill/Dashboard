@@ -14,6 +14,7 @@ import {
   Eye,
   Edit3,
   Repeat,
+  Bot,
 } from 'lucide-react';
 import {
   Task,
@@ -21,11 +22,13 @@ import {
   TaskPriority,
   TaskStatus,
   UpdateTaskInput,
+  ClaudeSession,
 } from '../../shared/types.ts';
 import { formatDayDate, formatTimestamp, getTodayIso } from '../utils/taskUtils.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
+import { ClaudeSessionItem } from './ClaudeSessions.tsx';
 
 const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
   { key: 'none', label: 'Does not repeat', rule: null },
@@ -148,6 +151,9 @@ interface TaskDetailDrawerProps {
   onCreateSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (subtaskId: string, isCompleted: boolean) => void;
   onDeleteSubtask: (subtaskId: string) => void;
+  /** Sessions linked to this task. */
+  claudeSessions: ClaudeSession[];
+  onLinkClaudeSession: (sessionId: string, taskId: string | null) => void;
 }
 
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -159,6 +165,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onCreateSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  claudeSessions,
+  onLinkClaudeSession,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -529,6 +537,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
             </form>
           </div>
+
+          {claudeSessions.length > 0 && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <Bot className="w-3.5 h-3.5" />
+                <span>Claude sessions</span>
+              </label>
+              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {claudeSessions.map((s) => (
+                  <ClaudeSessionItem key={s.sessionId} session={s} onLink={onLinkClaudeSession} />
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Markdown Notes / Description Section */}
           <div className="space-y-2">

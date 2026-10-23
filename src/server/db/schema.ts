@@ -53,6 +53,16 @@ export const keyValueStore = sqliteTable('key_value_store', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+export const claudeSessions = sqliteTable('claude_sessions', {
+  sessionId: text('session_id').primaryKey(),
+  cwd: text('cwd').notNull(),
+  title: text('title').notNull().default(''),
+  state: text('state', { enum: ['running', 'idle', 'needs_attention', 'ended'] }).notNull(),
+  taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  startedAt: integer('started_at').notNull(),
+  lastEventAt: integer('last_event_at').notNull(),
+});
+
 export type DbProject = typeof projects.$inferSelect;
 export type NewDbProject = typeof projects.$inferInsert;
 
@@ -66,3 +76,5 @@ export type DbQuickLink = typeof quickLinks.$inferSelect;
 export type NewDbQuickLink = typeof quickLinks.$inferInsert;
 
 export type DbKeyValue = typeof keyValueStore.$inferSelect;
+
+export type DbClaudeSession = typeof claudeSessions.$inferSelect;

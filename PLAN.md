@@ -154,3 +154,35 @@ To restore a snapshot:
 1. Stop the server.
 2. Copy the chosen `data/backups/dashboard-<timestamp>.db` over `data/dashboard.db`, and delete `data/dashboard.db-wal` and `data/dashboard.db-shm` if they exist.
 3. Start the server.
+
+## Claude Session Tracking
+
+The Overview page lists Claude Code sessions with their state (Running, Idle, Needs attention, Ended). Sessions can be linked to a task, and the task drawer shows its linked sessions. The copy button puts `cd "<folder>" && claude --resume <session id>` on the clipboard, which reopens the session from any terminal. Dashboard Home in the sidebar shows how many sessions need attention.
+
+Sessions are reported by Claude Code hooks, which pipe each event's JSON to `POST /api/claude/events`. Add this to `~/.claude/settings.json`, merging it with any `hooks` you already have (change the port if you run the server on a different one):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "PreToolUse": [{ "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }]
+  }
+}
+```
+
+How events map to states:
+
+| Event | State |
+| :--- | :--- |
+| `SessionStart`, `Stop` | Idle |
+| `UserPromptSubmit`, `PostToolUse` | Running |
+| `PermissionRequest`, `PreToolUse` for `AskUserQuestion`, `Notification` (except `idle_prompt` and `auth_success`) | Needs attention |
+| `SessionEnd` | Ended |
+
+The session title is the first line of its first prompt. Sessions with no linked task are deleted a week after their last event; linked sessions are kept as task history and included in JSON export and import. Deleting a task unlinks its sessions.

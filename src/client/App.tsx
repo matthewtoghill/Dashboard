@@ -41,6 +41,8 @@ import {
   updateProject,
   deleteProject,
   fetchDashboardState,
+  fetchClaudeSessions,
+  linkClaudeSession,
   saveScratchpad,
   saveWidgetConfig,
   createQuickLink,
@@ -64,6 +66,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
+import { ClaudeSessionsCard } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import {
@@ -254,6 +257,14 @@ export const App: React.FC = () => {
     queryFn: fetchDashboardState,
   });
 
+  // Hooks push session events to the server; poll so state changes show up promptly
+  const { data: claudeSessions = [] } = useQuery({
+    queryKey: ['claudeSessions'],
+    queryFn: fetchClaudeSessions,
+    refetchInterval: 5000,
+  });
+  const claudeAttentionCount = claudeSessions.filter((s) => s.state === 'needs_attention').length;
+
   const invalidate = (...keys: string[]) =>
     Promise.all(keys.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
 
@@ -405,8 +416,17 @@ export const App: React.FC = () => {
   const importBackupMutation = useMutation({
     mutationFn: importDashboardData,
     // The server takes a safety backup first, so the backup list changes too
-    onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups'),
+    onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups', 'claudeSessions'),
   });
+
+  const linkClaudeSessionMutation = useMutation({
+    mutationFn: ({ sessionId, taskId }: { sessionId: string; taskId: string | null }) =>
+      linkClaudeSession(sessionId, taskId),
+    onError: (err) => showToast(err instanceof Error ? err.message : 'Linking session failed'),
+    onSettled: () => invalidate('claudeSessions'),
+  });
+  const handleLinkClaudeSession = (sessionId: string, taskId: string | null) =>
+    linkClaudeSessionMutation.mutate({ sessionId, taskId });
 
   const handleAddQuickTag = () => {
     const cleaned = newTagInput.trim().replace(/^#/, '');
@@ -996,32 +1016,40 @@ export const App: React.FC = () => {
             onApplySavedView={handleApplySavedView}
             onRenameSavedView={handleRenameSavedView}
             onDeleteSavedView={handleDeleteSavedView}
+            claudeAttentionCount={claudeAttentionCount}
           />
         )}
 
         {/* Main Content */}
         <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6 overflow-y-auto">
           {isOverviewPage ? (
-            <DashboardWidgets
-              mode="full"
-              tasks={tasks}
-              projects={projects}
-              scratchpad={scratchpad}
-              quickLinks={quickLinks}
-              widgetConfig={widgetConfig}
-              onSaveScratchpad={(content) => saveScratchpadMutation.mutate(content)}
-              onConvertLineToTask={handleConvertScratchpadLineToTask}
-              onCreateQuickLink={(title, url, category) =>
-                createQuickLinkMutation.mutate({ title, url, category })
-              }
-              onDeleteQuickLink={handleDeleteQuickLink}
-              onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
-              onImportBackup={(payload: BackupPayload) =>
-                importBackupMutation.mutateAsync(payload)
-              }
-              onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
-              onSelectProject={(id) => setActiveNav({ type: 'project', id })}
-            />
+            <>
+              <ClaudeSessionsCard
+                sessions={claudeSessions}
+                tasks={tasks}
+                onLink={handleLinkClaudeSession}
+              />
+              <DashboardWidgets
+                mode="full"
+                tasks={tasks}
+                projects={projects}
+                scratchpad={scratchpad}
+                quickLinks={quickLinks}
+                widgetConfig={widgetConfig}
+                onSaveScratchpad={(content) => saveScratchpadMutation.mutate(content)}
+                onConvertLineToTask={handleConvertScratchpadLineToTask}
+                onCreateQuickLink={(title, url, category) =>
+                  createQuickLinkMutation.mutate({ title, url, category })
+                }
+                onDeleteQuickLink={handleDeleteQuickLink}
+                onUpdateWidgetConfig={(cfg) => saveWidgetConfigMutation.mutate(cfg)}
+                onImportBackup={(payload: BackupPayload) =>
+                  importBackupMutation.mutateAsync(payload)
+                }
+                onSelectSmartView={(v) => setActiveNav({ type: 'smart', id: v })}
+                onSelectProject={(id) => setActiveNav({ type: 'project', id })}
+              />
+            </>
           ) : (
             <>
               {/* Collapsible Summary Widgets Bar above Task Views */}
@@ -1497,6 +1525,8 @@ export const App: React.FC = () => {
           updateSubtaskMutation.mutate({ subtaskId, isCompleted })
         }
         onDeleteSubtask={handleDeleteSubtask}
+        claudeSessions={claudeSessions.filter((s) => s.taskId === selectedTask?.id)}
+        onLinkClaudeSession={handleLinkClaudeSession}
       />
 
       {/* Command Palette (Ctrl+K) */}

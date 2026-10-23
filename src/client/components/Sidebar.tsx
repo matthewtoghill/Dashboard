@@ -32,6 +32,8 @@ interface SidebarProps {
   onApplySavedView: (id: string) => void;
   onRenameSavedView: (id: string, name: string) => void;
   onDeleteSavedView: (id: string) => void;
+  /** Claude sessions waiting on the user, badged on Dashboard Home. */
+  claudeAttentionCount: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onApplySavedView,
   onRenameSavedView,
   onDeleteSavedView,
+  claudeAttentionCount,
 }) => {
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -106,11 +109,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     icon: React.FC<{ className?: string }>;
     count?: number;
     badgeColor?: string;
+    title?: string;
   }[] = [
     {
       id: 'overview',
       label: 'Dashboard Home',
       icon: LayoutDashboard,
+      ...(claudeAttentionCount > 0 && {
+        count: claudeAttentionCount,
+        badgeColor: 'text-amber-600 dark:text-amber-400 font-semibold',
+        title: `${claudeAttentionCount} Claude session${claudeAttentionCount === 1 ? '' : 's'} need${claudeAttentionCount === 1 ? 's' : ''} attention`,
+      }),
     },
     {
       id: 'inbox',
@@ -163,6 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => onSelectNav({ type: 'smart', id: item.id })}
+                  title={item.title}
                   className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                     isSelected
                       ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'

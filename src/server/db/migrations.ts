@@ -69,6 +69,20 @@ export const MIGRATIONS: string[] = [
     ALTER TABLE tasks ADD COLUMN recurrence_parent_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_parent_id ON tasks(recurrence_parent_id);
   `,
+
+  // 3: Claude Code sessions, reported by hooks (see routes/claude.ts)
+  `
+    CREATE TABLE claude_sessions (
+      session_id TEXT PRIMARY KEY,
+      cwd TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      state TEXT NOT NULL,
+      task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+      started_at INTEGER NOT NULL,
+      last_event_at INTEGER NOT NULL
+    );
+    CREATE INDEX idx_claude_sessions_task_id ON claude_sessions(task_id);
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

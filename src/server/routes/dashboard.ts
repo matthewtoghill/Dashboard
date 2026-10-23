@@ -4,12 +4,14 @@ import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
 import { listTasks } from './tasks.ts';
 import { serializeProject } from './projects.ts';
+import { listClaudeSessions } from './claude.ts';
 import {
   keyValueStore,
   quickLinks,
   projects,
   tasks,
   subtasks,
+  claudeSessions,
   DbQuickLink,
 } from '../db/schema.ts';
 import {
@@ -120,6 +122,7 @@ export async function registerDashboardRoutes(
       widgetConfig: getWidgetConfig(),
       quickLinks: links.map(serializeQuickLink),
       savedViews: getSavedViews(),
+      claudeSessions: listClaudeSessions(db),
     };
   });
 
@@ -218,13 +221,14 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 2,
+      version: 3,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
       scratchpad: getScratchpad(),
       quickLinks: allLinks,
       savedViews: getSavedViews(),
+      claudeSessions: listClaudeSessions(db),
     };
   });
 
@@ -254,6 +258,7 @@ export async function registerDashboardRoutes(
     let importedTasks = 0;
     let importedQuickLinks = 0;
     let importedSavedViews = 0;
+    let importedClaudeSessions = 0;
 
     try {
       db.transaction((tx) => {
@@ -326,6 +331,19 @@ export async function registerDashboardRoutes(
           importedQuickLinks += result.changes;
         }
 
+        for (const session of payload.claudeSessions) {
+          // Drop a link to a task that is in neither the backup nor the database
+          const taskExists =
+            session.taskId !== null &&
+            tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, session.taskId)).get();
+          const result = tx
+            .insert(claudeSessions)
+            .values({ ...session, taskId: taskExists ? session.taskId : null })
+            .onConflictDoNothing()
+            .run();
+          importedClaudeSessions += result.changes;
+        }
+
         if (payload.scratchpad !== undefined) {
           setKeyValue(SCRATCHPAD_KEY, payload.scratchpad);
         }
@@ -349,6 +367,12 @@ export async function registerDashboardRoutes(
       });
     }
 
-    return { importedTasks, importedProjects, importedQuickLinks, importedSavedViews };
+    return {
+      importedTasks,
+      importedProjects,
+      importedQuickLinks,
+      importedSavedViews,
+      importedClaudeSessions,
+    };
   });
 }
