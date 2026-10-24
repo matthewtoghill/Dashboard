@@ -86,9 +86,9 @@ describe('completionsByDay', () => {
 
 describe('projectProgress', () => {
   const projects: Project[] = [
-    { id: 'work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1 },
-    { id: 'home', name: 'Home', color: '#10b981', sortOrder: 2, createdAt: 1 },
-    { id: 'idle', name: 'Idle', color: '#f59e0b', sortOrder: 3, createdAt: 1 },
+    { id: 'work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1, adoEnabled: true },
+    { id: 'home', name: 'Home', color: '#10b981', sortOrder: 2, createdAt: 1, adoEnabled: true },
+    { id: 'idle', name: 'Idle', color: '#f59e0b', sortOrder: 3, createdAt: 1, adoEnabled: true },
   ];
 
   it('includes a No project row, excludes archived tasks and sorts by most open', () => {

@@ -14,8 +14,8 @@ import {
 
 const TODAY = '2026-10-22';
 const projects: Project[] = [
-  { id: 'work', name: 'Work', color: '#6366f1', sortOrder: 2, createdAt: 1 },
-  { id: 'home', name: 'Home', color: '#10b981', sortOrder: 1, createdAt: 1 },
+  { id: 'work', name: 'Work', color: '#6366f1', sortOrder: 2, createdAt: 1, adoEnabled: true },
+  { id: 'home', name: 'Home', color: '#10b981', sortOrder: 1, createdAt: 1, adoEnabled: true },
 ];
 
 let seq = 0;

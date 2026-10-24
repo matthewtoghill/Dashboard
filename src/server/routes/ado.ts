@@ -336,9 +336,17 @@ export async function registerAdoRoutes(
     const org = await resolveOrg();
     const scope = ['--org', org, '--detect', 'false', '--output', 'json'];
     const settings = readSettings(db.$client);
+    // ADO projects mapped to a Dashboard project with Azure DevOps switched off are skipped entirely
+    const offProjectIds = new Set(
+      db.select({ id: projects.id }).from(projects).where(eq(projects.adoEnabled, false)).all().map((p) => p.id)
+    );
     const allLinks = listAdoProjectLinks(db);
+    const isOff = (adoProject: string) => {
+      const projectId = linkFor(allLinks, adoProject)?.projectId;
+      return !!projectId && offProjectIds.has(projectId);
+    };
     const linkedOnly = settings.adoLinkedProjectsOnly;
-    const links = linkedOnly ? allLinks.filter((l) => l.projectId) : allLinks;
+    const links = allLinks.filter((l) => !isOff(l.adoProject) && (!linkedOnly || l.projectId));
     const lower = (list: string[]) => list.map((t) => t.toLowerCase());
     const typesFor = (project: string) =>
       lower(linkFor(allLinks, project)?.workItemTypes ?? settings.adoWorkItemTypes);
@@ -382,6 +390,7 @@ export async function registerAdoRoutes(
     for (const wi of workItems ?? []) {
       const item = workItemToItem(org, wi);
       if (
+        !isOff(item.adoProject) &&
         typesFor(item.adoProject).includes(item.type.toLowerCase()) &&
         !ignoredFor(item.adoProject).includes(item.state.toLowerCase())
       ) {
@@ -401,6 +410,7 @@ export async function registerAdoRoutes(
         id: tasks.id,
         title: tasks.title,
         status: tasks.status,
+        projectId: tasks.projectId,
         externalId: tasks.externalId,
         externalUrl: tasks.externalUrl,
       })
@@ -411,7 +421,11 @@ export async function registerAdoRoutes(
 
     // Unfinished imported tasks that dropped off the open list: look up their source's state
     const unfinished = imported.filter(
-      (t) => (t.status === 'todo' || t.status === 'in_progress') && t.externalId && !found.has(t.externalId)
+      (t) =>
+        (t.status === 'todo' || t.status === 'in_progress') &&
+        t.externalId &&
+        !found.has(t.externalId) &&
+        !(t.projectId && offProjectIds.has(t.projectId))
     );
     const closedState = new Map<string, string>();
     const workItemIds = unfinished.flatMap((t) => /^workitem\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);

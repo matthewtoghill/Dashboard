@@ -452,7 +452,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
 
   it('parses quick-add syntax tokens and computes dashboard stats & CSV', () => {
     const projects = [
-      { id: 'proj-work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1 },
+      { id: 'proj-work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1, adoEnabled: true },
     ];
     const parsed = parseQuickAddSyntax(
       'Fix login bug !urgent #work #Auth @2026-11-01',

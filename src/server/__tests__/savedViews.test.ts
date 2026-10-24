@@ -28,7 +28,7 @@ describe('SavedViewListSchema', () => {
 });
 
 describe('resolveSavedView', () => {
-  const projects: Project[] = [{ id: 'work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1 }];
+  const projects: Project[] = [{ id: 'work', name: 'Work', color: '#6366f1', sortOrder: 1, createdAt: 1, adoEnabled: true }];
   const tagged = { tags: ['urgent'] } as Task;
 
   it('applies a view whose project still exists unchanged', () => {

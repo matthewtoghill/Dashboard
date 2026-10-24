@@ -309,6 +309,26 @@ describe('Azure DevOps import', () => {
     expect(body.closed.map((c) => [c.externalId, c.state])).toEqual([['workitem/1', 'Ready for QA']]);
   });
 
+  it('skips ADO projects linked to a Dashboard project with Azure DevOps off', async () => {
+    const projectId = await createProject('Work');
+    await putLinks([{ adoProject: 'Alpha', projectId }]);
+    let { body } = await fetchItems();
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [body.items[0]] } }); // workitem/1
+
+    const patch = await app.inject({ method: 'PATCH', url: `/api/projects/${projectId}`, payload: { adoEnabled: false } });
+    expect(patch.json().project.adoEnabled).toBe(false);
+    calls.length = 0;
+    responses['boards query'] = [workItem(3, 'Bug', 'Beta')];
+    responses['--wiql SELECT [System.Id], [System.State]'] = [workItem(1, 'Task', 'Alpha', 'Done')];
+    ({ body } = await fetchItems());
+    expect(body.items.map((i) => i.externalId)).toEqual(['workitem/3']);
+    expect(body.closed).toEqual([]);
+    expect(calls.some((c) => c[0] === 'repos')).toBe(false);
+
+    await app.inject({ method: 'PATCH', url: `/api/projects/${projectId}`, payload: { adoEnabled: true } });
+    expect((await fetchItems()).body.closed.map((c) => c.externalId)).toEqual(['workitem/1']);
+  });
+
   it('only fetches projects mapped to a Dashboard project when asked', async () => {
     await putSettings({ adoLinkedProjectsOnly: true });
     await putLinks([{ adoProject: 'Alpha' }]);

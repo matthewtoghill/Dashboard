@@ -5,6 +5,8 @@ export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   color: text('color').notNull().default('#6366f1'),
+  /** Off hides the project's Azure DevOps panel and skips its mapped ADO projects in checks. */
+  adoEnabled: integer('ado_enabled', { mode: 'boolean' }).notNull().default(true),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 });

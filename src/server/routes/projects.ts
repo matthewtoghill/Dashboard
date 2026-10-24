@@ -16,6 +16,7 @@ export function serializeProject(row: DbProject): Project {
     color: row.color,
     sortOrder: row.sortOrder,
     createdAt: row.createdAt,
+    adoEnabled: row.adoEnabled,
   };
 }
 
@@ -85,6 +86,7 @@ export async function registerProjectRoutes(app: FastifyInstance, db: AppDatabas
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.color !== undefined ? { color: input.color } : {}),
         ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        ...(input.adoEnabled !== undefined ? { adoEnabled: input.adoEnabled } : {}),
       })
       .where(eq(projects.id, id))
       .run();

@@ -25,7 +25,7 @@ const base: Task = {
 };
 
 const actions = (): TaskMenuActions => ({
-  projects: [{ id: 'p1', name: 'Work', color: '#6366f1', sortOrder: 0, createdAt: 1 }],
+  projects: [{ id: 'p1', name: 'Work', color: '#6366f1', sortOrder: 0, createdAt: 1, adoEnabled: true }],
   onOpen: vi.fn(),
   onRename: vi.fn(),
   onSetStatus: vi.fn(),

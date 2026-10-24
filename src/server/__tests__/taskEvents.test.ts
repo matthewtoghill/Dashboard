@@ -155,7 +155,7 @@ describe('describeTaskEvent', () => {
     to,
     source: 'manual',
   });
-  const projects = [{ id: 'p1', name: 'Work', color: '#000', sortOrder: 0, createdAt: 0 }];
+  const projects = [{ id: 'p1', name: 'Work', color: '#000', sortOrder: 0, createdAt: 0, adoEnabled: true }];
 
   it('describes each kind of change', () => {
     expect(describeTaskEvent(ev('status', 'todo', 'done'), projects)).toBe('Completed');

@@ -244,8 +244,11 @@ Check Azure DevOps in the background so new work and closed items show up withou
 - The Overview's Azure DevOps card shows New items, Reviews and Closed counts from the last check; each opens the dialog.
 - **Ignored states** (for example Ready for QA, In UAT): a default list in Settings, and a per-mapping override (`ado_project_links.ignored_states`, migration 7). Work items in an ignored state are left out, and an imported task whose item reaches one is listed under "Closed in Azure DevOps", like Done. State pickers use the states Azure DevOps reports for the types, cached with them.
 - **Linked projects only** setting: work items and pull requests are fetched only for ADO projects mapped to a Dashboard project. With none mapped, nothing is fetched and a warning says why.
-- **Project panel:** a project view with a mapped ADO project, or any project once Azure DevOps is in use, shows a collapsible "Azure DevOps" section above the task list: that project's items with filter, type and state filters, grouping (type, state, project), sorting, "Show imported", import, refresh, and the closed list. Its gear links and unlinks ADO projects and edits their types and ignored states; saving a change checks again. Open or collapsed is remembered per browser.
-- Export stays version 6; mappings gain `ignoredStates`, which older backups read as null.
+- **Project panel:** a project view with a linked ADO project shows a collapsible "Azure DevOps" section above the task list: that project's items with a text filter, type and state filters, grouping (type, state, project), sorting, "Show imported", import, refresh, and the closed list. Open or collapsed is remembered per browser.
+- **Project settings:** a dialog per Dashboard project, opened from a gear next to the project title, the sidebar project button and the project right-click menu. General holds name and colour (replacing the sidebar's inline editor). Azure DevOps holds an on/off switch (`projects.ado_enabled`, migration 8) and the project's links, types and ignored states; saving a link change checks again.
+- Switching Azure DevOps off hides the panel and leaves the project's linked ADO projects out of checks (no work items, pull requests or closed flags). Links are kept, so switching it back on restores everything.
+- Settings > Integrations keeps the organization, defaults, interval, linked-only switch and check status, plus ADO projects not linked to a Dashboard project (they import to the Inbox). Linked ones are listed read-only and edited in their project.
+- Export stays version 6. Mappings gain `ignoredStates` and projects gain `adoEnabled`; older backups read them as null and on.
 
 ## 8. Weekly Review View
 

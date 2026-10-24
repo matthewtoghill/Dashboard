@@ -29,6 +29,8 @@ export const ProjectSchema = z.object({
   color: HexColorSchema,
   sortOrder: z.number(),
   createdAt: z.number(),
+  /** Off hides the Azure DevOps panel and leaves the mapped ADO projects out of checks. */
+  adoEnabled: z.boolean().default(true),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -42,6 +44,7 @@ export const UpdateProjectInputSchema = z.object({
   name: z.string().trim().min(1, 'Project name cannot be empty').optional(),
   color: HexColorSchema.optional(),
   sortOrder: z.number().optional(),
+  adoEnabled: z.boolean().optional(),
 });
 export type UpdateProjectInput = z.input<typeof UpdateProjectInputSchema>;
 

@@ -342,18 +342,28 @@ export const AdoSettings: React.FC<{
         )}
       </div>
       <p className="text-xs text-zinc-400">
-        Uses your az login. A project below can use its own types and ignored states. Pull requests
-        are fetched for the listed projects only. Changes apply from the next check.
+        Uses your az login. Pull requests are fetched for listed and linked projects only. Changes apply
+        from the next check. ADO projects linked to a Dashboard project are set up in that project&apos;s
+        settings; the ones below import to the Inbox unless given a project.
       </p>
+      {links.some((l) => l.projectId) && (
+        <p className="text-xs text-zinc-500">
+          Linked:{' '}
+          {links
+            .filter((l) => l.projectId)
+            .map((l) => `${l.adoProject} → ${projects.find((p) => p.id === l.projectId)?.name ?? '?'}`)
+            .join(', ')}
+        </p>
+      )}
 
       {save.isError && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
           {save.error.message}
         </p>
       )}
-      {links.length > 0 && (
+      {links.some((l) => !l.projectId) && (
         <ul className="space-y-2">
-          {links.map((link, i) => (
+          {links.map((link, i) => link.projectId ? null : (
             <li
               key={link.adoProject}
               className="space-y-2 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800"

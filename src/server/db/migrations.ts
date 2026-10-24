@@ -127,6 +127,11 @@ export const MIGRATIONS: string[] = [
   `
     ALTER TABLE ado_project_links ADD COLUMN ignored_states TEXT;
   `,
+
+  // 8: A Dashboard project can switch Azure DevOps off.
+  `
+    ALTER TABLE projects ADD COLUMN ado_enabled INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

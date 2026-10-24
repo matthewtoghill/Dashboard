@@ -60,7 +60,7 @@ const selectClass =
   'px-2 py-1 rounded-lg text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:border-indigo-400 cursor-pointer';
 
 /**
- * A project's Azure DevOps mappings: link and unlink ADO projects, and set their
+ * The project settings dialog's Azure DevOps mappings: link and unlink ADO projects, and set their
  * types and ignored states. A saved change checks again, since it alters what a check returns.
  */
 export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project }) => {
@@ -168,16 +168,16 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
 
 /**
  * A project view's Azure DevOps section: items from the last check for the ADO projects mapped to
- * this project, with import, refresh, and the mapping's settings. Hidden until Azure DevOps is used.
+ * this project, with import and refresh. Hidden when the project has none or has Azure DevOps off.
  */
 export const AdoProjectPanel: React.FC<{
   project: Project;
   tasks: Task[];
   onImported: (count: number) => void;
   onOpenTask: (taskId: string) => void;
-}> = ({ project, tasks, onImported, onOpenTask }) => {
+  onOpenSettings: () => void;
+}> = ({ project, tasks, onImported, onOpenTask, onOpenSettings }) => {
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
-  const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -204,8 +204,8 @@ export const AdoProjectPanel: React.FC<{
   const types = [...new Set(items.map(itemType))].sort();
   const states = [...new Set(items.map((i) => i.state))].sort();
 
-  // Only shown once Azure DevOps is in use
-  if (links.length === 0 && !data?.checkedAt) return null;
+  // Linking happens in the project settings dialog
+  if (!project.adoEnabled || mine.length === 0) return null;
 
   const toggleOpen = () => {
     localStorage.setItem(OPEN_KEY, open ? '0' : '1');
@@ -233,9 +233,7 @@ export const AdoProjectPanel: React.FC<{
           {open ? <ChevronDown className="w-4 h-4 text-zinc-400" /> : <ChevronRight className="w-4 h-4 text-zinc-400" />}
           <GitPullRequest className="w-4 h-4 text-sky-500" />
           Azure DevOps
-          {mine.length > 0 && (
-            <span className="text-xs font-normal text-zinc-400">{mine.map((l) => l.adoProject).join(', ')}</span>
-          )}
+          <span className="text-xs font-normal text-zinc-400">{mine.map((l) => l.adoProject).join(', ')}</span>
         </button>
         {newItems.length > 0 && (
           <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300">
@@ -261,16 +259,10 @@ export const AdoProjectPanel: React.FC<{
         </button>
         <button
           type="button"
-          onClick={() => {
-            setEditing(!editing);
-            if (!open) toggleOpen();
-          }}
-          aria-pressed={editing}
+          onClick={onOpenSettings}
           aria-label="Azure DevOps settings for this project"
           title="Azure DevOps settings for this project"
-          className={`p-1.5 rounded-lg cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-            editing ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500'
-          }`}
+          className="p-1.5 rounded-lg cursor-pointer text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
         >
           <Settings2 className="w-3.5 h-3.5" />
         </button>
@@ -287,12 +279,6 @@ export const AdoProjectPanel: React.FC<{
             <p role="alert" className="text-xs text-red-600 dark:text-red-400">
               {importItems.error.message}
             </p>
-          )}
-
-          {(editing || mine.length === 0) && (
-            <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/40">
-              <AdoProjectLinksEditor project={project} />
-            </div>
           )}
 
           <AdoClosedList closed={closed} />

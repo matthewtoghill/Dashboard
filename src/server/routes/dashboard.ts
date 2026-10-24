@@ -298,6 +298,7 @@ export async function registerDashboardRoutes(
               color: proj.color,
               sortOrder: proj.sortOrder,
               createdAt: proj.createdAt,
+              adoEnabled: proj.adoEnabled,
             })
             .onConflictDoNothing()
             .run();

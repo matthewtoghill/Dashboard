@@ -9,6 +9,7 @@ import {
   Palette,
   PanelRightOpen,
   Pencil,
+  Settings,
   Tag,
   Trash2,
 } from 'lucide-react';
@@ -151,9 +152,11 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
 export function projectMenuItems(
   project: Project,
   onUpdate: (id: string, name: string, color: string) => void,
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void,
+  onOpenSettings: (id: string) => void
 ): MenuItem[] {
   return [
+    { label: 'Project settings', icon: Settings, onSelect: () => onOpenSettings(project.id) },
     {
       label: 'Rename',
       icon: Pencil,

@@ -13,6 +13,7 @@ import {
   X,
   Check,
   Pencil,
+  Settings2,
   Bookmark,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
@@ -29,7 +30,7 @@ interface SidebarProps {
   isCalendar: boolean;
   onOpenCalendar: () => void;
   onCreateProject: (name: string, color: string) => void;
-  onUpdateProject: (id: string, name: string, color: string) => void;
+  onOpenProjectSettings: (id: string) => void;
   onDeleteProject: (id: string) => void;
   savedViews: SavedView[];
   appliedViewId: string | null;
@@ -48,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCalendar,
   onOpenCalendar,
   onCreateProject,
-  onUpdateProject,
+  onOpenProjectSettings,
   onDeleteProject,
   savedViews,
   appliedViewId,
@@ -61,10 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
-
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [editProjectName, setEditProjectName] = useState('');
-  const [editProjectColor, setEditProjectColor] = useState(PROJECT_COLORS[0]);
 
   const today = getTodayIso();
 
@@ -91,22 +88,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setNewProjectName('');
     setNewProjectColor(PROJECT_COLORS[(projects.length + 1) % PROJECT_COLORS.length]);
     setIsAddingProject(false);
-  };
-
-  const startEditProject = (project: Project) => {
-    setEditingProjectId(project.id);
-    setEditProjectName(project.name);
-    setEditProjectColor(project.color);
-  };
-
-  const handleSaveEditProject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProjectId) return;
-    const trimmed = editProjectName.trim();
-    if (trimmed) {
-      onUpdateProject(editingProjectId, trimmed, editProjectColor);
-    }
-    setEditingProjectId(null);
   };
 
   const navItems: {
@@ -299,55 +280,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   (t) => t.projectId === project.id
                 ).length;
 
-                if (editingProjectId === project.id) {
-                  return (
-                    <form
-                      key={project.id}
-                      onSubmit={handleSaveEditProject}
-                      className="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-indigo-500 space-y-2"
-                    >
-                      <input
-                        type="text"
-                        value={editProjectName}
-                        onChange={(e) => setEditProjectName(e.target.value)}
-                        aria-label="Edit project name"
-                        autoFocus
-                        className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none"
-                      />
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          {PROJECT_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              onClick={() => setEditProjectColor(color)}
-                              className={`w-3.5 h-3.5 rounded-full cursor-pointer ${
-                                editProjectColor === color ? 'ring-2 ring-indigo-500' : ''
-                              }`}
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setEditingProjectId(null)}
-                            className="p-1 text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="submit"
-                            className="p-1 text-indigo-600 hover:text-indigo-500 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </form>
-                  );
-                }
-
                 return (
                   <div
                     key={project.id}
@@ -373,11 +305,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => startEditProject(project)}
-                        aria-label={`Edit project ${project.name}`}
+                        onClick={() => onOpenProjectSettings(project.id)}
+                        aria-label={`Settings for project ${project.name}`}
+                        title="Project settings"
                         className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer transition-opacity"
                       >
-                        <Pencil className="w-3 h-3" />
+                        <Settings2 className="w-3 h-3" />
                       </button>
                       <button
                         type="button"

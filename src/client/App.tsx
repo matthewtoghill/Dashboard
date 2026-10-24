@@ -33,6 +33,7 @@ import {
   importDashboardData,
   saveSavedViews,
   fetchSettings,
+  fetchAdoItems,
 } from './api.ts';
 import {
   Task,
@@ -44,6 +45,7 @@ import {
   ClaudeSession,
   UpdateClaudeSessionInput,
   CreateQuickLinkInput,
+  UpdateProjectInput,
 } from '../shared/types.ts';
 import { TaskRow, TaskListHeader } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -53,6 +55,7 @@ import { DashboardWidgets } from './components/DashboardWidgets.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
 import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
+import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
@@ -135,6 +138,7 @@ export const App: React.FC = () => {
   const [showCompleted, setShowCompleted] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adoImportOpen, setAdoImportOpen] = useState(false);
+  const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
   // Theme is per-browser: 'light' or 'dark' in localStorage, absent means follow the system
   const [theme, setTheme] = useState<ThemePreference>(() => {
     const saved = localStorage.getItem('dashboard_theme');
@@ -173,7 +177,8 @@ export const App: React.FC = () => {
 
   const undoToast = toast?.onUndo;
   useGlobalShortcuts({
-    dialogOpen: confirmRequest !== null || shortcutsOpen || settingsOpen || adoImportOpen,
+    dialogOpen:
+      confirmRequest !== null || shortcutsOpen || settingsOpen || adoImportOpen || projectSettingsId !== null,
     commandPaletteOpen,
     setCommandPaletteOpen,
     taskDrawerOpen: selectedTaskId !== null,
@@ -312,18 +317,15 @@ export const App: React.FC = () => {
   });
 
   const updateProjectMutation = useMutation({
-    mutationFn: ({
-      id,
-      name,
-      color,
-    }: {
-      id: string;
-      name: string;
-      color: string;
-    }) => updateProject(id, { name, color }),
-    onSuccess: () => {
+    mutationFn: ({ id, ...input }: { id: string } & UpdateProjectInput) => updateProject(id, input),
+    onSuccess: async (_project, input) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      // Switching Azure DevOps changes which projects a check covers
+      if (input.adoEnabled !== undefined) {
+        queryClient.setQueryData(['adoItems'], await fetchAdoItems(true).catch(() => undefined));
+      }
     },
+    onError: (err) => showToast(errorMessage(err, 'Updating project failed')),
   });
 
   // Dashboard / Widget Mutations
@@ -571,7 +573,8 @@ export const App: React.FC = () => {
         items: projectMenuItems(
           project,
           (id, name, color) => updateProjectMutation.mutate({ id, name, color }),
-          handleDeleteProject
+          handleDeleteProject,
+          setProjectSettingsId
         ),
       };
     }
@@ -758,9 +761,7 @@ export const App: React.FC = () => {
             onCreateProject={(name, color) =>
               createProjectMutation.mutate({ name, color })
             }
-            onUpdateProject={(id, name, color) =>
-              updateProjectMutation.mutate({ id, name, color })
-            }
+            onOpenProjectSettings={setProjectSettingsId}
             onDeleteProject={handleDeleteProject}
             savedViews={savedViews}
             appliedViewId={appliedViewId}
@@ -811,6 +812,7 @@ export const App: React.FC = () => {
                   tasks={tasks}
                   onImported={showAdoImported}
                   onOpenTask={claudeSessionActions.onOpenTask}
+                  onOpenSettings={() => setProjectSettingsId(currentProject.id)}
                 />
               )}
 
@@ -827,6 +829,7 @@ export const App: React.FC = () => {
                 }
                 onRestoreAll={() => handleRestoreTasks(activeFilteredTasks)}
                 onDeleteAll={() => requestDeleteArchived(activeFilteredTasks)}
+                onOpenProjectSettings={currentProject && (() => setProjectSettingsId(currentProject.id))}
                 savedViewControls={
                   <SavedViewControls
                     appliedView={appliedView}
@@ -1070,6 +1073,12 @@ export const App: React.FC = () => {
         onClose={() => setAdoImportOpen(false)}
         projects={projects}
         onImported={showAdoImported}
+      />
+
+      <ProjectSettingsDialog
+        project={projects.find((p) => p.id === projectSettingsId) ?? null}
+        onClose={() => setProjectSettingsId(null)}
+        onUpdate={(id, input) => updateProjectMutation.mutate({ id, ...input })}
       />
 
       <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />

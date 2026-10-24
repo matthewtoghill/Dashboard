@@ -10,6 +10,7 @@ import {
   List,
   Trash2,
   type LucideIcon,
+  Settings,
 } from 'lucide-react';
 import { Project, TaskPriority } from '../../shared/types.ts';
 import { GroupByOption, SortByOption, ViewState } from '../utils/taskView.ts';
@@ -50,6 +51,8 @@ export const TaskListToolbar: React.FC<{
   onRestoreAll: () => void;
   onDeleteAll: () => void;
   savedViewControls: React.ReactNode;
+  /** Set in project views. */
+  onOpenProjectSettings?: () => void;
 }> = ({
   view,
   updateView,
@@ -62,6 +65,7 @@ export const TaskListToolbar: React.FC<{
   onRestoreAll,
   onDeleteAll,
   savedViewControls,
+  onOpenProjectSettings,
 }) => {
   const { nav: activeNav, priority: priorityFilter, groupBy, sortBy } = view;
   const isCompletedView = activeNav.type === 'smart' && activeNav.id === 'completed';
@@ -83,6 +87,17 @@ export const TaskListToolbar: React.FC<{
         <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
           {isCompletedView ? completedCount : activeCount}
         </span>
+        {onOpenProjectSettings && (
+          <button
+            type="button"
+            onClick={onOpenProjectSettings}
+            aria-label="Project settings"
+            title="Project settings"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 cursor-pointer"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Grouping, Sorting, Priority Filter Toolbar */}
