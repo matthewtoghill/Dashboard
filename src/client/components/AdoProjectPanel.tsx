@@ -405,14 +405,19 @@ export const AdoProjectPanel: React.FC<{
                       <span className="shrink-0 w-18 truncate text-right text-xs text-zinc-400" title={item.state}>
                         {item.state}
                       </span>
-                      {item.taskId && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenTask(item.taskId!)}
-                          className="shrink-0 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                        >
-                          Open task
-                        </button>
+                      {/* Fixed slot keeps columns aligned whether or not the row has a task */}
+                      {showImported && (
+                        <span className="shrink-0 w-16">
+                          {item.taskId && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenTask(item.taskId!)}
+                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                            >
+                              Open task
+                            </button>
+                          )}
+                        </span>
                       )}
                       <a
                         href={item.url}
