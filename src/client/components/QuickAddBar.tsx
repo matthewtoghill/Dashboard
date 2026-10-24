@@ -3,6 +3,7 @@ import { Calendar, Flag, Folder, Plus, Repeat, Tag, X } from 'lucide-react';
 import { CreateTaskInput, Project, TaskPriority } from '../../shared/types.ts';
 import { describeRecurrence } from '../../shared/recurrence.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
+import { DateInput } from './DatePicker.tsx';
 import {
   PRIORITY_CONFIG,
   cleanTag,
@@ -209,23 +210,13 @@ export const QuickAddBar: React.FC<{
         {/* Due Date Picker */}
         <div className={pickerClass}>
           <Calendar className="w-3 h-3 text-zinc-400" />
-          <input
-            type="date"
-            aria-label="New task due date"
-            value={newDueDate}
-            onChange={(e) => setNewDueDate(e.target.value)}
+          <DateInput
+            value={newDueDate || null}
+            onChange={(date) => setNewDueDate(date ?? '')}
+            ariaLabel="New task due date"
             className={pickerFieldClass}
+            clearable
           />
-          {newDueDate && (
-            <button
-              type="button"
-              onClick={() => setNewDueDate('')}
-              aria-label="Clear new task due date"
-              className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
         </div>
 
         {/* Tag Input */}

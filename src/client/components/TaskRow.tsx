@@ -31,11 +31,10 @@ import {
   PRIORITY_CONFIG,
   formatShortDate,
   getDueDateInfo,
-  getTodayIso,
-  getTomorrowIso,
   cleanTag,
 } from '../utils/taskUtils.ts';
 import { externalLinkLabel, externalShortLabel } from './AdoImport.tsx';
+import { DatePopover } from './DatePicker.tsx';
 import {
   SESSION_ROW_BADGE_STYLES,
   STATE_STYLES,
@@ -191,7 +190,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const tagInputRef = useRef<HTMLInputElement>(null);
-  const dateMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setDraftTitle(task.title);
@@ -209,17 +207,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       tagInputRef.current?.focus();
     }
   }, [isAddingTag]);
-
-  useEffect(() => {
-    if (!showDateMenu) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dateMenuRef.current && !dateMenuRef.current.contains(e.target as Node)) {
-        setShowDateMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDateMenu]);
 
   const handleSaveTitle = () => {
     const trimmed = draftTitle.trim();
@@ -522,74 +509,30 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       )}
 
       {/* Due Date Selector */}
-      <div className="relative min-w-0" ref={dateMenuRef}>
-        <button
-          type="button"
-          onClick={() => setShowDateMenu((v) => !v)}
-          aria-label={`Due date for "${task.title}"`}
-          title={dueInfo.label}
-          className={`max-w-full inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors cursor-pointer ${
-            dueInfo.state === 'none'
-              ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 ' + dueInfo.badgeClass
-              : dueInfo.badgeClass
-          }`}
-        >
-          <Calendar className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{dueInfo.label}</span>
-        </button>
-
-        {showDateMenu && (
-          <div className="absolute right-0 mt-1 w-48 p-2 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-20 space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 px-1">
-              Due Date
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdate(task.id, { dueDate: getTodayIso() });
-                  setShowDateMenu(false);
-                }}
-                className="text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-zinc-700 dark:text-zinc-200 text-left cursor-pointer"
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdate(task.id, { dueDate: getTomorrowIso() });
-                  setShowDateMenu(false);
-                }}
-                className="text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-zinc-700 dark:text-zinc-200 text-left cursor-pointer"
-              >
-                Tomorrow
-              </button>
-            </div>
-            <input
-              type="date"
-              aria-label="Custom due date"
-              value={task.dueDate ?? ''}
-              onChange={(e) => {
-                onUpdate(task.id, { dueDate: e.target.value || null });
-                setShowDateMenu(false);
-              }}
-              className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100"
-            />
-            {task.dueDate && (
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdate(task.id, { dueDate: null });
-                  setShowDateMenu(false);
-                }}
-                className="w-full text-xs px-2 py-1 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-center cursor-pointer"
-              >
-                Clear date
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <DatePopover
+        value={task.dueDate}
+        onChange={(dueDate) => onUpdate(task.id, { dueDate })}
+        open={showDateMenu}
+        onOpenChange={setShowDateMenu}
+        className="relative min-w-0"
+        align="right"
+        trigger={
+          <button
+            type="button"
+            onClick={() => setShowDateMenu((v) => !v)}
+            aria-label={`Due date for "${task.title}"`}
+            title={dueInfo.label}
+            className={`max-w-full inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors cursor-pointer ${
+              dueInfo.state === 'none'
+                ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 ' + dueInfo.badgeClass
+                : dueInfo.badgeClass
+            }`}
+          >
+            <Calendar className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{dueInfo.label}</span>
+          </button>
+        }
+      />
 
       {/* Priority Selector */}
       <div className="relative inline-flex items-center">

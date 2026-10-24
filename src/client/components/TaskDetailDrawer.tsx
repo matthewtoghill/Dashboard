@@ -41,6 +41,7 @@ import { fetchTaskEvents } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
+import { DateInput } from './DatePicker.tsx';
 import { externalLinkLabel } from './AdoImport.tsx';
 import { ClaudeSessionActions, ClaudeSessionItem } from './ClaudeSessions.tsx';
 
@@ -499,14 +500,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <Calendar className="w-3 h-3" />
                 <span>Due Date</span>
               </label>
-              <input
-                type="date"
-                aria-label="Detail task due date"
-                value={task.dueDate ?? ''}
-                onChange={(e) =>
-                  onUpdateTask(task.id, { dueDate: e.target.value || null })
-                }
-                className="w-full text-xs px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
+              <DateInput
+                value={task.dueDate}
+                onChange={(dueDate) => onUpdateTask(task.id, { dueDate })}
+                ariaLabel="Detail task due date"
+                className="w-full text-left text-xs px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none cursor-pointer"
               />
             </div>
           </div>
