@@ -1,5 +1,5 @@
-import React from 'react';
-import { CalendarDays, CircleDot, Hourglass, GitPullRequest, Download } from 'lucide-react';
+import React, { useState } from 'react';
+import { CalendarDays, ChevronDown, ChevronRight, CircleDot, Hourglass, GitPullRequest, Download } from 'lucide-react';
 import { ClaudeSession, Project, Task } from '../../shared/types.ts';
 import {
   adoSummary,
@@ -26,26 +26,55 @@ export interface TaskWidgetActions {
 const cardClass =
   'p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3';
 
-const CardHeader: React.FC<{
-  icon: React.ReactNode;
-  iconClass: string;
+/** Overview card whose header toggles the body; open or collapsed is remembered per browser. */
+export const WidgetCard: React.FC<{
+  id: string;
+  icon?: React.ReactNode;
+  iconClass?: string;
   title: string;
-  subtitle: string;
-  children?: React.ReactNode;
-}> = ({ icon, iconClass, title, subtitle, children }) => (
-  <div className="flex items-center justify-between gap-3">
-    <div className="flex items-center gap-2 min-w-0">
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconClass}`}>
-        {icon}
+  subtitle: React.ReactNode;
+  /** Header controls, hidden while collapsed. */
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ id, icon, iconClass, title, subtitle, actions, children }) => {
+  const key = `dashboard_widget_collapsed_${id}`;
+  const [open, setOpen] = useState(() => localStorage.getItem(key) !== '1');
+  const toggle = () => {
+    if (open) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
+    setOpen(!open);
+  };
+
+  return (
+    <div className={cardClass}>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="flex items-center gap-2 min-w-0 text-left cursor-pointer"
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+          )}
+          {icon && (
+            <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconClass}`}>
+              {icon}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{title}</span>
+            <span className="block text-[11px] text-zinc-500 dark:text-zinc-400">{subtitle}</span>
+          </span>
+        </button>
+        {open && actions}
       </div>
-      <div className="min-w-0">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-[11px] text-zinc-400">{subtitle}</p>
-      </div>
+      {open && children}
     </div>
-    {children}
-  </div>
-);
+  );
+};
 
 const EmptyState: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
@@ -102,13 +131,13 @@ export const AgendaCard: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }>
     date === null ? 'Overdue' : date === today ? 'Today' : date === tomorrow ? 'Tomorrow' : formatDayDate(date);
 
   return (
-    <div className={cardClass}>
-      <CardHeader
-        icon={<CalendarDays className="w-4 h-4" />}
-        iconClass="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400"
-        title="Up Next"
-        subtitle="Overdue and due in the next 7 days"
-      />
+    <WidgetCard
+      id="agenda"
+      icon={<CalendarDays className="w-4 h-4" />}
+      iconClass="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400"
+      title="Up Next"
+      subtitle="Overdue and due in the next 7 days"
+    >
       {groups.length === 0 ? (
         <EmptyState>Nothing due in the next 7 days.</EmptyState>
       ) : (
@@ -136,7 +165,7 @@ export const AgendaCard: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }>
           ))}
         </div>
       )}
-    </div>
+    </WidgetCard>
   );
 };
 
@@ -147,13 +176,13 @@ export const InProgressCard: React.FC<{ tasks: Task[]; actions: TaskWidgetAction
     .sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <div className={cardClass}>
-      <CardHeader
-        icon={<CircleDot className="w-4 h-4" />}
-        iconClass="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"
-        title="In Progress"
-        subtitle={`${inProgress.length} ${inProgress.length === 1 ? 'task' : 'tasks'} underway`}
-      />
+    <WidgetCard
+      id="inProgress"
+      icon={<CircleDot className="w-4 h-4" />}
+      iconClass="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"
+      title="In Progress"
+      subtitle={`${inProgress.length} ${inProgress.length === 1 ? 'task' : 'tasks'} underway`}
+    >
       {inProgress.length === 0 ? (
         <EmptyState>Nothing in progress. Tick a task once to start it.</EmptyState>
       ) : (
@@ -168,7 +197,7 @@ export const InProgressCard: React.FC<{ tasks: Task[]; actions: TaskWidgetAction
           ))}
         </ul>
       )}
-    </div>
+    </WidgetCard>
   );
 };
 
@@ -181,13 +210,13 @@ export const StaleCard: React.FC<{ tasks: Task[]; days: number; actions: TaskWid
   const stale = staleTasks(tasks, days);
 
   return (
-    <div className={cardClass}>
-      <CardHeader
-        icon={<Hourglass className="w-4 h-4" />}
-        iconClass="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
-        title="Gone Stale"
-        subtitle={`To-do tasks untouched for ${days}+ days`}
-      />
+    <WidgetCard
+      id="stale"
+      icon={<Hourglass className="w-4 h-4" />}
+      iconClass="bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+      title="Gone Stale"
+      subtitle={`To-do tasks untouched for ${days}+ days`}
+    >
       {stale.length === 0 ? (
         <EmptyState>No stale tasks.</EmptyState>
       ) : (
@@ -202,7 +231,7 @@ export const StaleCard: React.FC<{ tasks: Task[]; days: number; actions: TaskWid
           ))}
         </ul>
       )}
-    </div>
+    </WidgetCard>
   );
 };
 
@@ -219,18 +248,18 @@ export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> =
   ];
 
   return (
-    <div className={cardClass}>
-      <CardHeader
-        icon={<GitPullRequest className="w-4 h-4" />}
-        iconClass="bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400"
-        title="Azure DevOps"
-        subtitle={[
-          data?.checkedAt ? `Checked ${formatRelativeTime(data.checkedAt)}` : null,
-          lastImportAt === null ? 'Nothing imported yet' : `Last import ${formatRelativeTime(lastImportAt)}`,
-        ]
-          .filter(Boolean)
-          .join(' · ')}
-      >
+    <WidgetCard
+      id="ado"
+      icon={<GitPullRequest className="w-4 h-4" />}
+      iconClass="bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400"
+      title="Azure DevOps"
+      subtitle={[
+        data?.checkedAt ? `Checked ${formatRelativeTime(data.checkedAt)}` : null,
+        lastImportAt === null ? 'Nothing imported yet' : `Last import ${formatRelativeTime(lastImportAt)}`,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      actions={
         <button
           type="button"
           onClick={onOpenAdoImport}
@@ -239,7 +268,8 @@ export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> =
           <Download className="w-3 h-3" />
           <span>Import</span>
         </button>
-      </CardHeader>
+      }
+    >
       {data?.error && (
         <p className="text-xs text-amber-700 dark:text-amber-300 truncate" title={data.error}>
           {data.error}
@@ -273,6 +303,6 @@ export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> =
           </div>
         ))}
       </dl>
-    </div>
+    </WidgetCard>
   );
 };

@@ -31,7 +31,7 @@ import {
 } from '../utils/taskUtils.ts';
 import { parseIsoDate } from '../../shared/dates.ts';
 import { fetchBackups, createBackup } from '../api.ts';
-import { AdoCard, AgendaCard, InProgressCard, StaleCard, TaskWidgetActions } from './TaskWidgets.tsx';
+import { AdoCard, AgendaCard, InProgressCard, StaleCard, TaskWidgetActions, WidgetCard } from './TaskWidgets.tsx';
 
 interface DashboardWidgetsProps {
   mode: 'full' | 'compact';
@@ -517,20 +517,13 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scratchpad Widget */}
         {widgetConfig.showScratchpad && (
-          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                  <StickyNote className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold">Quick Scratchpad</h3>
-                  <p className="text-[11px] text-zinc-400">
-                    Persistent local notepad — auto-saves on blur
-                  </p>
-                </div>
-              </div>
-
+          <WidgetCard
+            id="scratchpad"
+            icon={<StickyNote className="w-4 h-4" />}
+            iconClass="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400"
+            title="Quick Scratchpad"
+            subtitle="Persistent local notepad — auto-saves on blur"
+            actions={
               <div className="flex items-center gap-2">
                 {scratchpadSavedIndicator && (
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
@@ -548,8 +541,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                   </button>
                 )}
               </div>
-            </div>
-
+            }
+          >
             <textarea
               rows={7}
               value={localScratchpad}
@@ -559,25 +552,18 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
               aria-label="Dashboard scratchpad"
               className="w-full p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/50 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-indigo-500 resize-y font-mono"
             />
-          </div>
+          </WidgetCard>
         )}
 
         {/* Quick Links / Bookmarks Widget */}
         {widgetConfig.showQuickLinks && (
-          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                  <ExternalLink className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold">Quick Links & Bookmarks</h3>
-                  <p className="text-[11px] text-zinc-400">
-                    Launchpad for frequent local ports, docs, and repos
-                  </p>
-                </div>
-              </div>
-
+          <WidgetCard
+            id="quickLinks"
+            icon={<ExternalLink className="w-4 h-4" />}
+            iconClass="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400"
+            title="Quick Links & Bookmarks"
+            subtitle="Launchpad for frequent local ports, docs, and repos"
+            actions={
               <button
                 type="button"
                 onClick={toggleAddLink}
@@ -587,8 +573,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Link</span>
               </button>
-            </div>
-
+            }
+          >
             {isAddingLink && (
               <form
                 onSubmit={handleAddLinkSubmit}
@@ -698,7 +684,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({
                 ))}
               </div>
             )}
-          </div>
+          </WidgetCard>
         )}
       </div>
     </div>
@@ -731,12 +717,11 @@ const CompletionTrendCard: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     `${formatDayDate(date)}: ${count} ${count === 1 ? 'completion' : 'completions'}`;
 
   return (
-    <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold">Last 14 days</h3>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400">Tasks completed per day</p>
-        </div>
+    <WidgetCard
+      id="trend"
+      title="Last 14 days"
+      subtitle="Tasks completed per day"
+      actions={
         <div className="text-right">
           <p className="text-2xl font-bold leading-none">{total}</p>
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">
@@ -744,7 +729,8 @@ const CompletionTrendCard: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
             previous 14 days ({previous})
           </p>
         </div>
-      </div>
+      }
+    >
 
       {total === 0 ? (
         <p className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
@@ -838,7 +824,7 @@ const CompletionTrendCard: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           </table>
         </>
       )}
-    </div>
+    </WidgetCard>
   );
 };
 
@@ -851,13 +837,7 @@ const ProjectProgressCard: React.FC<{
   const rows = projectProgress(tasks, projects);
 
   return (
-    <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-semibold">Projects</h3>
-        <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          Done out of non-archived tasks, most open first
-        </p>
-      </div>
+    <WidgetCard id="projects" title="Projects" subtitle="Done out of non-archived tasks, most open first">
 
       {projects.length === 0 ? (
         <p className="py-6 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
@@ -915,7 +895,7 @@ const ProjectProgressCard: React.FC<{
           })}
         </ul>
       )}
-    </div>
+    </WidgetCard>
   );
 };
 
