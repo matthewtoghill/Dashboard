@@ -390,7 +390,7 @@ export const AdoProjectPanel: React.FC<{
                         disabled={!!item.taskId}
                         onChange={(e) => toggle([item.externalId], e.target.checked)}
                       />
-                      <span className="shrink-0 w-14 text-xs text-zinc-400 tabular-nums">
+                      <span className="shrink-0 w-20 text-xs text-zinc-400 tabular-nums">
                         {externalShortLabel(item.externalId)}
                       </span>
                       <span className="shrink-0 w-24 truncate text-xs text-zinc-500" title={itemType(item)}>
@@ -399,7 +399,12 @@ export const AdoProjectPanel: React.FC<{
                       <span className={`flex-1 truncate ${item.taskId ? 'text-zinc-400' : ''}`} title={item.title}>
                         {item.title}
                       </span>
-                      <span className="shrink-0 text-xs text-zinc-400">{item.state}</span>
+                      <span className="shrink-0 w-34 truncate text-xs text-zinc-400" title={item.repo ?? undefined}>
+                        {item.repo}
+                      </span>
+                      <span className="shrink-0 w-18 truncate text-right text-xs text-zinc-400" title={item.state}>
+                        {item.state}
+                      </span>
                       {item.taskId && (
                         <button
                           type="button"

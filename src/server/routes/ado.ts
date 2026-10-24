@@ -96,6 +96,7 @@ export function workItemToItem(org: string, wi: AzWorkItem): AdoItem {
     type: wi.fields['System.WorkItemType'] ?? '',
     state: wi.fields['System.State'] ?? '',
     role: null,
+    repo: null,
   };
 }
 
@@ -109,6 +110,7 @@ export function pullRequestToItem(org: string, pr: AzPullRequest, role: 'author'
     type: 'Pull Request',
     state: pr.isDraft ? 'Draft' : pr.status,
     role,
+    repo: pr.repository.name,
   };
 }
 

@@ -68,6 +68,7 @@ describe('describeAzFailure', () => {
       type,
       state,
       role: null,
+      repo: null,
       taskId,
     });
     const items = [item(1, 'Bug', 'Active'), item(2, 'Task', 'New'), item(3, 'Bug', 'New', 'task-3')];

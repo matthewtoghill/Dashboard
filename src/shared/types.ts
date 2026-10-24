@@ -337,6 +337,8 @@ export const AdoItemSchema = z.object({
   state: z.string(),
   /** For pull requests: authored by me, or waiting for my review. */
   role: z.enum(['author', 'reviewer']).nullable().default(null),
+  /** For pull requests: the repository name. */
+  repo: z.string().nullable().default(null),
 });
 export type AdoItem = z.infer<typeof AdoItemSchema>;
 
