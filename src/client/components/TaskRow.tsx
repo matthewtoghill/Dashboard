@@ -258,9 +258,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const priorityInfo = PRIORITY_CONFIG[task.priority];
   const baseDueInfo = getDueDateInfo(task.dueDate);
-  // A completed task is no longer overdue: show the original date, muted and struck through.
-  const dueWasMissed = isDone && baseDueInfo.state === 'overdue' && task.dueDate !== null;
-  const dueInfo = dueWasMissed
+  // A completed task is no longer due: show the original date, muted and struck through.
+  const dueInfo = isDone && task.dueDate !== null
     ? {
         ...baseDueInfo,
         label: formatShortDate(task.dueDate!),
