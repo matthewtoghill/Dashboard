@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
-import { AzError, AzRunner, describeAzFailure } from '../routes/ado.ts';
+import { AzError, AzRunner, describeAzFailure, openWorkItemsWiql } from '../routes/ado.ts';
 import { externalLinkLabel, externalShortLabel } from '../../client/components/AdoImport.tsx';
-import { AdoFetchResult, Task } from '../../shared/types.ts';
+import { arrangeAdoItems } from '../../client/components/AdoProjectPanel.tsx';
+import { AdoSyncResult, Task } from '../../shared/types.ts';
 
 const ORG = 'https://dev.azure.com/acme/';
 const ME = 'me@acme.com';
@@ -53,6 +54,38 @@ describe('describeAzFailure', () => {
     expect(describeAzFailure('WARNING: x\nERROR: TF401180: not found')).toBe('Azure CLI: TF401180: not found');
   });
 
+  it('quotes project names in WIQL', () => {
+    expect(openWorkItemsWiql(["O'Brien", 'Beta'])).toContain("[System.TeamProject] IN ('O''Brien', 'Beta')");
+    expect(openWorkItemsWiql()).not.toContain('TeamProject] IN');
+  });
+
+  it('filters, sorts and groups project panel items', () => {
+    const item = (id: number, type: string, state: string, taskId: string | null = null) => ({
+      externalId: `workitem/${id}`,
+      title: `Item ${id}`,
+      url: `${ORG}_workitems/edit/${id}`,
+      adoProject: 'Alpha',
+      type,
+      state,
+      role: null,
+      taskId,
+    });
+    const items = [item(1, 'Bug', 'Active'), item(2, 'Task', 'New'), item(3, 'Bug', 'New', 'task-3')];
+    const base = { search: '', type: '', state: '', showImported: false, sortBy: 'id', groupBy: 'none' } as const;
+    const ids = (groups: ReturnType<typeof arrangeAdoItems>) =>
+      groups.map(([name, list]) => [name, list.map((i) => i.externalId.split('/')[1]).join()]);
+
+    expect(ids(arrangeAdoItems(items, base))).toEqual([['', '2,1']]);
+    expect(ids(arrangeAdoItems(items, { ...base, showImported: true, groupBy: 'type' }))).toEqual([
+      ['Bug', '3,1'],
+      ['Task', '2'],
+    ]);
+    expect(ids(arrangeAdoItems(items, { ...base, showImported: true, state: 'New', sortBy: 'type' }))).toEqual([
+      ['', '3,2'],
+    ]);
+    expect(ids(arrangeAdoItems(items, { ...base, search: '#1' }))).toEqual([['', '1']]);
+  });
+
   it('formats full and compact labels for external ids', () => {
     expect(externalLinkLabel('workitem/123')).toBe('Azure DevOps work item 123');
     expect(externalLinkLabel('pr/45')).toBe('Azure DevOps pull request 45');
@@ -87,10 +120,12 @@ describe('Azure DevOps import', () => {
     await app.close();
   });
 
-  const fetchItems = async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/ado/items' });
-    return { status: res.statusCode, body: res.json() as AdoFetchResult & { error?: string } };
+  /** A check now; `cached` reads the stored result instead. */
+  const fetchItems = async (cached = false) => {
+    const res = await app.inject({ method: 'GET', url: cached ? '/api/ado/items' : '/api/ado/items?refresh=1' });
+    return { status: res.statusCode, body: res.json() as AdoSyncResult & { error?: string } };
   };
+  const putSettings = (payload: object) => app.inject({ method: 'PUT', url: '/api/settings', payload });
   const putLinks = (links: unknown[]) => app.inject({ method: 'PUT', url: '/api/ado/projects', payload: { links } });
   const createProject = async (name: string) =>
     (await app.inject({ method: 'POST', url: '/api/projects', payload: { name } })).json().project.id as string;
@@ -100,7 +135,7 @@ describe('Azure DevOps import', () => {
     const projectId = await createProject('Work');
     expect((await putLinks([{ adoProject: 'Alpha', projectId, workItemTypes: ['Task'] }])).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/ado/projects' })).json().links).toEqual([
-      { adoProject: 'Alpha', projectId, workItemTypes: ['Task'] },
+      { adoProject: 'Alpha', projectId, workItemTypes: ['Task'], ignoredStates: null },
     ]);
 
     expect((await putLinks([{ adoProject: 'Alpha' }, { adoProject: 'alpha' }])).statusCode).toBe(400);
@@ -219,12 +254,75 @@ describe('Azure DevOps import', () => {
     const task = (await fresh.inject({ method: 'GET', url: '/api/tasks' })).json().tasks[0];
     expect(task).toMatchObject({ externalSource: 'ado', externalId: 'workitem/9' });
     expect((await fresh.inject({ method: 'GET', url: '/api/ado/projects' })).json().links).toEqual([
-      { adoProject: 'Alpha', projectId, workItemTypes: ['Bug'] },
+      { adoProject: 'Alpha', projectId, workItemTypes: ['Bug'], ignoredStates: null },
     ]);
     // Re-importing a task with the same source item under a new id is skipped
     exported.tasks[0].id = 'other-id';
     expect((await fresh.inject({ method: 'POST', url: '/api/import', payload: exported })).json().importedTasks).toBe(0);
     await fresh.close();
+  });
+
+  it('serves the stored result, with current task links, and keeps it when a check fails', async () => {
+    // No stored result yet: the first read checks
+    expect((await fetchItems(true)).body.items.map((i) => i.externalId)).toEqual(['workitem/1', 'workitem/3']);
+    const boardCalls = () => calls.filter((c) => c[0] === 'boards').length;
+    const before = boardCalls();
+
+    let { body } = await fetchItems(true);
+    expect(boardCalls()).toBe(before);
+    expect(body.checkedAt).toEqual(expect.any(Number));
+    expect(body.error).toBeNull();
+
+    // An import shows straight away, without asking az
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [body.items[0]] } });
+    ({ body } = await fetchItems(true));
+    expect(body.items[0].taskId).toEqual(expect.any(String));
+    expect(boardCalls()).toBe(before);
+
+    responses['boards query'] = new AzError('Not signed in to Azure DevOps. Run az login, then try again.');
+    expect((await fetchItems()).status).toBe(502);
+    ({ body } = await fetchItems(true));
+    expect(body.items).toHaveLength(2);
+    expect(body.error).toMatch(/az login/);
+    expect(body.lastErrorAt).toEqual(expect.any(Number));
+  });
+
+  it('leaves out ignored states, and flags imported tasks that reach one as closed', async () => {
+    responses['boards query'] = [
+      workItem(1, 'Task'),
+      workItem(2, 'Task', 'Alpha', 'Ready for QA'),
+      workItem(3, 'Bug', 'Beta', 'In UAT'),
+    ];
+    await putSettings({ adoIgnoredStates: ['ready for qa'] });
+    expect((await fetchItems()).body.items.map((i) => i.externalId)).toEqual(['workitem/1', 'workitem/3']);
+
+    // A mapping's own list replaces the default
+    responses['--project Beta'] = [];
+    await putLinks([{ adoProject: 'Beta', ignoredStates: ['In UAT'] }]);
+    let { body } = await fetchItems();
+    expect(body.items.map((i) => i.externalId)).toEqual(['workitem/1']);
+
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [body.items[0]] } });
+    responses['boards query'] = [workItem(2, 'Task', 'Alpha', 'Active')];
+    responses['--wiql SELECT [System.Id], [System.State]'] = [workItem(1, 'Task', 'Alpha', 'Ready for QA')];
+    ({ body } = await fetchItems());
+    expect(body.closed.map((c) => [c.externalId, c.state])).toEqual([['workitem/1', 'Ready for QA']]);
+  });
+
+  it('only fetches projects mapped to a Dashboard project when asked', async () => {
+    await putSettings({ adoLinkedProjectsOnly: true });
+    await putLinks([{ adoProject: 'Alpha' }]);
+    let { body } = await fetchItems();
+    expect(body.items).toEqual([]);
+    expect(body.warnings[0]).toMatch(/No Azure DevOps project is mapped/);
+    expect(calls.some((c) => c[0] === 'boards' || c[0] === 'repos')).toBe(false);
+
+    const projectId = await createProject('Work');
+    await putLinks([{ adoProject: 'Alpha', projectId }, { adoProject: 'Beta' }]);
+    ({ body } = await fetchItems());
+    expect(calls.find((c) => c[0] === 'boards')!.join(' ')).toContain("[System.TeamProject] IN ('Alpha')");
+    expect(calls.filter((c) => c[0] === 'repos').every((c) => c.includes('Alpha'))).toBe(true);
+    expect(body.items.map((i) => i.externalId)).toContain('pr/10');
   });
 
   it('lists enabled work item types for one project, or across mapped projects', async () => {

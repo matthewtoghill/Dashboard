@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CloudDownload, ExternalLink, Plus, RefreshCw, Trash2, X } from 'lucide-react';
-import { AdoItem, AdoProjectLink, Project, Settings, UpdateSettingsInput } from '../../shared/types.ts';
+import { AdoItem, AdoProjectLink, AdoSyncResult, Project, Settings, UpdateSettingsInput } from '../../shared/types.ts';
 import {
   fetchAdoItems,
   fetchAdoProjectLinks,
@@ -24,23 +24,88 @@ export function externalShortLabel(externalId: string): string {
   return kind === 'pr' ? `PR #${id}` : `#${id}`;
 }
 
-const inputClass =
+export const inputClass =
   'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
-const buttonClass =
+export const buttonClass =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer disabled:opacity-50 disabled:cursor-default';
 
+/** The last Azure DevOps check. Shared by the Overview card, project panels and import dialog. */
+export function useAdoSync() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ['adoItems'],
+    queryFn: () => fetchAdoItems(),
+    refetchInterval: 60_000, // cheap: the server answers from its stored result
+    retry: false,
+  });
+  const refresh = useMutation({
+    mutationFn: () => fetchAdoItems(true),
+    onSuccess: (data) => queryClient.setQueryData(['adoItems'], data),
+    // The server keeps the failure alongside the previous result
+    onError: () => queryClient.invalidateQueries({ queryKey: ['adoItems'] }),
+  });
+  return { ...query, refresh };
+}
+
+/** Saves the whole project mapping list. */
+export function useSaveAdoLinks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveAdoProjectLinks,
+    onSuccess: (next) => {
+      queryClient.setQueryData(['adoProjectLinks'], next);
+      // The default type list is the union over mapped projects
+      queryClient.invalidateQueries({ queryKey: ['adoWorkItemTypes', ''] });
+    },
+  });
+}
+
+/** Imports items as tasks, then shows them as imported. */
+export function useImportAdoItems(onImported: (count: number) => void) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: importAdoItems,
+    onSuccess: ({ importedCount }) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['adoItems'] });
+      onImported(importedCount);
+    },
+  });
+}
+
+/** "Checked 5 min ago", plus why the last check failed if it did. */
+export const AdoSyncStatus: React.FC<{ data: AdoSyncResult | undefined; refreshing: boolean }> = ({
+  data,
+  refreshing,
+}) => (
+  <span className="text-xs text-zinc-400">
+    {refreshing
+      ? 'Asking Azure DevOps\u2026'
+      : data?.checkedAt
+        ? `Checked ${formatRelativeTime(data.checkedAt)}`
+        : 'Not checked yet'}
+    {!refreshing && data?.error && (
+      <span className="text-amber-700 dark:text-amber-300">
+        {' \u00b7 '}Last check failed{data.lastErrorAt ? ` ${formatRelativeTime(data.lastErrorAt)}` : ''}:{' '}
+        {data.error}
+      </span>
+    )}
+  </span>
+);
+
 /**
- * Work item types as removable chips, picked from the types Azure DevOps reports. Free text is
- * only accepted while that list is unavailable (az failing), so a typo can't silently match nothing.
+ * Work item types or states as removable chips, picked from those Azure DevOps reports. Free text
+ * is only accepted while that list is unavailable (az failing), so a typo can't silently match nothing.
  */
-const WorkItemTypePicker: React.FC<{
+export const WorkItemFieldPicker: React.FC<{
   value: string[];
-  onChange: (types: string[]) => void;
-  /** Types for this project; omit for the default list (all mapped projects). */
+  onChange: (values: string[]) => void;
+  field?: 'types' | 'states';
+  /** Values for this project; omit for the default list (all mapped projects). */
   project?: string;
   placeholder: string;
   label: string;
-}> = ({ value, onChange, project, placeholder, label }) => {
+}> = ({ value, onChange, field = 'types', project, placeholder, label }) => {
   const listId = useId();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -50,20 +115,22 @@ const WorkItemTypePicker: React.FC<{
     staleTime: Infinity, // the server caches them until "Refresh types"
     retry: false,
   });
-  const options = data?.types;
+  // Empty when az gave nothing back: treat as unavailable rather than refusing everything
+  const options = data?.[field]?.length ? data[field] : undefined;
+  const noun = field === 'states' ? 'state' : 'work item type';
 
   const where = project ? ` in ${project}` : '';
   const known = (type: string) => options?.find((o) => o.toLowerCase() === type.trim().toLowerCase());
   const add = (raw: string) => {
     const type = raw.trim();
     if (!type) return;
-    if (!options && !loadError) {
-      setError('Still loading the work item types\u2026');
+    if (!data && !loadError) {
+      setError(`Still loading the ${noun}s\u2026`);
       return;
     }
     const match = options ? known(type) : type;
     if (!match) {
-      setError(`"${type}" is not a work item type${where}.`);
+      setError(`"${type}" is not a ${noun}${where}.`);
       return;
     }
     if (!value.some((v) => v.toLowerCase() === match.toLowerCase())) onChange([...value, match]);
@@ -79,7 +146,7 @@ const WorkItemTypePicker: React.FC<{
           return (
             <span
               key={type}
-              title={unknown ? `Not a work item type${where}` : undefined}
+              title={unknown ? `Not a ${noun}${where}` : undefined}
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
                 unknown
                   ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
@@ -131,12 +198,20 @@ const WorkItemTypePicker: React.FC<{
       </div>
       {(error || loadError) && (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          {error ?? `Could not load work item types: ${loadError?.message}`}
+          {error ?? `Could not load ${noun}s: ${loadError?.message}`}
         </p>
       )}
     </div>
   );
 };
+
+const SYNC_INTERVALS: [number, string][] = [
+  [0, 'Off'],
+  [15, '15 minutes'],
+  [30, '30 minutes'],
+  [60, 'Hour'],
+  [120, '2 hours'],
+];
 
 /** Settings > Integrations: organization, default work item types and project mappings. */
 export const AdoSettings: React.FC<{
@@ -147,14 +222,8 @@ export const AdoSettings: React.FC<{
   const queryClient = useQueryClient();
   const [newProject, setNewProject] = useState('');
   const { data: links = [] } = useQuery({ queryKey: ['adoProjectLinks'], queryFn: fetchAdoProjectLinks });
-  const save = useMutation({
-    mutationFn: saveAdoProjectLinks,
-    onSuccess: (next) => {
-      queryClient.setQueryData(['adoProjectLinks'], next);
-      // The default type list is the union over mapped projects
-      queryClient.invalidateQueries({ queryKey: ['adoWorkItemTypes', ''] });
-    },
-  });
+  const save = useSaveAdoLinks();
+  const sync = useAdoSync();
 
   // Shares the default picker's query; fetchedAt says how old the server's cached types are
   const { data: defaultTypes } = useQuery({
@@ -175,7 +244,7 @@ export const AdoSettings: React.FC<{
   const addProject = () => {
     const name = newProject.trim();
     if (!name) return;
-    save.mutate([...links, { adoProject: name, projectId: null, workItemTypes: null }], {
+    save.mutate([...links, { adoProject: name, projectId: null, workItemTypes: null, ignoredStates: null }], {
       onSuccess: () => setNewProject(''),
     });
   };
@@ -199,12 +268,57 @@ export const AdoSettings: React.FC<{
       </label>
       <div className="flex items-start gap-4">
         <span className="w-32 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Work item types</span>
-        <WorkItemTypePicker
+        <WorkItemFieldPicker
           value={settings.adoWorkItemTypes}
           onChange={(types) => onSave({ adoWorkItemTypes: types })}
           placeholder="Choose types"
           label="Default work item types"
         />
+      </div>
+      <div className="flex items-start gap-4">
+        <span className="w-32 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Ignored states</span>
+        <WorkItemFieldPicker
+          field="states"
+          value={settings.adoIgnoredStates}
+          onChange={(states) => onSave({ adoIgnoredStates: states })}
+          placeholder="e.g. Ready for QA"
+          label="Default ignored states"
+        />
+      </div>
+      <label className="flex items-center gap-4">
+        <span className="w-32 shrink-0 text-zinc-600 dark:text-zinc-300">Check every</span>
+        <select
+          value={settings.adoSyncMinutes}
+          onChange={(e) => onSave({ adoSyncMinutes: Number(e.target.value) })}
+          className={inputClass}
+        >
+          {SYNC_INTERVALS.map(([minutes, label]) => (
+            <option key={minutes} value={minutes}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300">
+        <input
+          type="checkbox"
+          checked={settings.adoLinkedProjectsOnly}
+          onChange={(e) => onSave({ adoLinkedProjectsOnly: e.target.checked })}
+          className="rounded text-indigo-600"
+        />
+        Only fetch projects mapped to a Dashboard project
+      </label>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <AdoSyncStatus data={sync.data} refreshing={sync.refresh.isPending} />
+        <button
+          type="button"
+          onClick={() => sync.refresh.mutate()}
+          disabled={sync.refresh.isPending}
+          className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+        >
+          <RefreshCw className={`w-3 h-3 ${sync.refresh.isPending ? 'animate-spin' : ''}`} />
+          Check now
+        </button>
       </div>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400">
         <span>
@@ -228,8 +342,8 @@ export const AdoSettings: React.FC<{
         )}
       </div>
       <p className="text-xs text-zinc-400">
-        Uses your az login. A project below can use its own types. Pull requests are fetched for the
-        listed projects only.
+        Uses your az login. A project below can use its own types and ignored states. Pull requests
+        are fetched for the listed projects only. Changes apply from the next check.
       </p>
 
       {save.isError && (
@@ -280,13 +394,21 @@ export const AdoSettings: React.FC<{
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <WorkItemTypePicker
+              <WorkItemFieldPicker
                 project={link.adoProject}
                 value={link.workItemTypes ?? []}
                 // No chips means "use the default types"
                 onChange={(types) => update(i, { workItemTypes: types.length ? types : null })}
                 placeholder="Default types"
                 label={`Work item types for ${link.adoProject}`}
+              />
+              <WorkItemFieldPicker
+                field="states"
+                project={link.adoProject}
+                value={link.ignoredStates ?? []}
+                onChange={(states) => update(i, { ignoredStates: states.length ? states : null })}
+                placeholder="Default ignored states"
+                label={`Ignored states for ${link.adoProject}`}
               />
             </li>
           ))}
@@ -316,6 +438,54 @@ export const AdoSettings: React.FC<{
   );
 };
 
+/** Unfinished tasks whose source closed (or reached an ignored state), each with a Complete button. */
+export const AdoClosedList: React.FC<{ closed: AdoSyncResult['closed'] }> = ({ closed }) => {
+  const queryClient = useQueryClient();
+  const complete = useMutation({
+    mutationFn: (taskIds: string[]) => Promise.all(taskIds.map((id) => updateTask(id, { status: 'done' }))),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      // The server drops completed tasks from the stored list
+      queryClient.invalidateQueries({ queryKey: ['adoItems'] });
+    },
+  });
+  if (closed.length === 0) return null;
+  return (
+    <section className="space-y-2 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+          Closed in Azure DevOps
+        </h3>
+        <button
+          type="button"
+          className={buttonClass}
+          disabled={complete.isPending}
+          onClick={() => complete.mutate(closed.map((c) => c.taskId))}
+        >
+          Complete all
+        </button>
+      </div>
+      <ul className="space-y-1">
+        {closed.map((c) => (
+          <li key={c.taskId} className="flex items-center gap-2">
+            <span className="flex-1 truncate">{c.title}</span>
+            <span className="text-xs text-zinc-500">{c.state}</span>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={complete.isPending}
+              onClick={() => complete.mutate([c.taskId])}
+            >
+              Complete
+            </button>
+          </li>
+        ))}
+      </ul>
+      {complete.isError && <p className="text-xs text-red-600 dark:text-red-400">{complete.error.message}</p>}
+    </section>
+  );
+};
+
 /** "Fetch from Azure DevOps": pick open items to import, and complete tasks whose source closed. */
 export const AdoImportDialog: React.FC<{
   open: boolean;
@@ -335,35 +505,20 @@ export const AdoImportDialog: React.FC<{
     if (open) setSelected(new Set());
   }, [open]);
 
-  const { data, error, isFetching, refetch } = useQuery({
-    queryKey: ['adoItems'],
-    queryFn: fetchAdoItems,
-    enabled: open,
-    staleTime: 0,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
+  // Shows the last background check; Refresh asks Azure DevOps again
+  const { data, error, isLoading, refresh } = useAdoSync();
   const { data: links = [] } = useQuery({
     queryKey: ['adoProjectLinks'],
     queryFn: fetchAdoProjectLinks,
     enabled: open,
   });
+  useEffect(() => {
+    if (open) queryClient.invalidateQueries({ queryKey: ['adoItems'] });
+  }, [open, queryClient]);
 
-  const importMutation = useMutation({
-    mutationFn: importAdoItems,
-    onSuccess: ({ importedCount }) => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['adoItems'] });
-      onImported(importedCount);
-      onClose();
-    },
-  });
-  const completeMutation = useMutation({
-    mutationFn: (taskIds: string[]) => Promise.all(taskIds.map((id) => updateTask(id, { status: 'done' }))),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      refetch();
-    },
+  const importMutation = useImportAdoItems((count) => {
+    onImported(count);
+    onClose();
   });
 
   const groups = useMemo(() => {
@@ -380,21 +535,14 @@ export const AdoImportDialog: React.FC<{
   const linkFor = (adoProject: string) =>
     links.find((l) => l.adoProject.toLowerCase() === adoProject.toLowerCase());
   // Changing a destination here saves the mapping in Settings, so later imports use it too
-  const saveLinks = useMutation({
-    mutationFn: saveAdoProjectLinks,
-    onSuccess: (next) => {
-      queryClient.setQueryData(['adoProjectLinks'], next);
-      // The default type list is the union over mapped projects
-      queryClient.invalidateQueries({ queryKey: ['adoWorkItemTypes', ''] });
-    },
-  });
+  const saveLinks = useSaveAdoLinks();
   const setDestination = (adoProject: string, projectId: string | null) => {
     const existing = linkFor(adoProject);
     if (!existing && !projectId) return; // unmapped already goes to the Inbox
     saveLinks.mutate(
       existing
         ? links.map((l) => (l === existing ? { ...l, projectId } : l))
-        : [...links, { adoProject, projectId, workItemTypes: null }]
+        : [...links, { adoProject, projectId, workItemTypes: null, ignoredStates: null }]
     );
   };
   const toggle = (ids: string[], on: boolean) =>
@@ -422,15 +570,16 @@ export const AdoImportDialog: React.FC<{
               Fetch from Azure DevOps
             </h2>
             <div className="flex items-center gap-1">
+              <AdoSyncStatus data={data} refreshing={refresh.isPending} />
               <button
                 type="button"
-                onClick={() => refetch()}
-                disabled={isFetching}
+                onClick={() => refresh.mutate()}
+                disabled={refresh.isPending}
                 aria-label="Refresh"
-                title="Refresh"
+                title="Check Azure DevOps now"
                 className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${refresh.isPending ? 'animate-spin' : ''}`} />
               </button>
               <button
                 type="button"
@@ -444,10 +593,10 @@ export const AdoImportDialog: React.FC<{
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-5">
-            {isFetching && !data && <p className="text-zinc-500">Asking Azure DevOps\u2026</p>}
-            {error && (
+            {isLoading && <p className="text-zinc-500">{'Asking Azure DevOps\u2026'}</p>}
+            {(refresh.error ?? error) && (
               <p role="alert" className="text-red-600 dark:text-red-400">
-                {error.message}
+                {(refresh.error ?? error)?.message}
               </p>
             )}
             {data?.warnings.map((w) => (
@@ -456,41 +605,9 @@ export const AdoImportDialog: React.FC<{
               </p>
             ))}
 
-            {data && data.closed.length > 0 && (
-              <section className="space-y-2 p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">
-                    Closed in Azure DevOps
-                  </h3>
-                  <button
-                    type="button"
-                    className={buttonClass}
-                    disabled={completeMutation.isPending}
-                    onClick={() => completeMutation.mutate(data.closed.map((c) => c.taskId))}
-                  >
-                    Complete all
-                  </button>
-                </div>
-                <ul className="space-y-1">
-                  {data.closed.map((c) => (
-                    <li key={c.taskId} className="flex items-center gap-2">
-                      <span className="flex-1 truncate">{c.title}</span>
-                      <span className="text-xs text-zinc-500">{c.state}</span>
-                      <button
-                        type="button"
-                        className={buttonClass}
-                        disabled={completeMutation.isPending}
-                        onClick={() => completeMutation.mutate([c.taskId])}
-                      >
-                        Complete
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+            {data && <AdoClosedList closed={data.closed} />}
 
-            {data && data.items.length === 0 && (
+            {data?.checkedAt && data.items.length === 0 && (
               <p className="text-zinc-500">Nothing open is assigned to you.</p>
             )}
             {groups.map(([adoProject, items]) => {

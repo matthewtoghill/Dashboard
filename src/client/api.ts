@@ -18,9 +18,9 @@ import {
   UpdateClaudeSessionInput,
   SettingsResponse,
   UpdateSettingsInput,
-  AdoFetchResult,
   AdoItem,
   AdoProjectLink,
+  AdoSyncResult,
   TaskEvent,
 } from '../shared/types.ts';
 
@@ -383,10 +383,11 @@ async function failWith(res: Response, fallback: string): Promise<never> {
   throw new Error(body?.error ?? `${fallback}: ${res.statusText}`);
 }
 
-export async function fetchAdoItems(): Promise<AdoFetchResult> {
-  const res = await fetch('/api/ado/items');
+/** The last background check's result; `refresh` checks Azure DevOps now. */
+export async function fetchAdoItems(refresh = false): Promise<AdoSyncResult> {
+  const res = await fetch(refresh ? '/api/ado/items?refresh=1' : '/api/ado/items');
   if (!res.ok) return failWith(res, 'Failed to fetch from Azure DevOps');
-  return (await res.json()) as AdoFetchResult;
+  return (await res.json()) as AdoSyncResult;
 }
 
 export async function importAdoItems(items: AdoItem[]): Promise<{ importedCount: number }> {
@@ -417,6 +418,8 @@ export async function saveAdoProjectLinks(links: AdoProjectLink[]): Promise<AdoP
 
 export interface AdoWorkItemTypes {
   types: string[];
+  /** Every state of those types. */
+  states: string[];
   /** When the oldest list was fetched from Azure DevOps; null if none could be. */
   fetchedAt: number | null;
 }

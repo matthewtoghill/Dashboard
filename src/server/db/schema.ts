@@ -77,6 +77,7 @@ export const adoProjectLinks = sqliteTable('ado_project_links', {
   adoProject: text('ado_project').primaryKey(),
   projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
   workItemTypes: text('work_item_types'), // JSON string array; null = settings default
+  ignoredStates: text('ignored_states'), // JSON string array; null = settings default
 });
 
 export const taskEvents = sqliteTable('task_events', {

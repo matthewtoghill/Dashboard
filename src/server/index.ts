@@ -86,7 +86,8 @@ export async function buildApp(options?: { dbPath?: string; az?: AzRunner }): Pr
   await registerBackupRoutes(app, sqlite, backupConfig);
   await registerClaudeRoutes(app, db);
   await registerSettingsRoutes(app, sqlite);
-  await registerAdoRoutes(app, db, options?.az);
+  // Tests use an in-memory database and check on demand instead
+  await registerAdoRoutes(app, db, options?.az, { backgroundSync: dbPath !== ':memory:' });
 
   // Serve built static client in production if dist exists
   const distPath = path.resolve(process.cwd(), 'dist');

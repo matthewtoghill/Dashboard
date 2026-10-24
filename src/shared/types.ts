@@ -276,6 +276,12 @@ export const SettingsSchema = z.object({
     .array(z.string().trim().min(1).max(100))
     .max(50)
     .default(['Product Backlog Item', 'Task', 'Bug', 'User Story']),
+  /** Work items in these states are left out, and count as closed for imported tasks. */
+  adoIgnoredStates: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
+  /** Only fetch work items and pull requests for ADO projects mapped to a Dashboard project. */
+  adoLinkedProjectsOnly: z.boolean().default(false),
+  /** Minutes between background checks; 0 turns the check off. */
+  adoSyncMinutes: z.number().int().min(0).max(1440).default(30),
   /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
   /** The Overview's stale widget lists to-do tasks untouched for this many days. */
@@ -305,6 +311,8 @@ export const AdoProjectLinkSchema = z.object({
   projectId: z.string().min(1).nullable().default(null),
   /** Null uses the adoWorkItemTypes setting. */
   workItemTypes: z.array(z.string().trim().min(1).max(100)).max(50).nullable().default(null),
+  /** Null uses the adoIgnoredStates setting. */
+  ignoredStates: z.array(z.string().trim().min(1).max(100)).max(50).nullable().default(null),
 });
 export type AdoProjectLink = z.infer<typeof AdoProjectLinkSchema>;
 export const AdoProjectLinkListSchema = z
@@ -341,6 +349,15 @@ export interface AdoFetchResult {
   closed: { taskId: string; title: string; externalId: string; url: string | null; state: string }[];
   /** Per-project failures that did not stop the rest of the fetch. */
   warnings: string[];
+}
+
+/** GET /api/ado/items: the last background or manual check, with task links as they are now. */
+export interface AdoSyncResult extends AdoFetchResult {
+  /** When the result was fetched; null before the first successful check. */
+  checkedAt: number | null;
+  /** Why the most recent check failed, if it did. */
+  error: string | null;
+  lastErrorAt: number | null;
 }
 
 export const DashboardStateSchema = z.object({

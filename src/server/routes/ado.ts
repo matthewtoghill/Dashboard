@@ -13,6 +13,7 @@ import {
   AdoProjectLink,
   AdoProjectLinkListSchema,
   AdoProjectNameSchema,
+  AdoSyncResult,
 } from '../../shared/types.ts';
 
 /** Runs `az` with the given arguments and resolves with its stdout. */
@@ -22,11 +23,18 @@ export class AzError extends Error {}
 
 const CLOSED_STATES = ['Done', 'Closed', 'Removed'];
 
-const OPEN_WORK_ITEMS_WIQL =
-  'SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject] ' +
-  'FROM WorkItems WHERE [System.AssignedTo] = @Me ' +
-  `AND [System.State] NOT IN (${CLOSED_STATES.map((s) => `'${s}'`).join(', ')}) ` +
-  'ORDER BY [System.ChangedDate] DESC';
+const wiqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
+/** Open work assigned to me, optionally limited to some projects. */
+export function openWorkItemsWiql(projects?: string[]): string {
+  return (
+    'SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject] ' +
+    'FROM WorkItems WHERE [System.AssignedTo] = @Me ' +
+    `AND [System.State] NOT IN (${CLOSED_STATES.map(wiqlString).join(', ')}) ` +
+    (projects ? `AND [System.TeamProject] IN (${projects.map(wiqlString).join(', ')}) ` : '') +
+    'ORDER BY [System.ChangedDate] DESC'
+  );
+}
 
 /** Turns az's stderr into a message that says what to do about it. */
 export function describeAzFailure(stderr: string, notFound = false): string {
@@ -111,15 +119,22 @@ export function awaitsMyVote(pr: AzPullRequest, me: string): boolean {
   return !!mine && !mine.vote;
 }
 
-function serializeLink(row: DbAdoProjectLink): AdoProjectLink {
-  let types: string[] | null = null;
+function parseStringList(json: string | null): string[] | null {
   try {
-    const raw = row.workItemTypes ? JSON.parse(row.workItemTypes) : null;
-    if (Array.isArray(raw)) types = raw.map(String);
+    const raw = json ? JSON.parse(json) : null;
+    return Array.isArray(raw) ? raw.map(String) : null;
   } catch {
-    types = null;
+    return null;
   }
-  return { adoProject: row.adoProject, projectId: row.projectId ?? null, workItemTypes: types };
+}
+
+function serializeLink(row: DbAdoProjectLink): AdoProjectLink {
+  return {
+    adoProject: row.adoProject,
+    projectId: row.projectId ?? null,
+    workItemTypes: parseStringList(row.workItemTypes),
+    ignoredStates: parseStringList(row.ignoredStates),
+  };
 }
 
 export function listAdoProjectLinks(db: AppDatabase): AdoProjectLink[] {
@@ -136,7 +151,8 @@ const DEFAULT_PROJECT = '*default';
  */
 interface TypeCache {
   org: string;
-  projects: Record<string, { types: string[]; fetchedAt: number }>;
+  /** `states` is the union over the enabled types; missing in caches written before it existed. */
+  projects: Record<string, { types: string[]; states?: string[]; fetchedAt: number }>;
 }
 
 function readTypeCache(db: AppDatabase): TypeCache {
@@ -151,15 +167,45 @@ function readTypeCache(db: AppDatabase): TypeCache {
   return { org, projects: {} };
 }
 
-function writeTypeCache(db: AppDatabase, cache: TypeCache): void {
-  const value = JSON.stringify(cache);
+function writeValue(db: AppDatabase, key: string, data: unknown): void {
+  const value = JSON.stringify(data);
   db.insert(keyValueStore)
-    .values({ key: TYPE_CACHE_KEY, value, updatedAt: Date.now() })
+    .values({ key, value, updatedAt: Date.now() })
     .onConflictDoUpdate({ target: keyValueStore.key, set: { value, updatedAt: Date.now() } })
     .run();
 }
 
-export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, az: AzRunner = runAz) {
+const SYNC_KEY = 'ado_sync';
+
+/** The last check's result, kept when a later check fails. */
+interface SyncState {
+  result: AdoFetchResult | null;
+  checkedAt: number | null;
+  error: string | null;
+  lastErrorAt: number | null;
+}
+
+function readSyncState(db: AppDatabase): SyncState {
+  const row = db.select().from(keyValueStore).where(eq(keyValueStore.key, SYNC_KEY)).get();
+  try {
+    if (row) return JSON.parse(row.value) as SyncState;
+  } catch {
+    // Unreadable: start again
+  }
+  return { result: null, checkedAt: null, error: null, lastErrorAt: null };
+}
+
+/** How often the background timer looks at whether a check is due. */
+const SYNC_TICK_MS = 60_000;
+/** The first look after startup, so a check that fell due while the server was down runs soon. */
+const SYNC_STARTUP_DELAY_MS = 10_000;
+
+export async function registerAdoRoutes(
+  app: FastifyInstance,
+  db: AppDatabase,
+  az: AzRunner = runAz,
+  options: { backgroundSync?: boolean } = {}
+) {
   const linkFor = (links: AdoProjectLink[], adoProject: string) =>
     links.find((l) => l.adoProject.toLowerCase() === adoProject.toLowerCase());
 
@@ -207,6 +253,7 @@ export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, a
             adoProject: link.adoProject,
             projectId: link.projectId,
             workItemTypes: link.workItemTypes ? JSON.stringify(link.workItemTypes) : null,
+            ignoredStates: link.ignoredStates ? JSON.stringify(link.ignoredStates) : null,
           })
           .run();
       }
@@ -232,7 +279,7 @@ export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, a
       }
 
       const cache = readTypeCache(db);
-      const missing = names.filter((n) => request.query.refresh === '1' || !cache.projects[n.toLowerCase()]);
+      const missing = names.filter((n) => request.query.refresh === '1' || !cache.projects[n.toLowerCase()]?.states);
       try {
         if (missing.length > 0) {
           const org = await resolveOrg();
@@ -252,146 +299,243 @@ export async function registerAdoRoutes(app: FastifyInstance, db: AppDatabase, a
                       '--route-parameters', `project=${project}`,
                     ])
                   : '{}';
-                const types = (parseJson<{ value?: { name: string; isDisabled?: boolean }[] }>(out).value ?? [])
-                  .filter((t) => !t.isDisabled)
-                  .map((t) => t.name);
-                cache.projects[name.toLowerCase()] = { types, fetchedAt: Date.now() };
+                const enabled = (
+                  parseJson<{ value?: { name: string; isDisabled?: boolean; states?: { name: string }[] }[] }>(out)
+                    .value ?? []
+                ).filter((t) => !t.isDisabled);
+                cache.projects[name.toLowerCase()] = {
+                  types: enabled.map((t) => t.name),
+                  states: [...new Set(enabled.flatMap((t) => (t.states ?? []).map((st) => st.name)))],
+                  fetchedAt: Date.now(),
+                };
               } catch (err) {
                 // One bad mapped project shouldn't hide the others' types (stale ones stay cached)
                 if (single || !(err instanceof AzError)) throw err;
               }
             })
           );
-          writeTypeCache(db, cache);
+          writeValue(db, TYPE_CACHE_KEY, cache);
         }
       } catch (err) {
         return sendAzError(reply, err);
       }
 
       const entries = names.flatMap((n) => cache.projects[n.toLowerCase()] ?? []);
+      const sorted = (list: string[]) => [...new Set(list)].sort((a, b) => a.localeCompare(b));
       return {
-        types: [...new Set(entries.flatMap((e) => e.types))].sort((a, b) => a.localeCompare(b)),
+        types: sorted(entries.flatMap((e) => e.types)),
+        states: sorted(entries.flatMap((e) => e.states ?? [])),
         /** When the oldest of these lists was fetched; null if none could be. */
         fetchedAt: entries.length ? Math.min(...entries.map((e) => e.fetchedAt)) : null,
       };
     }
   );
 
-  // GET /api/ado/items — open work assigned to me, plus imported tasks whose source has closed
-  app.get('/api/ado/items', async (_request, reply) => {
-    try {
-      const org = await resolveOrg();
-      const scope = ['--org', org, '--detect', 'false', '--output', 'json'];
-      const links = listAdoProjectLinks(db);
-      const defaultTypes = readSettings(db.$client).adoWorkItemTypes;
-      const typesFor = (project: string) =>
-        (linkFor(links, project)?.workItemTypes ?? defaultTypes).map((t) => t.toLowerCase());
-      const warnings: string[] = [];
-
-      // PRs can only be listed per project, so only mapped projects are searched
-      const listPrs = async (project: string, filter: string[]) => {
-        try {
-          return parseJson<AzPullRequest[]>(
-            await az(['repos', 'pr', 'list', ...scope, '--project', project, '--status', 'active', ...filter])
-          );
-        } catch (err) {
-          if (!(err instanceof AzError)) throw err;
-          warnings.push(`${project}: ${err.message}`);
-          return [];
-        }
-      };
-
-      const [workItems, me, prLists] = await Promise.all([
-        az(['boards', 'query', ...scope, '--wiql', OPEN_WORK_ITEMS_WIQL]).then((out) =>
-          parseJson<AzWorkItem[]>(out)
-        ),
-        az(['account', 'show', '--query', 'user.name', '--output', 'tsv']).then((out) => out.trim()),
-        Promise.all(
-          links.map(async (l) => ({
-            authored: await listPrs(l.adoProject, ['--creator', 'me']),
-            reviewing: await listPrs(l.adoProject, ['--reviewer', 'me']),
-          }))
-        ),
-      ]);
-
-      const found = new Map<string, AdoItem>();
-      for (const wi of workItems ?? []) {
-        const item = workItemToItem(org, wi);
-        if (typesFor(item.adoProject).includes(item.type.toLowerCase())) found.set(item.externalId, item);
-      }
-      for (const { authored, reviewing } of prLists) {
-        for (const pr of authored) found.set(`pr/${pr.pullRequestId}`, pullRequestToItem(org, pr, 'author'));
-        for (const pr of reviewing) {
-          const id = `pr/${pr.pullRequestId}`;
-          if (!found.has(id) && awaitsMyVote(pr, me)) found.set(id, pullRequestToItem(org, pr, 'reviewer'));
-        }
-      }
-
-      const imported = db
-        .select({
-          id: tasks.id,
-          title: tasks.title,
-          status: tasks.status,
-          externalId: tasks.externalId,
-          externalUrl: tasks.externalUrl,
-        })
-        .from(tasks)
-        .where(eq(tasks.externalSource, 'ado'))
-        .all();
-      const taskByExternalId = new Map(imported.map((t) => [t.externalId, t.id]));
-
-      // Unfinished imported tasks that dropped off the open list: look up their source's state
-      const unfinished = imported.filter(
-        (t) => (t.status === 'todo' || t.status === 'in_progress') && t.externalId && !found.has(t.externalId)
-      );
-      const closedState = new Map<string, string>();
-      const workItemIds = unfinished.flatMap((t) => /^workitem\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
-      const prIds = unfinished.flatMap((t) => /^pr\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
-      await Promise.all([
-        workItemIds.length > 0 &&
-          az([
-            'boards', 'query', ...scope, '--wiql',
-            `SELECT [System.Id], [System.State] FROM WorkItems WHERE [System.Id] IN (${workItemIds.join(', ')})`,
-          ])
-            .then((out) => {
-              for (const wi of parseJson<AzWorkItem[]>(out) ?? []) {
-                const state = wi.fields['System.State'] ?? '';
-                if (CLOSED_STATES.includes(state)) closedState.set(`workitem/${wi.id}`, state);
-              }
-            })
-            .catch((err) => {
-              if (!(err instanceof AzError)) throw err;
-              warnings.push(`Checking imported work items: ${err.message}`);
-            }),
-        ...prIds.map((id) =>
-          az(['repos', 'pr', 'show', ...scope, '--id', id])
-            .then((out) => {
-              const pr = parseJson<AzPullRequest>(out);
-              if (pr.status === 'completed') closedState.set(`pr/${id}`, 'Completed');
-              if (pr.status === 'abandoned') closedState.set(`pr/${id}`, 'Abandoned');
-            })
-            .catch((err) => {
-              if (!(err instanceof AzError)) throw err;
-              warnings.push(`Checking pull request ${id}: ${err.message}`);
-            })
-        ),
-      ]);
-
-      const result: AdoFetchResult = {
-        items: [...found.values()].map((item) => ({ ...item, taskId: taskByExternalId.get(item.externalId) ?? null })),
-        closed: unfinished.flatMap((t) => {
-          const state = closedState.get(t.externalId!);
-          return state
-            ? [{ taskId: t.id, title: t.title, externalId: t.externalId!, url: t.externalUrl, state }]
-            : [];
-        }),
-        warnings,
-      };
-      return result;
-    } catch (err) {
-      return sendAzError(reply, err);
+  /** Open work assigned to me, plus imported tasks whose source has closed. */
+  const fetchItems = async (): Promise<AdoFetchResult> => {
+    const org = await resolveOrg();
+    const scope = ['--org', org, '--detect', 'false', '--output', 'json'];
+    const settings = readSettings(db.$client);
+    const allLinks = listAdoProjectLinks(db);
+    const linkedOnly = settings.adoLinkedProjectsOnly;
+    const links = linkedOnly ? allLinks.filter((l) => l.projectId) : allLinks;
+    const lower = (list: string[]) => list.map((t) => t.toLowerCase());
+    const typesFor = (project: string) =>
+      lower(linkFor(allLinks, project)?.workItemTypes ?? settings.adoWorkItemTypes);
+    const ignoredFor = (project: string) =>
+      lower(linkFor(allLinks, project)?.ignoredStates ?? settings.adoIgnoredStates);
+    const warnings: string[] = [];
+    if (linkedOnly && links.length === 0) {
+      warnings.push('No Azure DevOps project is mapped to a Dashboard project, so no work was fetched.');
     }
+
+    // PRs can only be listed per project, so only mapped projects are searched
+    const listPrs = async (project: string, filter: string[]) => {
+      try {
+        return parseJson<AzPullRequest[]>(
+          await az(['repos', 'pr', 'list', ...scope, '--project', project, '--status', 'active', ...filter])
+        );
+      } catch (err) {
+        if (!(err instanceof AzError)) throw err;
+        warnings.push(`${project}: ${err.message}`);
+        return [];
+      }
+    };
+
+    const [workItems, me, prLists] = await Promise.all([
+      linkedOnly && links.length === 0
+        ? []
+        : az([
+            'boards', 'query', ...scope, '--wiql',
+            openWorkItemsWiql(linkedOnly ? links.map((l) => l.adoProject) : undefined),
+          ]).then((out) => parseJson<AzWorkItem[]>(out)),
+      az(['account', 'show', '--query', 'user.name', '--output', 'tsv']).then((out) => out.trim()),
+      Promise.all(
+        links.map(async (l) => ({
+          authored: await listPrs(l.adoProject, ['--creator', 'me']),
+          reviewing: await listPrs(l.adoProject, ['--reviewer', 'me']),
+        }))
+      ),
+    ]);
+
+    const found = new Map<string, AdoItem>();
+    for (const wi of workItems ?? []) {
+      const item = workItemToItem(org, wi);
+      if (
+        typesFor(item.adoProject).includes(item.type.toLowerCase()) &&
+        !ignoredFor(item.adoProject).includes(item.state.toLowerCase())
+      ) {
+        found.set(item.externalId, item);
+      }
+    }
+    for (const { authored, reviewing } of prLists) {
+      for (const pr of authored) found.set(`pr/${pr.pullRequestId}`, pullRequestToItem(org, pr, 'author'));
+      for (const pr of reviewing) {
+        const id = `pr/${pr.pullRequestId}`;
+        if (!found.has(id) && awaitsMyVote(pr, me)) found.set(id, pullRequestToItem(org, pr, 'reviewer'));
+      }
+    }
+
+    const imported = db
+      .select({
+        id: tasks.id,
+        title: tasks.title,
+        status: tasks.status,
+        externalId: tasks.externalId,
+        externalUrl: tasks.externalUrl,
+      })
+      .from(tasks)
+      .where(eq(tasks.externalSource, 'ado'))
+      .all();
+    const taskByExternalId = new Map(imported.map((t) => [t.externalId, t.id]));
+
+    // Unfinished imported tasks that dropped off the open list: look up their source's state
+    const unfinished = imported.filter(
+      (t) => (t.status === 'todo' || t.status === 'in_progress') && t.externalId && !found.has(t.externalId)
+    );
+    const closedState = new Map<string, string>();
+    const workItemIds = unfinished.flatMap((t) => /^workitem\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
+    const prIds = unfinished.flatMap((t) => /^pr\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
+    await Promise.all([
+      workItemIds.length > 0 &&
+        az([
+          'boards', 'query', ...scope, '--wiql',
+          'SELECT [System.Id], [System.State], [System.TeamProject] FROM WorkItems ' +
+            `WHERE [System.Id] IN (${workItemIds.join(', ')})`,
+        ])
+          .then((out) => {
+            // An ignored state (e.g. Ready for QA) means the work is off my plate, as closed does
+            for (const wi of parseJson<AzWorkItem[]>(out) ?? []) {
+              const state = wi.fields['System.State'] ?? '';
+              const project = wi.fields['System.TeamProject'] ?? '';
+              if (CLOSED_STATES.includes(state) || ignoredFor(project).includes(state.toLowerCase())) {
+                closedState.set(`workitem/${wi.id}`, state);
+              }
+            }
+          })
+          .catch((err) => {
+            if (!(err instanceof AzError)) throw err;
+            warnings.push(`Checking imported work items: ${err.message}`);
+          }),
+      ...prIds.map((id) =>
+        az(['repos', 'pr', 'show', ...scope, '--id', id])
+          .then((out) => {
+            const pr = parseJson<AzPullRequest>(out);
+            if (pr.status === 'completed') closedState.set(`pr/${id}`, 'Completed');
+            if (pr.status === 'abandoned') closedState.set(`pr/${id}`, 'Abandoned');
+          })
+          .catch((err) => {
+            if (!(err instanceof AzError)) throw err;
+            warnings.push(`Checking pull request ${id}: ${err.message}`);
+          })
+      ),
+    ]);
+
+    return {
+      items: [...found.values()].map((item) => ({ ...item, taskId: taskByExternalId.get(item.externalId) ?? null })),
+      closed: unfinished.flatMap((t) => {
+        const state = closedState.get(t.externalId!);
+        return state
+          ? [{ taskId: t.id, title: t.title, externalId: t.externalId!, url: t.externalUrl, state }]
+          : [];
+      }),
+      warnings,
+    };
+  };
+
+  // One check at a time: a slow az run is shared rather than started again
+  let running: Promise<void> | null = null;
+  const check = () =>
+    (running ??= (async () => {
+      const previous = readSyncState(db);
+      try {
+        const result = await fetchItems();
+        writeValue(db, SYNC_KEY, { result, checkedAt: Date.now(), error: null, lastErrorAt: null } satisfies SyncState);
+      } catch (err) {
+        const error = err instanceof AzError ? err.message : 'The Azure DevOps check failed unexpectedly.';
+        writeValue(db, SYNC_KEY, { ...previous, error, lastErrorAt: Date.now() } satisfies SyncState);
+        throw err;
+      }
+    })().finally(() => {
+      running = null;
+    }));
+
+  /** The stored result, with imports and completions made since the check applied. */
+  const syncResult = (): AdoSyncResult => {
+    const state = readSyncState(db);
+    const imported = db
+      .select({ id: tasks.id, title: tasks.title, status: tasks.status, externalId: tasks.externalId })
+      .from(tasks)
+      .where(eq(tasks.externalSource, 'ado'))
+      .all();
+    const byExternalId = new Map(imported.map((t) => [t.externalId, t.id]));
+    const unfinished = new Map(
+      imported.filter((t) => t.status === 'todo' || t.status === 'in_progress').map((t) => [t.id, t])
+    );
+    return {
+      items: (state.result?.items ?? []).map((item) => ({ ...item, taskId: byExternalId.get(item.externalId) ?? null })),
+      closed: (state.result?.closed ?? []).flatMap((c) => {
+        const task = unfinished.get(c.taskId);
+        return task ? [{ ...c, title: task.title }] : [];
+      }),
+      warnings: state.result?.warnings ?? [],
+      checkedAt: state.checkedAt,
+      error: state.error,
+      lastErrorAt: state.lastErrorAt,
+    };
+  };
+
+  // GET /api/ado/items?refresh=1 — the last check's result; refresh=1 (or no check yet) checks now
+  app.get<{ Querystring: { refresh?: string } }>('/api/ado/items', async (request, reply) => {
+    if (request.query.refresh === '1' || readSyncState(db).checkedAt === null) {
+      try {
+        await check();
+      } catch (err) {
+        return sendAzError(reply, err);
+      }
+    }
+    return syncResult();
   });
+
+  // Background check. Due once the interval has passed since the last attempt, failed or not, so a
+  // missing or signed-out az is retried at the interval rather than on every tick.
+  if (options.backgroundSync) {
+    const tick = () => {
+      const minutes = readSettings(db.$client).adoSyncMinutes;
+      const { checkedAt, lastErrorAt } = readSyncState(db);
+      const last = Math.max(checkedAt ?? 0, lastErrorAt ?? 0);
+      if (minutes === 0 || Date.now() - last < minutes * 60_000) return;
+      check().catch((err) => {
+        if (!(err instanceof AzError)) app.log.error(err, 'Azure DevOps check failed');
+      });
+    };
+    const startup = setTimeout(tick, SYNC_STARTUP_DELAY_MS).unref();
+    const timer = setInterval(tick, SYNC_TICK_MS).unref();
+    app.addHook('onClose', async () => {
+      clearTimeout(startup);
+      clearInterval(timer);
+    });
+  }
 
   // POST /api/ado/import — creates a task per item; items already imported are skipped
   app.post('/api/ado/import', async (request, reply) => {

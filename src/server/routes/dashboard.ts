@@ -384,6 +384,7 @@ export async function registerDashboardRoutes(
               adoProject: link.adoProject,
               projectId: projectExists ? link.projectId : null,
               workItemTypes: link.workItemTypes ? JSON.stringify(link.workItemTypes) : null,
+              ignoredStates: link.ignoredStates ? JSON.stringify(link.ignoredStates) : null,
             })
             .onConflictDoNothing()
             .run();

@@ -12,6 +12,7 @@ import {
   staleTasks,
 } from '../utils/taskUtils.ts';
 import { ClaudeSessionBadge, TaskStatusCheckbox } from './TaskRow.tsx';
+import { useAdoSync } from './AdoImport.tsx';
 
 /** What the Overview's task widgets need to show and act on tasks. */
 export interface TaskWidgetActions {
@@ -208,6 +209,14 @@ export const StaleCard: React.FC<{ tasks: Task[]; days: number; actions: TaskWid
 /** Open imported Azure DevOps tasks and when the newest one was imported. */
 export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> = ({ tasks, onOpenAdoImport }) => {
   const { openWorkItems, openPullRequests, lastImportAt } = adoSummary(tasks);
+  const { data } = useAdoSync();
+  const items = data?.items ?? [];
+  // From the last background check: what needs a look in the import dialog
+  const pending: [string, number][] = [
+    ['New items', items.filter((i) => !i.taskId && i.role !== 'reviewer').length],
+    ['Reviews', items.filter((i) => i.role === 'reviewer').length],
+    ['Closed', data?.closed.length ?? 0],
+  ];
 
   return (
     <div className={cardClass}>
@@ -215,7 +224,12 @@ export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> =
         icon={<GitPullRequest className="w-4 h-4" />}
         iconClass="bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400"
         title="Azure DevOps"
-        subtitle={lastImportAt === null ? 'Nothing imported yet' : `Last import ${formatRelativeTime(lastImportAt)}`}
+        subtitle={[
+          data?.checkedAt ? `Checked ${formatRelativeTime(data.checkedAt)}` : null,
+          lastImportAt === null ? 'Nothing imported yet' : `Last import ${formatRelativeTime(lastImportAt)}`,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
       >
         <button
           type="button"
@@ -226,6 +240,28 @@ export const AdoCard: React.FC<{ tasks: Task[]; onOpenAdoImport: () => void }> =
           <span>Import</span>
         </button>
       </CardHeader>
+      {data?.error && (
+        <p className="text-xs text-amber-700 dark:text-amber-300 truncate" title={data.error}>
+          {data.error}
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2">
+        {pending.map(([label, count]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onOpenAdoImport}
+            className={`px-3 py-2 rounded-xl text-left cursor-pointer border ${
+              count > 0
+                ? 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-900 hover:border-sky-400'
+                : 'bg-zinc-50 dark:bg-zinc-800/50 border-transparent hover:border-zinc-300 dark:hover:border-zinc-700'
+            }`}
+          >
+            <span className="block text-[11px] text-zinc-500 dark:text-zinc-400">{label}</span>
+            <span className="block text-xl font-bold">{count}</span>
+          </button>
+        ))}
+      </div>
       <dl className="grid grid-cols-2 gap-3">
         {[
           ['Open work items', openWorkItems],

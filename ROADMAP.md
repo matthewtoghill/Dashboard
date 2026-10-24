@@ -12,7 +12,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
 | 5 | Calendar view | **Done** (branch `roadmap/calendar`) |
 | 6 | Task activity log | **Done** (branch `roadmap/activity-log`) |
-| 7 | Automatic Azure DevOps sync check | Proposed |
+| 7 | Automatic Azure DevOps sync check | **Done** (branch `roadmap/ado-sync`) |
 | 8 | Weekly review view | Proposed |
 | 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
 
@@ -234,6 +234,18 @@ Check Azure DevOps in the background so new work and closed items show up withou
 - Default interval: 15, 30 or 60 minutes?
 - Should "new" mean not imported, or not seen since the last time the dialog was opened? The latter needs a stored list of dismissed ids.
 - Should the import dialog refetch on open as it does now, or show the cached result with a "Refresh" button?
+
+### Decisions
+
+- Checks every 30 minutes by default (Off, 15, 30, 60 or 120 in Settings > Integrations). The server looks once a minute whether a check is due, starting 10 seconds after startup, so a check that fell due while it was down runs soon. One check runs at a time.
+- The last result is stored under `ado_sync` in `key_value_store`. `GET /api/ado/items` serves it, with task links and the closed list re-read from the database so imports and completions show at once; `?refresh=1` checks now. A failed check keeps the previous result and stores the error, shown in Settings, the Overview card and the dialog. A failing `az` is retried at the interval, not every minute.
+- "New" means not imported. No dismissed list.
+- The import dialog opens on the stored result, with its age and a Refresh button.
+- The Overview's Azure DevOps card shows New items, Reviews and Closed counts from the last check; each opens the dialog.
+- **Ignored states** (for example Ready for QA, In UAT): a default list in Settings, and a per-mapping override (`ado_project_links.ignored_states`, migration 7). Work items in an ignored state are left out, and an imported task whose item reaches one is listed under "Closed in Azure DevOps", like Done. State pickers use the states Azure DevOps reports for the types, cached with them.
+- **Linked projects only** setting: work items and pull requests are fetched only for ADO projects mapped to a Dashboard project. With none mapped, nothing is fetched and a warning says why.
+- **Project panel:** a project view with a mapped ADO project, or any project once Azure DevOps is in use, shows a collapsible "Azure DevOps" section above the task list: that project's items with filter, type and state filters, grouping (type, state, project), sorting, "Show imported", import, refresh, and the closed list. Its gear links and unlinks ADO projects and edits their types and ignored states; saving a change checks again. Open or collapsed is remembered per browser.
+- Export stays version 6; mappings gain `ignoredStates`, which older backups read as null.
 
 ## 8. Weekly Review View
 

@@ -52,6 +52,7 @@ import { CommandPalette } from './components/CommandPalette.tsx';
 import { DashboardWidgets } from './components/DashboardWidgets.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
+import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
@@ -542,6 +543,10 @@ export const App: React.FC = () => {
   );
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
+  const currentProject =
+    activeNav.type === 'project' ? projects.find((p) => p.id === activeNav.id) : undefined;
+  const showAdoImported = (count: number) =>
+    showToast(count === 1 ? 'Imported 1 task from Azure DevOps' : `Imported ${count} tasks from Azure DevOps`);
   const { rowFocusProps, startEditing } = useTaskListKeyboard({
     tasks,
     visibleOrder,
@@ -799,6 +804,16 @@ export const App: React.FC = () => {
                 {...widgetProps}
               />
 
+              {currentProject && (
+                <AdoProjectPanel
+                  key={currentProject.id}
+                  project={currentProject}
+                  tasks={tasks}
+                  onImported={showAdoImported}
+                  onOpenTask={claudeSessionActions.onOpenTask}
+                />
+              )}
+
               <TaskListToolbar
                 view={view}
                 updateView={updateView}
@@ -1054,9 +1069,7 @@ export const App: React.FC = () => {
         open={adoImportOpen}
         onClose={() => setAdoImportOpen(false)}
         projects={projects}
-        onImported={(count) =>
-          showToast(count === 1 ? 'Imported 1 task from Azure DevOps' : `Imported ${count} tasks from Azure DevOps`)
-        }
+        onImported={showAdoImported}
       />
 
       <ConfirmDialog request={confirmRequest} onClose={() => setConfirmRequest(null)} />

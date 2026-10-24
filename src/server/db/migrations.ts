@@ -122,6 +122,11 @@ export const MIGRATIONS: string[] = [
     );
     CREATE INDEX idx_task_events_task ON task_events(task_id, at);
   `,
+
+  // 7: Azure DevOps sync check. A mapped project can override the ignored states setting.
+  `
+    ALTER TABLE ado_project_links ADD COLUMN ignored_states TEXT;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */
