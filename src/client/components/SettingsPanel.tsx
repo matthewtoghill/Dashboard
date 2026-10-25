@@ -26,7 +26,6 @@ const WIDGET_LABELS: [keyof WidgetConfig, string][] = [
   ['showScratchpad', 'Quick scratchpad'],
   ['showTrends', 'Trends & project progress'],
   ['showQuickLinks', 'Quick links launcher'],
-  ['showHeaderSummary', 'Summary bar in task views'],
   ['showAgenda', 'Up next agenda'],
   ['showInProgress', 'In progress tasks'],
   ['showStale', 'Stale tasks'],

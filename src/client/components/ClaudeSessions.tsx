@@ -22,17 +22,6 @@ export const STATE_STYLES: Record<ClaudeSessionState, { label: string; className
   },
 };
 
-export const SESSION_ROW_BADGE_STYLES: Record<ClaudeSessionState, string> = {
-  needs_attention:
-    'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/50',
-  running:
-    'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50',
-  idle:
-    'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50',
-  ended:
-    'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200/70 dark:border-zinc-700/70 hover:text-indigo-600 dark:hover:text-indigo-400',
-};
-
 // Needs attention first, then by latest activity (the server already sorts by activity)
 const STATE_ORDER: ClaudeSessionState[] = ['needs_attention', 'running', 'idle', 'ended'];
 

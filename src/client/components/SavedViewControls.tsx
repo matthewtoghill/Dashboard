@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Bookmark, Check, X } from 'lucide-react';
+import { BookmarkPlus, Check, X } from 'lucide-react';
 import { SavedView } from '../../shared/types.ts';
 
 const buttonClass =
-  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer';
+  'inline-flex items-center gap-1.5 px-[9px] py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 cursor-pointer';
 
 /** Inline name input used to save and rename views. Enter saves, Escape cancels. */
 export const ViewNameInput: React.FC<{
@@ -96,7 +96,7 @@ export const SavedViewControls: React.FC<{
 
   return (
     <button type="button" onClick={() => setNaming(true)} className={buttonClass}>
-      <Bookmark className="w-3.5 h-3.5" />
+      <BookmarkPlus className="w-[13px] h-[13px]" />
       <span>Save view</span>
     </button>
   );

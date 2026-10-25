@@ -4,14 +4,15 @@ import { Recurrence, parseRecurrenceToken } from '../../shared/recurrence.ts';
 
 export const PRIORITY_CONFIG: Record<
   TaskPriority,
-  { label: string; shortLabel: string; badgeClass: string; dotClass: string }
+  { label: string; shortLabel: string; badgeClass: string; dotClass: string; textClass: string }
 > = {
   0: {
     label: 'No Priority',
     shortLabel: 'None',
     badgeClass:
       'text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-700/60',
-    dotClass: 'bg-zinc-400',
+    dotClass: 'bg-zinc-400 dark:bg-zinc-600',
+    textClass: 'text-zinc-500',
   },
   1: {
     label: 'Low',
@@ -19,6 +20,7 @@ export const PRIORITY_CONFIG: Record<
     badgeClass:
       'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/50 border-sky-200 dark:border-sky-800/60',
     dotClass: 'bg-sky-500',
+    textClass: 'text-sky-700 dark:text-sky-300',
   },
   2: {
     label: 'Medium',
@@ -26,6 +28,7 @@ export const PRIORITY_CONFIG: Record<
     badgeClass:
       'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60',
     dotClass: 'bg-amber-500',
+    textClass: 'text-amber-700 dark:text-amber-300',
   },
   3: {
     label: 'High',
@@ -33,6 +36,7 @@ export const PRIORITY_CONFIG: Record<
     badgeClass:
       'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/50 border-orange-200 dark:border-orange-800/60',
     dotClass: 'bg-orange-500',
+    textClass: 'text-orange-700 dark:text-orange-300',
   },
   4: {
     label: 'Urgent',
@@ -40,6 +44,7 @@ export const PRIORITY_CONFIG: Record<
     badgeClass:
       'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60',
     dotClass: 'bg-red-500',
+    textClass: 'text-red-700 dark:text-red-300',
   },
 };
 
@@ -77,18 +82,14 @@ export function getTomorrowIso(): string {
 
 export type DueDateState = 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'none';
 
+/** Label and pill colours for a due date (the due pill in list rows). */
 export function getDueDateInfo(dueDate: string | null): {
   label: string;
   state: DueDateState;
   badgeClass: string;
 } {
   if (!dueDate) {
-    return {
-      label: 'No date',
-      state: 'none',
-      badgeClass:
-        'text-zinc-400 dark:text-zinc-500 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800',
-    };
+    return { label: 'No date', state: 'none', badgeClass: 'text-zinc-400 dark:text-zinc-600' };
   }
 
   const today = getTodayIso();
@@ -96,34 +97,30 @@ export function getDueDateInfo(dueDate: string | null): {
 
   if (dueDate < today) {
     return {
-      label: `Overdue (${formatShortDate(dueDate)})`,
+      label: formatShortDate(dueDate),
       state: 'overdue',
-      badgeClass:
-        'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60',
+      badgeClass: 'text-red-700 dark:text-red-300 bg-red-500/12',
     };
   }
   if (dueDate === today) {
     return {
       label: 'Today',
       state: 'today',
-      badgeClass:
-        'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60',
+      badgeClass: 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/12',
     };
   }
   if (dueDate === tomorrow) {
     return {
       label: 'Tomorrow',
       state: 'tomorrow',
-      badgeClass:
-        'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/60',
+      badgeClass: 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/15',
     };
   }
 
   return {
-    label: formatShortDate(dueDate),
+    label: formatDayDate(dueDate),
     state: 'upcoming',
-    badgeClass:
-      'text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700',
+    badgeClass: 'text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800',
   };
 }
 

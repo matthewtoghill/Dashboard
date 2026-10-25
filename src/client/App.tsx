@@ -4,9 +4,7 @@ import {
   SquareCheckBig,
   Sun,
   Moon,
-  ChevronDown,
   ChevronRight,
-  Sparkles,
   AlertCircle,
   Search,
   X,
@@ -66,7 +64,7 @@ import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
 import { TaskListToolbar } from './components/TaskListToolbar.tsx';
 import { ContextMenuHost, MenuContent } from './components/ContextMenu.tsx';
-import { KBD_CLASS } from './components/ui.tsx';
+import { KBD_CLASS, LABEL_CLASS } from './components/ui.tsx';
 import { projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
 import {
   ConfirmDialog,
@@ -97,6 +95,34 @@ import {
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
 const SIDEBAR_KEY = 'dashboard_sidebar_open';
+
+/** Group label colours by section key (due-date and status groups). */
+const GROUP_LABEL_COLORS: Record<string, string> = {
+  'due-overdue': 'text-red-600 dark:text-red-400',
+  'due-today': 'text-emerald-600 dark:text-emerald-300',
+  'due-tomorrow': 'text-indigo-600 dark:text-indigo-300',
+  'due-none': 'text-zinc-500',
+  'status-in_progress': 'text-amber-600 dark:text-amber-400',
+};
+
+/** "› Later 6": a collapsible list toggle in the task list footer. */
+const FooterToggle: React.FC<{ label: string; count: number; open: boolean; onToggle: () => void }> = ({
+  label,
+  count,
+  open,
+  onToggle,
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-expanded={open}
+    className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+  >
+    <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+    <span>{label}</span>
+    <span className="text-zinc-400 dark:text-zinc-600">{count}</span>
+  </button>
+);
 
 export const App: React.FC = () => {
   const queryClient = useQueryClient();
@@ -145,6 +171,8 @@ export const App: React.FC = () => {
   const [newProjectId, setNewProjectId] = useState<string>('');
 
   const [showCompleted, setShowCompleted] = useState(true);
+  // The "Later" due-date bucket (over 7 days out) starts collapsed
+  const [showLater, setShowLater] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adoImportOpen, setAdoImportOpen] = useState(false);
   const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
@@ -549,10 +577,9 @@ export const App: React.FC = () => {
       ? 'Calendar'
       : viewTitle(activeNav, projects);
 
-  const visibleOrder = useMemo(
-    () => visibleTaskOrder(taskList, showCompleted),
-    [taskList, showCompleted]
-  );
+  const laterSection = groupedSections.find((s) => s.key === 'due-later') ?? null;
+  const shownSections = showLater ? groupedSections : groupedSections.filter((s) => s !== laterSection);
+  const visibleOrder = visibleTaskOrder({ ...taskList, sections: shownSections }, showCompleted);
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
   const currentProject =
@@ -632,6 +659,16 @@ export const App: React.FC = () => {
     onUpdateWidgetConfig: (cfg) => saveWidgetConfigMutation.mutate(cfg),
     onSelectSmartView: (v) => setActiveNav({ type: 'smart', id: v }),
   };
+  const listMeta = isCompletedView
+    ? plural(completedFilteredTasks.length, 'completed task')
+    : isArchiveView
+    ? plural(activeFilteredTasks.length, 'archived task')
+    : currentProject
+    ? `${activeFilteredTasks.length} open`
+    : `${plural(activeFilteredTasks.length, 'task')} · ${plural(
+        new Set(activeFilteredTasks.map((t) => t.projectId).filter(Boolean)).size,
+        'project'
+      )}`;
   const viewScope =
     activeNav.type === 'smart' && (activeNav.id === 'inbox' || activeNav.id === 'completed')
       ? 'across all projects'
@@ -751,8 +788,12 @@ export const App: React.FC = () => {
         )}
 
         {/* Main Content */}
-        <main className="@container relative flex-1 overflow-y-auto">
-          <div className="max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 space-y-6">
+        <main className="relative flex-1 min-w-0 overflow-y-auto">
+          <div
+            className={`px-10 max-[900px]:px-5 flex flex-col ${
+              isOverviewPage ? 'py-7 gap-[22px] min-h-full' : 'py-6 gap-3.5'
+            }`}
+          >
           {isOverviewPage ? (
             <>
               <ClaudeSessionsCard
@@ -777,34 +818,14 @@ export const App: React.FC = () => {
             </>
           ) : (
             <>
-              {/* Collapsible Summary Widgets Bar above Task Views */}
-              <DashboardWidgets
-                mode="compact"
-                {...widgetProps}
-              />
-
-              {currentProject && (
-                <AdoProjectPanel
-                  key={currentProject.id}
-                  project={currentProject}
-                  tasks={tasks}
-                  onImported={showAdoImported}
-                  onOpenTask={claudeSessionActions.onOpenTask}
-                  onOpenSettings={() => setProjectSettingsId(currentProject.id)}
-                />
-              )}
-
               <TaskListToolbar
                 view={view}
                 updateView={updateView}
                 title={currentViewTitle}
-                projects={projects}
+                meta={listMeta}
+                projectColor={currentProject?.color}
                 isCalendar={isCalendar}
                 activeCount={activeFilteredTasks.length}
-                completedCount={completedFilteredTasks.length}
-                onArchiveCompleted={() =>
-                  requestArchiveCompleted(completedFilteredTasks, 'shown in this view')
-                }
                 onRestoreAll={() => handleRestoreTasks(activeFilteredTasks)}
                 onDeleteAll={() => requestDeleteArchived(activeFilteredTasks)}
                 onOpenProjectSettings={currentProject && (() => setProjectSettingsId(currentProject.id))}
@@ -818,6 +839,17 @@ export const App: React.FC = () => {
                   />
                 }
               />
+
+              {currentProject && (
+                <AdoProjectPanel
+                  key={currentProject.id}
+                  project={currentProject}
+                  tasks={tasks}
+                  onImported={showAdoImported}
+                  onOpenTask={claudeSessionActions.onOpenTask}
+                  onOpenSettings={() => setProjectSettingsId(currentProject.id)}
+                />
+              )}
 
               {!isCompletedView && !isArchiveView && (
                 <QuickAddBar
@@ -839,7 +871,6 @@ export const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Grouped / Active Tasks Sections */}
               {isCalendar ? (
                 <CalendarView
                   tasks={filteredTasks}
@@ -854,116 +885,118 @@ export const App: React.FC = () => {
                   onQuickAdd={(text, dueDate) => createTaskFromText(text, newProjectId || null, dueDate)}
                 />
               ) : isLoading ? (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-1.5 pt-1.5">
                   {[1, 2, 3].map((n) => (
-                    <div
-                      key={n}
-                      className="h-12 rounded-lg bg-zinc-200/50 dark:bg-zinc-900/50 animate-pulse"
-                    />
+                    <div key={n} className="h-9 rounded-md bg-zinc-200/60 dark:bg-zinc-900 animate-pulse" />
                   ))}
-                </div>
-              ) : groupedSections.every((g) => g.tasks.length === 0) ? (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800/80 bg-white/40 dark:bg-zinc-900/20">
-                  <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    No tasks match this view
-                  </p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                    {searchQuery || priorityFilter !== 'all'
-                      ? 'Try clearing your search or priority filter.'
-                      : 'Add a task above to get started.'}
-                  </p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {groupedSections.map((group) => (
-                    <section key={group.key} className="space-y-2">
-                      <TaskListHeader>
-                        <h3>
-                          {group.label} ({group.tasks.length})
-                        </h3>
-                      </TaskListHeader>
-                      <ReorderableTaskList
-                        tasks={group.tasks}
-                        enabled={canReorder}
-                        onMove={(taskId, targetIndex) =>
-                          handleMoveTask(group.tasks, taskId, targetIndex)
-                        }
-                        renderRow={(task, dragHandle) => (
-                          <TaskRow
-                            task={task}
-                            projects={projects}
-                            claudeSessions={claudeSessionsByTaskId.get(task.id)}
-                            onOpenSession={claudeSessionActions.onOpen}
-                            isSelected={selectedTaskId === task.id}
-                            onSelect={(t) => setSelectedTaskId(t.id)}
-                            onToggle={handleToggleTask}
-                            onUpdate={handleUpdateTask}
-                            onDelete={handleDeleteTask}
-                            onArchive={handleArchiveTask}
-                            onRestore={(t) => handleRestoreTasks([t])}
-                            dragHandle={dragHandle}
-                            {...rowFocusProps(task)}
-                          />
+                <div>
+                  <TaskListHeader showProject={!currentProject} />
+                  {groupedSections.every((g) => g.tasks.length === 0) ? (
+                    <p className="py-10 text-center text-[13px] text-zinc-500 border-t border-zinc-200/70 dark:border-zinc-800/50 mt-1.5">
+                      {searchQuery || priorityFilter !== 'all'
+                        ? 'No tasks match these filters.'
+                        : isCompletedView
+                        ? 'No completed tasks.'
+                        : isArchiveView
+                        ? 'The archive is empty.'
+                        : 'No active tasks. Add one above.'}
+                    </p>
+                  ) : (
+                    shownSections.map((group) => (
+                      <section key={group.key} aria-label={groupBy === 'none' ? undefined : group.label}>
+                        {groupBy !== 'none' && (
+                          <h3 className={`px-2 pt-3 pb-1.5 ${LABEL_CLASS} ${GROUP_LABEL_COLORS[group.key] ?? 'text-zinc-600 dark:text-zinc-400'}`}>
+                            {group.label}{' '}
+                            <span className="ml-1 font-normal text-zinc-400 dark:text-zinc-600">{group.tasks.length}</span>
+                          </h3>
                         )}
-                      />
-                    </section>
-                  ))}
+                        <ReorderableTaskList
+                          tasks={group.tasks}
+                          enabled={canReorder}
+                          onMove={(taskId, targetIndex) => handleMoveTask(group.tasks, taskId, targetIndex)}
+                          renderRow={(task, dragHandle) => (
+                            <TaskRow
+                              task={task}
+                              projects={projects}
+                              showProject={!currentProject}
+                              claudeSessions={claudeSessionsByTaskId.get(task.id)}
+                              onOpenSession={claudeSessionActions.onOpen}
+                              isSelected={selectedTaskId === task.id}
+                              onSelect={(t) => setSelectedTaskId(t.id)}
+                              onToggle={handleToggleTask}
+                              onUpdate={handleUpdateTask}
+                              onDelete={handleDeleteTask}
+                              onArchive={handleArchiveTask}
+                              onRestore={(t) => handleRestoreTasks([t])}
+                              dragHandle={dragHandle}
+                              {...rowFocusProps(task)}
+                            />
+                          )}
+                        />
+                      </section>
+                    ))
+                  )}
+
+                  {/* Footer: Later and Completed toggles, and Archive completed */}
+                  {(laterSection || completedSection || (isCompletedView && completedFilteredTasks.length > 0)) && (
+                    <div className="flex items-center gap-2 p-2 border-t border-zinc-200/70 dark:border-zinc-800/50 text-xs text-zinc-500">
+                      {laterSection && (
+                        <FooterToggle
+                          label="Later"
+                          count={laterSection.tasks.length}
+                          open={showLater}
+                          onToggle={() => setShowLater((s) => !s)}
+                        />
+                      )}
+                      {completedSection && (
+                        <FooterToggle
+                          label="Completed"
+                          count={completedFilteredTasks.length}
+                          open={showCompleted}
+                          onToggle={() => setShowCompleted((s) => !s)}
+                        />
+                      )}
+                      {completedFilteredTasks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            requestArchiveCompleted(completedFilteredTasks, isCompletedView ? 'shown in this view' : viewScope)
+                          }
+                          className="ml-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                        >
+                          <Archive className="w-3 h-3" />
+                          <span>Archive completed</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {completedSection && showCompleted && (
+                    <div>
+                      {completedFilteredTasks.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          projects={projects}
+                          showProject={!currentProject}
+                          claudeSessions={claudeSessionsByTaskId.get(task.id)}
+                          onOpenSession={claudeSessionActions.onOpen}
+                          isSelected={selectedTaskId === task.id}
+                          onSelect={(t) => setSelectedTaskId(t.id)}
+                          onToggle={handleToggleTask}
+                          onUpdate={handleUpdateTask}
+                          onDelete={handleDeleteTask}
+                          onArchive={handleArchiveTask}
+                          onRestore={(t) => handleRestoreTasks([t])}
+                          {...rowFocusProps(task)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Completed Tasks Section */}
-              {completedSection && !isCalendar && (
-                  <section className="space-y-2 pt-3 border-t border-zinc-200/60 dark:border-zinc-800/60">
-                    <div className="flex items-center justify-between px-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowCompleted((s) => !s)}
-                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors cursor-pointer"
-                      >
-                        {showCompleted ? (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        )}
-                        <span>Completed ({completedFilteredTasks.length})</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => requestArchiveCompleted(completedFilteredTasks, viewScope)}
-                        className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors cursor-pointer"
-                      >
-                        <Archive className="w-3 h-3" />
-                        <span>Archive {completedFilteredTasks.length} completed</span>
-                      </button>
-                    </div>
-
-                    {showCompleted && (
-                      <div className="space-y-1.5">
-                        {completedFilteredTasks.map((task) => (
-                          <TaskRow
-                            key={task.id}
-                            task={task}
-                            projects={projects}
-                            claudeSessions={claudeSessionsByTaskId.get(task.id)}
-                            onOpenSession={claudeSessionActions.onOpen}
-                            isSelected={selectedTaskId === task.id}
-                            onSelect={(t) => setSelectedTaskId(t.id)}
-                            onToggle={handleToggleTask}
-                            onUpdate={handleUpdateTask}
-                            onDelete={handleDeleteTask}
-                            onArchive={handleArchiveTask}
-                            onRestore={(t) => handleRestoreTasks([t])}
-                            {...rowFocusProps(task)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                )}
             </>
           )}
           </div>
