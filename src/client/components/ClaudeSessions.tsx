@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bot, Check, Copy, ExternalLink, Link2, ListPlus, Unlink, X, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { ClaudeSession, ClaudeSessionState, Task } from '../../shared/types.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
@@ -311,13 +312,18 @@ const TaskLinkControls: React.FC<
         <Link2 className="w-3.5 h-3.5" />
         {!linkedTask && !compact && <span>Link task</span>}
       </button>
-      <TaskLinkDialog
-        session={dialogOpen ? session : null}
-        tasks={tasks}
-        onClose={() => setDialogOpen(false)}
-        onLink={onLink}
-        onCreateTask={onCreateTask}
-      />
+      {/* Portalled: the Home rail hides these controls with display: none when not hovered, which
+          would leave the open modal invisible and the page inert */}
+      {createPortal(
+        <TaskLinkDialog
+          session={dialogOpen ? session : null}
+          tasks={tasks}
+          onClose={() => setDialogOpen(false)}
+          onLink={onLink}
+          onCreateTask={onCreateTask}
+        />,
+        document.body
+      )}
     </>
   );
 };
