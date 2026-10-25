@@ -675,7 +675,7 @@ export const App: React.FC = () => {
                   : {}),
               })
             }
-            placeholder="Search tasks or run a command…"
+            placeholder="Search tasks or run a commandâ€¦"
             aria-label="Search tasks"
             className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
