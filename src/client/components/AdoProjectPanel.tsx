@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Link2Off, RefreshCw, Settings2 } from 'lucide-react';
+import {
+  Bug,
+  Check,
+  ChevronDown,
+  Download,
+  GitPullRequest,
+  Link2Off,
+  RefreshCw,
+  SquareCheck,
+  type LucideIcon,
+} from 'lucide-react';
 import { AdoItem, Project, Task } from '../../shared/types.ts';
 import { fetchAdoProjectLinks } from '../api.ts';
+import { formatRelativeTime } from '../utils/taskUtils.ts';
 import {
   AdoClosedList,
-  AdoSyncStatus,
   buttonClass,
   externalLinkLabel,
   externalShortLabel,
@@ -20,8 +30,6 @@ type PanelItem = AdoItem & { taskId: string | null };
 type GroupBy = 'none' | 'type' | 'state' | 'adoProject';
 type SortBy = 'id' | 'title' | 'type' | 'state';
 
-const GROUP_LABELS: Record<GroupBy, string> = { none: 'No grouping', type: 'Type', state: 'State', adoProject: 'Project' };
-const SORT_LABELS: Record<SortBy, string> = { id: 'Newest', title: 'Title', type: 'Type', state: 'State' };
 const OPEN_KEY = 'dashboard_ado_panel_open';
 
 const itemNumber = (item: PanelItem) => Number(item.externalId.split('/')[1]);
@@ -55,9 +63,6 @@ export function arrangeAdoItems(
   }
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
-
-const selectClass =
-  'px-2 py-1 rounded-lg text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:border-indigo-400 cursor-pointer';
 
 /**
  * The project settings dialog's Azure DevOps mappings: link and unlink ADO projects, and set their
@@ -166,30 +171,39 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
   );
 };
 
+/** Type cell: colour, icon and short label for a panel item. */
+function typeStyle(item: PanelItem): { label: string; icon: LucideIcon; className: string } {
+  if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-300' };
+  if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-300' };
+  if (item.externalId.startsWith('pr/')) return { label: 'PR', icon: GitPullRequest, className: 'text-sky-700 dark:text-sky-300' };
+  return {
+    label: item.type === 'Product Backlog Item' ? 'PBI' : item.type,
+    icon: SquareCheck,
+    className: 'text-sky-700 dark:text-sky-300',
+  };
+}
+
+const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_70px] gap-3 items-center';
+
 /**
- * A project view's Azure DevOps section: items from the last check for the ADO projects mapped to
- * this project, with import and refresh. Hidden when the project has none or has Azure DevOps off.
+ * A project view's Azure DevOps inbox: items from the last check for the ADO projects mapped to
+ * this project and not yet imported. New work items start ticked; Import brings in the ticked ones.
+ * Hidden when the project has none or has Azure DevOps off.
  */
 export const AdoProjectPanel: React.FC<{
   project: Project;
   tasks: Task[];
   onImported: (count: number) => void;
-  onOpenTask: (taskId: string) => void;
-  onOpenSettings: () => void;
-}> = ({ project, tasks, onImported, onOpenTask, onOpenSettings }) => {
-  const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== '0');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
-  const [type, setType] = useState('');
-  const [state, setState] = useState('');
-  const [showImported, setShowImported] = useState(false);
-  const [sortBy, setSortBy] = useState<SortBy>('id');
-  const [groupBy, setGroupBy] = useState<GroupBy>('none');
+}> = ({ project, tasks, onImported }) => {
+  const openKey = `${OPEN_KEY}_${project.id}`;
+  const [open, setOpen] = useState(() => (localStorage.getItem(openKey) ?? localStorage.getItem(OPEN_KEY)) !== '0');
+  // Ticks the user changed, for the check they were made against; a new check starts over
+  const [picked, setPicked] = useState<{ checkedAt: number | null; ids: Set<string> } | null>(null);
 
   const { data, refresh } = useAdoSync();
   const { data: links = [] } = useQuery({ queryKey: ['adoProjectLinks'], queryFn: fetchAdoProjectLinks });
   const importItems = useImportAdoItems((count) => {
-    setSelected(new Set());
+    setPicked(null);
     onImported(count);
   });
 
@@ -198,242 +212,174 @@ export const AdoProjectPanel: React.FC<{
   const items = (data?.items ?? []).filter((i) => names.has(i.adoProject.toLowerCase()));
   const projectTaskIds = new Set(tasks.filter((t) => t.projectId === project.id).map((t) => t.id));
   const closed = (data?.closed ?? []).filter((c) => projectTaskIds.has(c.taskId));
-  const groups = arrangeAdoItems(items, { search, type, state, showImported, sortBy, groupBy });
-  const newItems = items.filter((i) => !i.taskId);
-  const shownNew = groups.flatMap(([, list]) => list).filter((i) => !i.taskId);
-  const types = [...new Set(items.map(itemType))].sort();
-  const states = [...new Set(items.map((i) => i.state))].sort();
+  const [[, shown]] = arrangeAdoItems(items, {
+    search: '',
+    type: '',
+    state: '',
+    showImported: false,
+    sortBy: 'id',
+    groupBy: 'none',
+  });
+  const checkedAt = data?.checkedAt ?? null;
+  const selected =
+    picked && picked.checkedAt === checkedAt
+      ? picked.ids
+      : new Set(shown.filter((i) => i.role !== 'reviewer').map((i) => i.externalId));
+  const toImport = shown.filter((i) => selected.has(i.externalId));
+  const newCount = shown.filter((i) => i.role !== 'reviewer').length;
+  const reviewCount = shown.length - newCount;
 
   // Linking happens in the project settings dialog
   if (!project.adoEnabled || mine.length === 0) return null;
 
   const toggleOpen = () => {
-    localStorage.setItem(OPEN_KEY, open ? '0' : '1');
+    localStorage.setItem(openKey, open ? '0' : '1');
     setOpen(!open);
   };
-  const toggle = (ids: string[], on: boolean) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (on) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPicked({ checkedAt, ids: next });
+  };
 
   return (
-    <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs text-sm">
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+    <section className="rounded-[10px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0f0f12] text-[13px]">
+      <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-2.5">
         <button
           type="button"
           onClick={toggleOpen}
           aria-expanded={open}
-          className="inline-flex items-center gap-2 font-medium cursor-pointer"
+          className="inline-flex items-center gap-2.5 cursor-pointer"
         >
-          {open ? <ChevronDown className="w-4 h-4 text-zinc-400" /> : <ChevronRight className="w-4 h-4 text-zinc-400" />}
-          <GitPullRequest className="w-4 h-4 text-sky-500" />
-          Azure DevOps
-          <span className="text-xs font-normal text-zinc-400">{mine.map((l) => l.adoProject).join(', ')}</span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-150 ${open ? '' : '-rotate-90'}`}
+          />
+          <GitPullRequest className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400" />
+          <span className="font-semibold text-zinc-900 dark:text-zinc-100">Azure DevOps</span>
         </button>
-        {newItems.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300">
-            {newItems.length} new
+        <span className="text-xs text-zinc-500">
+          {mine.map((l) => l.adoProject).join(', ')} ·{' '}
+          {refresh.isPending
+            ? 'checking…'
+            : checkedAt
+            ? `checked ${formatRelativeTime(checkedAt)}`
+            : 'not checked yet'}
+        </span>
+        {newCount > 0 && (
+          <span className="px-[7px] py-px rounded-full text-[11px] bg-sky-500/15 text-sky-700 dark:text-sky-300">
+            {newCount} new
+          </span>
+        )}
+        {reviewCount > 0 && (
+          <span className="px-[7px] py-px rounded-full text-[11px] bg-violet-500/15 text-violet-700 dark:text-violet-300">
+            {reviewCount} review
           </span>
         )}
         {closed.length > 0 && (
-          <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+          <span className="px-[7px] py-px rounded-full text-[11px] bg-amber-500/15 text-amber-700 dark:text-amber-300">
             {closed.length} closed
           </span>
         )}
         <span className="flex-1" />
-        <AdoSyncStatus data={data} refreshing={refresh.isPending} />
         <button
           type="button"
           onClick={() => refresh.mutate()}
           disabled={refresh.isPending}
           aria-label="Check Azure DevOps now"
           title="Check Azure DevOps now"
-          className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
+          className="p-1 rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${refresh.isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-[13px] h-[13px] ${refresh.isPending ? 'animate-spin' : ''}`} />
         </button>
         <button
           type="button"
-          onClick={onOpenSettings}
-          aria-label="Azure DevOps settings for this project"
-          title="Azure DevOps settings for this project"
-          className="p-1.5 rounded-lg cursor-pointer text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          disabled={toImport.length === 0 || importItems.isPending}
+          onClick={() => importItems.mutate(toImport)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-indigo-600"
         >
-          <Settings2 className="w-3.5 h-3.5" />
+          <Download className="w-3 h-3" />
+          Import {toImport.length}
         </button>
       </div>
 
       {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-zinc-100 dark:border-zinc-800 pt-3">
-          {refresh.error && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {refresh.error.message}
+        <div className="border-t border-zinc-200 dark:border-[#1f1f23]">
+          {[refresh.error, importItems.error].map(
+            (err) =>
+              err && (
+                <p key={err.message} role="alert" className="px-3.5 pt-2 text-xs text-red-600 dark:text-red-400">
+                  {err.message}
+                </p>
+              )
+          )}
+          {data?.error && !refresh.isPending && (
+            <p className="px-3.5 pt-2 text-xs text-amber-700 dark:text-amber-300 truncate" title={data.error}>
+              Last check failed: {data.error}
             </p>
           )}
-          {importItems.error && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {importItems.error.message}
-            </p>
-          )}
-
-          <AdoClosedList closed={closed} />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filter"
-              aria-label="Filter Azure DevOps items"
-              className="px-2 py-1 rounded-lg text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400 w-36"
-            />
-            <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Type" className={selectClass}>
-              <option value="">All types</option>
-              {types.map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-            <select value={state} onChange={(e) => setState(e.target.value)} aria-label="State" className={selectClass}>
-              <option value="">All states</option>
-              {states.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-            <select
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-              aria-label="Group by"
-              className={selectClass}
-            >
-              {Object.entries(GROUP_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              aria-label="Sort by"
-              className={selectClass}
-            >
-              {Object.entries(SORT_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  Sort: {label}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex items-center gap-1.5 text-xs text-zinc-500">
-              <input
-                type="checkbox"
-                checked={showImported}
-                onChange={(e) => setShowImported(e.target.checked)}
-                className="rounded text-indigo-600"
-              />
-              Show imported
-            </label>
-            <span className="flex-1" />
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={shownNew.length === 0}
-              onClick={() =>
-                toggle(
-                  shownNew.map((i) => i.externalId),
-                  !shownNew.every((i) => selected.has(i.externalId))
-                )
-              }
-            >
-              {shownNew.length > 0 && shownNew.every((i) => selected.has(i.externalId)) ? 'Select none' : 'Select all'}
-            </button>
-            <button
-              type="button"
-              disabled={selected.size === 0 || importItems.isPending}
-              onClick={() => importItems.mutate(newItems.filter((i) => selected.has(i.externalId)))}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-default"
-            >
-              Import {selected.size || ''}
-            </button>
-          </div>
-
           {data?.warnings.map((w) => (
-            <p key={w} className="text-xs text-amber-700 dark:text-amber-300">
+            <p key={w} className="px-3.5 pt-2 text-xs text-amber-700 dark:text-amber-300">
               {w}
             </p>
           ))}
-          {groups.every(([, list]) => list.length === 0) ? (
-            <p className="text-xs text-zinc-500">
-              {items.length === 0
-                ? 'Nothing open is assigned to you in these projects.'
-                : 'No items match these filters.'}
+          {closed.length > 0 && (
+            <div className="px-3.5 pt-2.5">
+              <AdoClosedList closed={closed} />
+            </div>
+          )}
+
+          {shown.length === 0 ? (
+            <p className="px-3.5 py-2.5 text-xs text-zinc-500">
+              {items.length === 0 ? 'Nothing open is assigned to you in these projects.' : 'Everything here is imported.'}
             </p>
           ) : (
-            groups.map(([name, list]) => (
-              <div key={name} className="space-y-1">
-                {name && (
-                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                    {name} <span className="font-normal">({list.length})</span>
-                  </h4>
-                )}
-                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                  {list.map((item) => (
-                    <li key={item.externalId} className="flex items-center gap-2 py-1.5">
-                      <input
-                        type="checkbox"
-                        aria-label={`Import ${item.title}`}
-                        checked={!!item.taskId || selected.has(item.externalId)}
-                        disabled={!!item.taskId}
-                        onChange={(e) => toggle([item.externalId], e.target.checked)}
-                      />
-                      <span className="shrink-0 w-20 text-xs text-zinc-400 tabular-nums">
-                        {externalShortLabel(item.externalId)}
-                      </span>
-                      <span className="shrink-0 w-24 truncate text-xs text-zinc-500" title={itemType(item)}>
-                        {itemType(item)}
-                      </span>
-                      <span className={`flex-1 truncate ${item.taskId ? 'text-zinc-400' : ''}`} title={item.title}>
-                        {item.title}
-                      </span>
-                      <span className="shrink-0 w-34 truncate text-xs text-zinc-400" title={item.repo ?? undefined}>
-                        {item.repo}
-                      </span>
-                      <span className="shrink-0 w-18 truncate text-right text-xs text-zinc-400" title={item.state}>
-                        {item.state}
-                      </span>
-                      {/* Fixed slot keeps columns aligned whether or not the row has a task */}
-                      {showImported && (
-                        <span className="shrink-0 w-16">
-                          {item.taskId && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenTask(item.taskId!)}
-                              className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                            >
-                              Open task
-                            </button>
-                          )}
-                        </span>
-                      )}
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`Open ${externalLinkLabel(item.externalId)}`}
-                        title={externalLinkLabel(item.externalId)}
-                        className="p-1 text-zinc-400 hover:text-indigo-600"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
+            <ul>
+              {shown.map((item, index) => {
+                const type = typeStyle(item);
+                const TypeIcon = type.icon;
+                const checked = selected.has(item.externalId);
+                const [kind, id] = item.externalId.split('/');
+                return (
+                  <li
+                    key={item.externalId}
+                    className={`${ADO_ROW_GRID} px-3.5 py-2 ${index > 0 ? 'border-t border-zinc-100 dark:border-zinc-900' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={checked}
+                      aria-label={`Import ${item.title}`}
+                      onClick={() => toggle(item.externalId)}
+                      className={`w-[15px] h-[15px] rounded border flex items-center justify-center cursor-pointer transition-colors duration-150 ${
+                        checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'
+                      }`}
+                    >
+                      {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                    </button>
+                    <span className={`inline-flex items-center gap-1.5 text-xs truncate ${type.className}`} title={itemType(item)}>
+                      <TypeIcon className="w-3 h-3 shrink-0" />
+                      {type.label}
+                    </span>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={externalLinkLabel(item.externalId)}
+                      className="font-mono text-xs text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 truncate"
+                    >
+                      {kind === 'pr' ? `PR ${id}` : id}
+                    </a>
+                    <span className="truncate text-zinc-800 dark:text-zinc-200" title={item.repo ? `${item.title} (${item.repo})` : item.title}>
+                      {item.title}
+                    </span>
+                    <span className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={item.state}>
+                      {item.state}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}

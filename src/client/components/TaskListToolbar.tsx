@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ArchiveRestore,
+  ArrowRight,
   ArrowUpDown,
   CalendarDays,
   CalendarRange,
@@ -195,3 +196,56 @@ export const TaskListToolbar: React.FC<{
     </div>
   );
 };
+
+/** Project view: progress bar in the project colour, overdue count, and a link to a waiting Claude session. */
+export const ProjectProgressStrip: React.FC<{
+  color: string;
+  done: number;
+  total: number;
+  overdue: number;
+  onOpenWaitingSession?: () => void;
+}> = ({ color, done, total, overdue, onOpenWaitingSession }) => (
+  <div className="flex flex-wrap items-center gap-[18px] text-xs text-zinc-500 dark:text-zinc-400">
+    <span className="flex items-center gap-2.5">
+      <span
+        role="progressbar"
+        aria-label="Project progress"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+        className="w-40 h-[5px] rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden"
+      >
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${total ? (done / total) * 100 : 0}%`, backgroundColor: color }}
+        />
+      </span>
+      <span>
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {done} of {total}
+        </span>{' '}
+        done
+      </span>
+    </span>
+    {overdue > 0 && (
+      <>
+        <Divider />
+        <span className="text-red-600 dark:text-red-400">{overdue} overdue</span>
+      </>
+    )}
+    {onOpenWaitingSession && (
+      <>
+        <Divider />
+        <button
+          type="button"
+          onClick={onOpenWaitingSession}
+          className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
+        >
+          <span aria-hidden className="w-[7px] h-[7px] rounded-full bg-amber-400" />
+          Claude is waiting on you
+          <ArrowRight className="w-3 h-3" />
+        </button>
+      </>
+    )}
+  </div>
+);

@@ -62,7 +62,7 @@ import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { CalendarView } from './components/CalendarView.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
-import { TaskListToolbar } from './components/TaskListToolbar.tsx';
+import { ProjectProgressStrip, TaskListToolbar } from './components/TaskListToolbar.tsx';
 import { ContextMenuHost, MenuContent } from './components/ContextMenu.tsx';
 import { KBD_CLASS, LABEL_CLASS } from './components/ui.tsx';
 import { projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
@@ -659,6 +659,20 @@ export const App: React.FC = () => {
     onUpdateWidgetConfig: (cfg) => saveWidgetConfigMutation.mutate(cfg),
     onSelectSmartView: (v) => setActiveNav({ type: 'smart', id: v }),
   };
+  const projectStats = useMemo(() => {
+    if (!currentProject) return null;
+    const own = tasks.filter((t) => t.projectId === currentProject.id && t.status !== 'archived');
+    const ownIds = new Set(own.map((t) => t.id));
+    const waiting = claudeSessions.find(
+      (s) => s.state === 'needs_attention' && !s.dismissedAt && s.taskId !== null && ownIds.has(s.taskId)
+    );
+    return {
+      done: own.filter((t) => t.status === 'done').length,
+      total: own.length,
+      overdue: own.filter((t) => t.status !== 'done' && t.dueDate !== null && t.dueDate < today).length,
+      waitingSessionId: waiting?.sessionId ?? null,
+    };
+  }, [currentProject, tasks, claudeSessions, today]);
   const listMeta = isCompletedView
     ? plural(completedFilteredTasks.length, 'completed task')
     : isArchiveView
@@ -840,15 +854,24 @@ export const App: React.FC = () => {
                 }
               />
 
-              {currentProject && (
-                <AdoProjectPanel
-                  key={currentProject.id}
-                  project={currentProject}
-                  tasks={tasks}
-                  onImported={showAdoImported}
-                  onOpenTask={claudeSessionActions.onOpenTask}
-                  onOpenSettings={() => setProjectSettingsId(currentProject.id)}
-                />
+              {currentProject && projectStats && (
+                <>
+                  <ProjectProgressStrip
+                    color={currentProject.color}
+                    {...projectStats}
+                    onOpenWaitingSession={
+                      projectStats.waitingSessionId
+                        ? () => claudeSessionActions.onOpen(projectStats.waitingSessionId!)
+                        : undefined
+                    }
+                  />
+                  <AdoProjectPanel
+                    key={currentProject.id}
+                    project={currentProject}
+                    tasks={tasks}
+                    onImported={showAdoImported}
+                  />
+                </>
               )}
 
               {!isCompletedView && !isArchiveView && (
