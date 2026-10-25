@@ -252,7 +252,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </fieldset>
           </Section>
 
-          <Section title="Overview widgets">
+          <Section title="Home widgets">
             <div className="grid grid-cols-2 gap-2">
               {WIDGET_LABELS.map(([key, label]) => (
                 <label key={key} className="inline-flex items-center gap-2 cursor-pointer">

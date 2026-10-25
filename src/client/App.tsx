@@ -47,7 +47,7 @@ import { TaskRow, TaskListHeader } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
-import { DashboardWidgets } from './components/DashboardWidgets.tsx';
+import { HomeView } from './components/Home.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
 import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
@@ -55,7 +55,6 @@ import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
-  ClaudeSessionsCard,
   taskFromSession,
 } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
@@ -644,21 +643,6 @@ export const App: React.FC = () => {
   // Drag-to-reorder only makes sense in one flat, manually sorted list
   const canReorder = sortBy === 'manual' && groupBy === 'none';
   // Shared by the full (Overview) and compact (above the task list) widget layouts
-  const widgetProps: Omit<React.ComponentProps<typeof DashboardWidgets>, 'mode'> = {
-    tasks,
-    projects,
-    scratchpad,
-    quickLinks,
-    widgetConfig,
-    onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
-    onConvertLineToTask: handleConvertScratchpadLineToTask,
-    onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
-    onUpdateQuickLink: (id, title, url, category) =>
-      updateQuickLinkMutation.mutate({ id, input: { title, url, category } }),
-    onDeleteQuickLink: handleDeleteQuickLink,
-    onUpdateWidgetConfig: (cfg) => saveWidgetConfigMutation.mutate(cfg),
-    onSelectSmartView: (v) => setActiveNav({ type: 'smart', id: v }),
-  };
   const projectStats = useMemo(() => {
     if (!currentProject) return null;
     const own = tasks.filter((t) => t.projectId === currentProject.id && t.status !== 'archived');
@@ -809,27 +793,34 @@ export const App: React.FC = () => {
             }`}
           >
           {isOverviewPage ? (
-            <>
-              <ClaudeSessionsCard
-                sessions={claudeSessions}
-                tasks={tasks}
-                {...claudeSessionActions}
-              />
-              <DashboardWidgets
-                mode="full"
-                {...widgetProps}
-                onSelectProject={(id) => setActiveNav({ type: 'project', id })}
-                taskWidgetActions={{
-                  projects,
-                  claudeSessionsByTaskId,
-                  onToggleTask: handleToggleTask,
-                  onOpenTask: claudeSessionActions.onOpenTask,
-                  onOpenSession: claudeSessionActions.onOpen,
-                }}
-                staleTaskDays={settingsData?.settings.staleTaskDays}
-                onOpenAdoImport={() => setAdoImportOpen(true)}
-              />
-            </>
+            <HomeView
+              tasks={tasks}
+              claudeSessions={claudeSessions}
+              claudeSessionActions={claudeSessionActions}
+              taskWidgetActions={{
+                projects,
+                claudeSessionsByTaskId,
+                onToggleTask: handleToggleTask,
+                onOpenTask: claudeSessionActions.onOpenTask,
+                onOpenSession: claudeSessionActions.onOpen,
+              }}
+              widgetConfig={widgetConfig}
+              onOpenOverdue={() => setActiveNav({ type: 'smart', id: 'today' })}
+              drawer={{
+                projects,
+                scratchpad,
+                quickLinks,
+                staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
+                onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
+                onConvertLineToTask: handleConvertScratchpadLineToTask,
+                onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
+                onUpdateQuickLink: (id, title, url, category) =>
+                  updateQuickLinkMutation.mutate({ id, input: { title, url, category } }),
+                onDeleteQuickLink: handleDeleteQuickLink,
+                onSelectProject: (id) => setActiveNav({ type: 'project', id }),
+                onOpenAdoImport: () => setAdoImportOpen(true),
+              }}
+            />
           ) : (
             <>
               <TaskListToolbar
