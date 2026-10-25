@@ -183,7 +183,7 @@ function typeStyle(item: PanelItem): { label: string; icon: LucideIcon; classNam
   };
 }
 
-const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_70px] gap-3 items-center';
+const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_136px_70px] gap-3 items-center';
 
 /**
  * A project view's Azure DevOps inbox: items from the last check for the ADO projects mapped to
@@ -370,8 +370,11 @@ export const AdoProjectPanel: React.FC<{
                     >
                       {kind === 'pr' ? `PR ${id}` : id}
                     </a>
-                    <span className="truncate text-zinc-800 dark:text-zinc-200" title={item.repo ? `${item.title} (${item.repo})` : item.title}>
+                    <span className="truncate text-zinc-800 dark:text-zinc-200" title={item.title}>
                       {item.title}
+                    </span>
+                    <span className="truncate text-xs text-zinc-400" title={item.repo ?? undefined}>
+                      {item.repo}
                     </span>
                     <span className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={item.state}>
                       {item.state}
