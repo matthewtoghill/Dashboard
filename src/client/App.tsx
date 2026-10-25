@@ -131,6 +131,10 @@ export const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => window.innerWidth >= 900 && localStorage.getItem(SIDEBAR_KEY) !== '0'
   );
+  // Below 900px the sidebar overlays the page, so picking a view closes it
+  const closeOverlaySidebar = () => {
+    if (window.innerWidth < 900) setSidebarOpen(false);
+  };
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((open) => {
       localStorage.setItem(SIDEBAR_KEY, open ? '0' : '1');
@@ -768,9 +772,15 @@ export const App: React.FC = () => {
             tasks={tasks}
             projects={projects}
             activeNav={activeNav}
-            onSelectNav={setActiveNav}
+            onSelectNav={(nav) => {
+              setActiveNav(nav);
+              closeOverlaySidebar();
+            }}
             isCalendar={isCalendar}
-            onOpenCalendar={openCalendar}
+            onOpenCalendar={() => {
+              openCalendar();
+              closeOverlaySidebar();
+            }}
             onCreateProject={(name, color) =>
               createProjectMutation.mutate({ name, color })
             }

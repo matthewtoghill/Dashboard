@@ -415,3 +415,18 @@ Project colours (sample data; use each project's stored colour): `#6366f1`, `#3b
 3. Project view: progress strip and `AdoProjectPanel` inbox.
 4. Home: stats strip, `ClaudeAttentionBanner`, the Up next / rail split, and `HomeDrawer` (moving the existing widgets in).
 5. Light-mode pass, empty states, responsive breakpoints. Run the existing tests (`src/server/__tests__`); `taskView.test.ts` will need cases for the new buckets.
+
+---
+
+## Implementation decisions
+
+Choices made while building this on the `app-redesign` branch, where the spec left a decision open or the existing app differed.
+
+- **Group and sort defaults are unchanged.** The spec suggests Group: Due date / Sort: Due date for All Active and Group: Status / Sort: Priority for projects. We kept the current behaviour instead: one group/sort setting that persists across navigation, starting at no grouping, newest first. Due-date buckets (Overdue, Today, Tomorrow, This week, Later, No date) apply whenever Group: Due date is chosen. Worth revisiting once the new lists have been used for a while.
+- **Sidebar toggle.** No visible `PanelLeft` button. The header logo tile is the toggle, plus the `[` shortcut and a "Toggle Sidebar" command palette entry. The open/closed state is remembered per browser.
+- **Widget settings map onto Home.** Progress & stats controls the stats strip, Up next and In progress control their sections, Trends controls the Trends and Projects drawer tabs, and Stale, Azure DevOps, Scratchpad and Quick links control their tabs. The compact summary bar above task lists is gone, and so is its "Summary bar in task views" setting (the stored field is left in place so older data still validates).
+- **Row hover actions** (rename, archive, delete) appear at the end of the Task cell rather than over the right-hand cells, so the Due and Priority controls stay clickable on hover.
+- **Tags in list rows** are plain text with a hover "+" to add a tag. Removing a tag happens in the task drawer.
+- **Project ADO panel** drops the old filter, group, sort and "show imported" controls. Imported items are hidden, new work items start ticked, reviews start unticked, and the ticks reset after each check.
+- **Claude sessions rail** lists live sessions only (not ended, not cleared). Ended sessions still show on their task's drawer.
+- **Light mode** follows the structure of the dark design using the app's existing light classes. It still needs a design review.
