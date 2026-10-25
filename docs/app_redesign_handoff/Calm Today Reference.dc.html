@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="stylesheet" href="https://unpkg.com/lucide-static@0.460.0/font/lucide.css"><style>body{margin:0;background:#1c1c1f;font-family:ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}a{color:#818cf8;text-decoration:none}a:hover{color:#a5b4fc}[class^="icon-"]{line-height:1;display:inline-block}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(255,255,255,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#f4f4f5;color:#18181b;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#e4e4e7}.dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.1);color:#e4e4e7;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.4 system-ui,sans-serif;color:rgba(255,255,255,.6);max-width:1440px}.dv-card{max-width:100%;background:#09090b;border:1px solid rgba(255,255,255,.1);border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden}.dv-opt:target .dv-oid{background:#4f46e5;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(255,255,255,.5)}</style></helmet>
+<section class="dv-turn" id="calm">
+<div class="dv-thd"><a class="dv-tid" href="#calm">Calm Today</a><span class="dv-tname">Handoff reference: Home (1a), All Active (2a), Project (2b). Dark theme, 1440×900.</span></div>
+<div class="dv-opts" style="flex-direction:column">
+<!-- 1a -->
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a><span><b style="color:#e4e4e7">Calm Today</b> (evolutionary). Same shell, quieter. The stats collapse into one inline strip and the Claude session that needs you becomes a banner. The agenda takes the main column, with in-progress work and sessions in a right rail. Everything else moves into one tabbed drawer.</span></div>
+<div class="dv-card" style="width:1440px;height:900px;display:flex;flex-direction:column;color:#f4f4f5">
+  <header style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(39,39,42,.8);background:#09090b">
+    <div style="display:flex;align-items:center;gap:10px;width:212px">
+      <div style="width:28px;height:28px;border-radius:8px;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff"><i class="icon-square-check-big" style="font-size:15px"></i></div>
+      <span style="font-size:15px;font-weight:600;letter-spacing:-.01em">Dashboard</span>
+    </div>
+    <div style="flex:1;max-width:560px;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:8px;background:#18181b;border:1px solid #27272a;color:#71717a;font-size:13px">
+      <i class="icon-search" style="font-size:14px"></i><span style="flex:1">Search tasks or run a command…</span>
+      <span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">/</span>
+      <span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">Ctrl K</span>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:4px;color:#a1a1aa">
+      <span style="padding:8px;border-radius:8px;display:flex"><i class="icon-cloud-download" style="font-size:16px"></i></span>
+      <span style="padding:8px;border-radius:8px;display:flex"><i class="icon-settings" style="font-size:16px"></i></span>
+      <span style="padding:8px;border-radius:8px;display:flex"><i class="icon-sun" style="font-size:16px"></i></span>
+    </div>
+  </header>
+  <div style="flex:1;display:flex;min-height:0">
+    <aside style="width:232px;flex:none;border-right:1px solid rgba(39,39,42,.8);padding:14px 10px;display:flex;flex-direction:column;gap:22px;font-size:13px">
+      <nav style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(99,102,241,.15);color:#a5b4fc;font-weight:500"><i class="icon-layout-dashboard" style="font-size:15px"></i><span style="flex:1">Home</span><span style="font-size:11px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(245,158,11,.18);color:#fcd34d">1</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-inbox" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">All Active</span><span style="font-size:12px;color:#71717a">19</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-calendar" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Today &amp; Overdue</span><span style="font-size:12px;color:#34d399;font-weight:600">4</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-calendar-clock" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Upcoming</span><span style="font-size:12px;color:#71717a">9</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-calendar-days" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Calendar</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-circle-check" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Completed</span><span style="font-size:12px;color:#71717a">18</span></div>
+      </nav>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 10px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#71717a"><span>Projects</span><i class="icon-plus" style="font-size:13px"></i></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#6366f1"></span><span style="flex:1">Platform API</span><span style="font-size:12px;color:#71717a">7</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#3b82f6"></span><span style="flex:1">Client Portal</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#10b981"></span><span style="flex:1">Infra</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#f59e0b"></span><span style="flex:1">Personal</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#ec4899"></span><span style="flex:1">Hiring</span><span style="font-size:12px;color:#71717a">1</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;color:#a1a1aa">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Saved views</span><span style="font-size:12px;color:#71717a">2</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Tags</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-archive" style="font-size:13px"></i><span style="flex:1">Archive</span><span style="font-size:12px;color:#71717a">42</span></div>
+      </div>
+    </aside>
+    <main style="flex:1;min-width:0;overflow:hidden;padding:28px 40px;display:flex;flex-direction:column;gap:22px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px">
+        <div>
+          <div style="font-size:12px;color:#71717a;font-weight:500">Friday, 24 October</div>
+          <h2 style="margin:4px 0 0;font-size:22px;font-weight:600;letter-spacing:-.015em">Good afternoon</h2>
+        </div>
+        <div style="display:flex;align-items:center;gap:20px;font-size:12px;color:#a1a1aa">
+          <span style="display:flex;align-items:center;gap:8px"><span style="width:16px;height:16px;border-radius:99px;background:conic-gradient(#6366f1 0 62%,#27272a 62% 100%);display:inline-block"></span><b style="color:#f4f4f5;font-weight:600">62%</b> done <span style="color:#71717a">18/29</span></span>
+          <span style="width:1px;height:14px;background:#27272a"></span>
+          <span style="display:flex;align-items:center;gap:6px;color:#34d399"><i class="icon-circle-check" style="font-size:13px"></i><b style="font-weight:600">4</b> today</span>
+          <span style="display:flex;align-items:center;gap:6px;color:#fbbf24"><i class="icon-flame" style="font-size:13px"></i><b style="font-weight:600">8d</b> streak</span>
+          <span style="display:flex;align-items:center;gap:6px;color:#f87171"><i class="icon-triangle-alert" style="font-size:13px"></i><b style="font-weight:600">1</b> overdue</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.28)">
+        <div style="width:34px;height:34px;border-radius:9px;background:rgba(245,158,11,.18);color:#fcd34d;display:flex;align-items:center;justify-content:center;flex:none"><i class="icon-bot" style="font-size:17px"></i></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:#fcd34d;font-weight:600;letter-spacing:.04em;text-transform:uppercase">Claude needs you <span style="color:#a1a1aa;font-weight:400;text-transform:none;letter-spacing:0">platform-api · 2 min ago</span></div>
+          <div style="margin-top:3px;font-size:14px;font-weight:500;color:#f4f4f5">Fix flaky auth integration test</div>
+          <div style="margin-top:2px;font-size:12px;color:#d4d4d8">Wants permission to run <code style="font-size:11.5px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.35);color:#fde68a">npm install --save-dev vitest@2</code></div>
+        </div>
+        <div style="display:flex;gap:8px;flex:none">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;background:#f59e0b;color:#18181b;font-size:12px;font-weight:600"><i class="icon-external-link" style="font-size:13px"></i>Open in Claude</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;color:#d4d4d8;font-size:12px;border:1px solid #3f3f46"><i class="icon-copy" style="font-size:13px"></i>Resume</span>
+        </div>
+      </div>
+      <div style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:40px">
+        <section style="display:flex;flex-direction:column;gap:14px;min-width:0">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid #27272a;padding-bottom:10px"><h3 style="margin:0;font-size:14px;font-weight:600">Up next</h3><span style="font-size:12px;color:#71717a">Overdue and next 7 days</span></div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#f87171;padding:2px 8px 4px">Overdue</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#6366f1"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Reply to security review comments</span><span style="font-size:12px;color:#f87171">Wed, Oct 22</span></div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa;padding:12px 8px 4px">Today <span style="font-weight:400;color:#71717a">3</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px;background:rgba(245,158,11,.05)"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #fbbf24;background:rgba(251,191,36,.15);display:flex;align-items:center;justify-content:center;flex:none"><span style="width:7px;height:7px;border-radius:2px;background:#fbbf24"></span></span><span style="width:7px;height:7px;border-radius:99px;background:#6366f1"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Fix flaky auth integration test</span><span style="display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;background:rgba(245,158,11,.12);color:#fcd34d;border:1px solid rgba(245,158,11,.3)"><i class="icon-bot" style="font-size:11px"></i></span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#6366f1"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Review PR #482: rate limiter</span><span style="display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;background:#27272a;color:#d4d4d8"><i class="icon-git-pull-request" style="font-size:11px"></i>PR 482</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#f59e0b"></span><span style="flex:1;font-size:14px;color:#f4f4f5">1:1 prep with Sam</span></div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa;padding:12px 8px 4px">Tomorrow <span style="font-weight:400;color:#71717a">2</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#10b981"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Migrate staging DB to Postgres 16</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#3b82f6"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Write Q4 roadmap draft</span></div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#a1a1aa;padding:12px 8px 4px">Mon, Oct 27 <span style="font-weight:400;color:#71717a">1</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px"><span style="width:18px;height:18px;border-radius:6px;border:1px solid #52525b;flex:none"></span><span style="width:7px;height:7px;border-radius:99px;background:#10b981"></span><span style="flex:1;font-size:14px;color:#f4f4f5">Renew wildcard SSL cert</span></div>
+          </div>
+        </section>
+        <aside style="display:flex;flex-direction:column;gap:26px;min-width:0">
+          <section style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid #27272a;padding-bottom:10px"><h3 style="margin:0;font-size:14px;font-weight:600">In progress</h3><span style="font-size:12px;color:#71717a">3</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:7px;height:7px;border-radius:99px;background:#6366f1"></span><span style="flex:1;font-size:13px;color:#e4e4e7;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Fix flaky auth integration test</span><span style="font-size:11px;color:#a1a1aa">Today</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:7px;height:7px;border-radius:99px;background:#3b82f6"></span><span style="flex:1;font-size:13px;color:#e4e4e7;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Refactor billing webhook handler</span><span style="font-size:11px;color:#a1a1aa">Oct 29</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:7px;height:7px;border-radius:99px;background:#ec4899"></span><span style="flex:1;font-size:13px;color:#e4e4e7">Update onboarding docs</span><span style="font-size:11px;color:#71717a">—</span></div>
+          </section>
+          <section style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid #27272a;padding-bottom:10px"><h3 style="margin:0;font-size:14px;font-weight:600">Claude sessions</h3><span style="font-size:12px;color:#71717a">3 live</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:8px;height:8px;border-radius:99px;background:#fbbf24;box-shadow:0 0 0 3px rgba(251,191,36,.2)"></span><span style="flex:1;min-width:0"><span style="display:block;font-size:13px;color:#e4e4e7">Fix flaky auth integration test</span><span style="display:block;font-size:11px;color:#71717a">platform-api · needs attention</span></span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:8px;height:8px;border-radius:99px;background:#818cf8"></span><span style="flex:1;min-width:0"><span style="display:block;font-size:13px;color:#e4e4e7">Refactor billing webhook handler</span><span style="display:block;font-size:11px;color:#71717a">client-portal · running · Edit</span></span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:6px 4px"><span style="width:8px;height:8px;border-radius:99px;background:#34d399"></span><span style="flex:1;min-width:0"><span style="display:block;font-size:13px;color:#e4e4e7">Draft ADR for event bus</span><span style="display:block;font-size:11px;color:#71717a">infra · idle 14 min</span></span></div>
+          </section>
+        </aside>
+      </div>
+      <div style="flex:none;border-top:1px solid #27272a;padding-top:12px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:4px;font-size:12px">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="6">
+            <span onClick="{{ t.select }}" style="cursor:pointer;padding:5px 10px;border-radius:6px;background:{{ t.bg }};color:{{ t.fg }}">{{ t.label }}</span>
+          </sc-for>
+          <span style="margin-left:auto;color:#71717a">Last backup 3 h ago</span>
+        </div>
+        <sc-if value="{{ tabTrends }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:flex-end;gap:28px;height:64px">
+            <div style="display:flex;align-items:flex-end;gap:5px;height:56px">
+              <sc-for list="{{ bars }}" as="b" hint-placeholder-count="14"><span style="width:14px;border-radius:3px 3px 0 0;height:{{ b.h }}px;background:{{ b.c }}"></span></sc-for>
+            </div>
+            <div style="font-size:12px;color:#a1a1aa"><b style="font-size:20px;color:#f4f4f5">34</b> done in 14 days · <span style="color:#34d399">+7 vs previous</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ tabOther }}" hint-placeholder-val="{{ false }}">
+          <div style="height:64px;display:flex;align-items:center;font-size:13px;color:#a1a1aa">{{ tabBody }}</div>
+        </sc-if>
+      </div>
+    </main>
+  </div>
+</div></div>
+
+
+<!-- 2a: 1a All Active -->
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a><span><b style="color:#e4e4e7">Calm Today · All Active</b> (from <a class="dv-oid" href="#1a">1a</a>). The toolbar is one quiet row and quick-add is one line with its pickers as icons. Rows are borderless columns grouped by due date. Empty date and priority cells stay blank instead of showing ghost controls.</span></div>
+<div class="dv-card" style="width:1440px;height:900px;display:flex;flex-direction:column;color:#f4f4f5">
+  <header style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(39,39,42,.8)">
+    <div style="display:flex;align-items:center;gap:10px;width:212px"><div style="width:28px;height:28px;border-radius:8px;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff"><i class="icon-square-check-big" style="font-size:15px"></i></div><span style="font-size:15px;font-weight:600;letter-spacing:-.01em">Dashboard</span></div>
+    <div style="flex:1;max-width:560px;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:8px;background:#18181b;border:1px solid #27272a;color:#71717a;font-size:13px"><i class="icon-search" style="font-size:14px"></i><span style="flex:1">Search tasks or run a command…</span><span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">/</span><span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">Ctrl K</span></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:4px;color:#a1a1aa"><span style="padding:8px;display:flex"><i class="icon-cloud-download" style="font-size:16px"></i></span><span style="padding:8px;display:flex"><i class="icon-settings" style="font-size:16px"></i></span><span style="padding:8px;display:flex"><i class="icon-sun" style="font-size:16px"></i></span></div>
+  </header>
+  <div style="flex:1;display:flex;min-height:0">
+    <aside style="width:232px;flex:none;border-right:1px solid rgba(39,39,42,.8);padding:14px 10px;display:flex;flex-direction:column;gap:22px;font-size:13px">
+      <nav style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#d4d4d8"><i class="icon-layout-dashboard" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Home</span><span style="font-size:11px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(245,158,11,.18);color:#fcd34d">1</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(99,102,241,.15);color:#a5b4fc;font-weight:500"><i class="icon-inbox" style="font-size:15px"></i><span style="flex:1">All Active</span><span style="font-size:12px">19</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Today &amp; Overdue</span><span style="font-size:12px;color:#34d399;font-weight:600">4</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar-clock" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Upcoming</span><span style="font-size:12px;color:#71717a">9</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar-days" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Calendar</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-circle-check" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Completed</span><span style="font-size:12px;color:#71717a">18</span></div>
+      </nav>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 10px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#71717a"><span>Projects</span><i class="icon-plus" style="font-size:13px"></i></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#6366f1"></span><span style="flex:1">Platform API</span><span style="font-size:12px;color:#71717a">7</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#3b82f6"></span><span style="flex:1">Client Portal</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#10b981"></span><span style="flex:1">Infra</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#f59e0b"></span><span style="flex:1">Personal</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#ec4899"></span><span style="flex:1">Hiring</span><span style="font-size:12px;color:#71717a">1</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;color:#a1a1aa">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Saved views</span><span style="font-size:12px;color:#71717a">2</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Tags</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-archive" style="font-size:13px"></i><span style="flex:1">Archive</span><span style="font-size:12px;color:#71717a">42</span></div>
+      </div>
+    </aside>
+    <main style="flex:1;min-width:0;overflow:hidden;padding:24px 40px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div style="display:flex;align-items:baseline;gap:10px"><h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.015em">All Active</h2><span style="font-size:13px;color:#71717a">19 tasks · 5 projects</span></div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#a1a1aa">
+          <div style="display:flex;padding:2px;border-radius:8px;background:#18181b;border:1px solid #27272a"><span style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:#27272a;color:#f4f4f5"><i class="icon-list" style="font-size:13px"></i>List</span><span style="display:flex;align-items:center;gap:5px;padding:3px 8px"><i class="icon-calendar-days" style="font-size:13px"></i>Month</span><span style="display:flex;align-items:center;gap:5px;padding:3px 8px"><i class="icon-calendar-range" style="font-size:13px"></i>Week</span></div>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px"><i class="icon-layers" style="font-size:13px"></i>Due date<i class="icon-chevron-down" style="font-size:11px"></i></span>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px"><i class="icon-arrow-up-down" style="font-size:13px"></i>Due date<i class="icon-chevron-down" style="font-size:11px"></i></span>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px"><i class="icon-flag" style="font-size:13px"></i>Any priority<i class="icon-chevron-down" style="font-size:11px"></i></span>
+          <span style="width:1px;height:16px;background:#27272a"></span>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px;color:#d4d4d8"><i class="icon-bookmark-plus" style="font-size:13px"></i>Save view</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#18181b;border:1px solid #27272a;font-size:13px;color:#71717a">
+        <i class="icon-plus" style="font-size:16px;color:#818cf8"></i><span style="flex:1">Add a task… <span style="color:#52525b">e.g. Call Sam !high #work @fri ~weekly</span></span>
+        <span style="display:flex;gap:2px;color:#71717a"><i class="icon-flag" style="font-size:14px;padding:5px"></i><i class="icon-folder" style="font-size:14px;padding:5px"></i><i class="icon-calendar" style="font-size:14px;padding:5px"></i><i class="icon-tag" style="font-size:14px;padding:5px"></i></span>
+        <span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">N</span>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px 130px 130px 84px;gap:12px;padding:6px 8px 0;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#52525b"><span>Task</span><span>Tags</span><span>Project</span><span>Due</span><span>Priority</span></div>
+      <div style="display:flex;flex-direction:column;margin-top:-8px">
+        <sc-for list="{{ allGroups }}" as="g" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 8px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:{{ g.c }}">{{ g.label }}<span style="font-weight:400;color:#52525b">{{ g.n }}</span></div>
+          <sc-for list="{{ g.rows }}" as="t" hint-placeholder-count="2">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px 130px 130px 84px;align-items:center;gap:12px;padding:8px;border-top:1px solid #1c1c20;background:{{ t.rowBg }};box-shadow:inset 2px 0 0 {{ t.cbDot }}">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                <span style="width:18px;height:18px;border-radius:6px;border:1px solid {{ t.cbB }};background:{{ t.cbBg }};display:flex;align-items:center;justify-content:center;flex:none"><span style="width:7px;height:7px;border-radius:2px;background:{{ t.cbDot }}"></span></span>
+                <span style="font-size:14px;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</span>
+                <sc-for list="{{ t.badges }}" as="b" hint-placeholder-count="0"><span style="flex:none;display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;color:{{ b.fg }};background:{{ b.bg }}"><i class="{{ b.i }}" style="font-size:11px"></i>{{ b.t }}</span></sc-for>
+              </div>
+              <span style="font-size:12px;color:#a1a1aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.tags }}</span>
+              <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#d4d4d8"><span style="width:7px;height:7px;border-radius:99px;background:{{ t.pc }}"></span>{{ t.pn }}</span>
+              <span style="justify-self:start;font-size:12px;padding:2px 7px;border-radius:5px;color:{{ t.dueC }};background:{{ t.dueBg }}">{{ t.dueShort }}</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ t.priC }}"><span style="width:6px;height:6px;border-radius:99px;background:{{ t.priDot }}"></span>{{ t.priL }}</span>
+            </div>
+          </sc-for>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 8px;border-top:1px solid #1c1c20;font-size:12px;color:#71717a"><i class="icon-chevron-right" style="font-size:13px"></i>Later <span style="color:#52525b">6</span><span style="margin-left:24px;display:flex;align-items:center;gap:8px"><i class="icon-chevron-right" style="font-size:13px"></i>Completed <span style="color:#52525b">18</span></span><span style="margin-left:auto;display:flex;align-items:center;gap:6px"><i class="icon-archive" style="font-size:12px"></i>Archive completed</span></div>
+      </div>
+    </main>
+  </div>
+</div></div>
+
+
+<!-- 2b: 1a Project -->
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a><span><b style="color:#e4e4e7">Calm Today · Project</b> (from <a class="dv-oid" href="#1a">1a</a>). The header carries project progress and a link to the session that's waiting on you. The Azure DevOps panel becomes a compact inbox you import from with checkboxes. The list is grouped by status.</span></div>
+<div class="dv-card" style="width:1440px;height:900px;display:flex;flex-direction:column;color:#f4f4f5">
+  <header style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(39,39,42,.8)">
+    <div style="display:flex;align-items:center;gap:10px;width:212px"><div style="width:28px;height:28px;border-radius:8px;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff"><i class="icon-square-check-big" style="font-size:15px"></i></div><span style="font-size:15px;font-weight:600;letter-spacing:-.01em">Dashboard</span></div>
+    <div style="flex:1;max-width:560px;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:8px;background:#18181b;border:1px solid #27272a;color:#71717a;font-size:13px"><i class="icon-search" style="font-size:14px"></i><span style="flex:1">Search tasks or run a command…</span><span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">/</span><span style="font:500 11px ui-monospace,Menlo,monospace;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa">Ctrl K</span></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:4px;color:#a1a1aa"><span style="padding:8px;display:flex"><i class="icon-cloud-download" style="font-size:16px"></i></span><span style="padding:8px;display:flex"><i class="icon-settings" style="font-size:16px"></i></span><span style="padding:8px;display:flex"><i class="icon-sun" style="font-size:16px"></i></span></div>
+  </header>
+  <div style="flex:1;display:flex;min-height:0">
+    <aside style="width:232px;flex:none;border-right:1px solid rgba(39,39,42,.8);padding:14px 10px;display:flex;flex-direction:column;gap:22px;font-size:13px">
+      <nav style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-layout-dashboard" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Home</span><span style="font-size:11px;font-weight:600;padding:1px 6px;border-radius:99px;background:rgba(245,158,11,.18);color:#fcd34d">1</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-inbox" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">All Active</span><span style="font-size:12px;color:#71717a">19</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Today &amp; Overdue</span><span style="font-size:12px;color:#34d399;font-weight:600">4</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar-clock" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Upcoming</span><span style="font-size:12px;color:#71717a">9</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-calendar-days" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Calendar</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;color:#d4d4d8"><i class="icon-circle-check" style="font-size:15px;color:#a1a1aa"></i><span style="flex:1">Completed</span><span style="font-size:12px;color:#71717a">18</span></div>
+      </nav>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 10px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#71717a"><span>Projects</span><i class="icon-plus" style="font-size:13px"></i></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px;background:rgba(99,102,241,.15);color:#a5b4fc;font-weight:500"><span style="width:8px;height:8px;border-radius:99px;background:#6366f1"></span><span style="flex:1">Platform API</span><span style="font-size:12px">7</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#3b82f6"></span><span style="flex:1">Client Portal</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#10b981"></span><span style="flex:1">Infra</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#f59e0b"></span><span style="flex:1">Personal</span><span style="font-size:12px;color:#71717a">3</span></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;color:#d4d4d8"><span style="width:8px;height:8px;border-radius:99px;background:#ec4899"></span><span style="flex:1">Hiring</span><span style="font-size:12px;color:#71717a">1</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:1px;color:#a1a1aa">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Saved views</span><span style="font-size:12px;color:#71717a">2</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-chevron-right" style="font-size:13px"></i><span style="flex:1">Tags</span><span style="font-size:12px;color:#71717a">5</span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px"><i class="icon-archive" style="font-size:13px"></i><span style="flex:1">Archive</span><span style="font-size:12px;color:#71717a">42</span></div>
+      </div>
+    </aside>
+    <main style="flex:1;min-width:0;overflow:hidden;padding:24px 40px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:12px;height:12px;border-radius:99px;background:#6366f1"></span><h2 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.015em">Platform API</h2><span style="font-size:13px;color:#71717a">7 open</span><i class="icon-settings-2" style="font-size:15px;color:#71717a;padding:4px"></i></div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#a1a1aa">
+          <div style="display:flex;padding:2px;border-radius:8px;background:#18181b;border:1px solid #27272a"><span style="display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:#27272a;color:#f4f4f5"><i class="icon-list" style="font-size:13px"></i>List</span><span style="display:flex;align-items:center;gap:5px;padding:3px 8px"><i class="icon-calendar-days" style="font-size:13px"></i>Month</span><span style="display:flex;align-items:center;gap:5px;padding:3px 8px"><i class="icon-calendar-range" style="font-size:13px"></i>Week</span></div>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px"><i class="icon-layers" style="font-size:13px"></i>Status<i class="icon-chevron-down" style="font-size:11px"></i></span>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px"><i class="icon-arrow-up-down" style="font-size:13px"></i>Priority<i class="icon-chevron-down" style="font-size:11px"></i></span>
+          <span style="display:flex;align-items:center;gap:6px;padding:4px 9px"><i class="icon-flag" style="font-size:13px"></i>Any priority<i class="icon-chevron-down" style="font-size:11px"></i></span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:18px;font-size:12px;color:#a1a1aa">
+        <span style="display:flex;align-items:center;gap:10px"><span style="width:160px;height:5px;border-radius:99px;background:#27272a;overflow:hidden;display:block"><span style="display:block;width:56%;height:100%;background:#6366f1;border-radius:99px"></span></span><b style="color:#f4f4f5;font-weight:600">9 of 16</b> done</span>
+        <span style="width:1px;height:14px;background:#27272a"></span>
+        <span style="color:#f87171">1 overdue</span>
+        <span style="width:1px;height:14px;background:#27272a"></span>
+        <span style="display:flex;align-items:center;gap:6px;color:#fcd34d"><span style="width:7px;height:7px;border-radius:99px;background:#fbbf24"></span>Claude is waiting on you<i class="icon-arrow-right" style="font-size:12px"></i></span>
+      </div>
+      <div style="border-radius:10px;border:1px solid #27272a;background:#0f0f12">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1f1f23">
+          <i class="icon-chevron-down" style="font-size:14px;color:#71717a"></i><i class="icon-git-pull-request" style="font-size:14px;color:#38bdf8"></i>
+          <span style="font-size:13px;font-weight:600">Azure DevOps</span><span style="font-size:12px;color:#71717a">OB-Platform · checked 12 min ago</span>
+          <span style="font-size:11px;padding:1px 7px;border-radius:99px;background:rgba(14,165,233,.14);color:#7dd3fc">2 new</span><span style="font-size:11px;padding:1px 7px;border-radius:99px;background:rgba(139,92,246,.16);color:#c4b5fd">1 review</span>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:6px;color:#a1a1aa;font-size:12px"><i class="icon-refresh-cw" style="font-size:13px;padding:4px"></i><span style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;background:#4f46e5;color:#fff;font-weight:500"><i class="icon-download" style="font-size:12px"></i>Import 2</span></span>
+        </div>
+        <sc-for list="{{ ado }}" as="a" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:18px 90px 70px minmax(0,1fr) 70px;align-items:center;gap:12px;padding:8px 14px;font-size:13px;border-top:1px solid #18181b">
+            <span style="width:15px;height:15px;border-radius:4px;border:1px solid #52525b;background:{{ a.cb }}"></span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ a.fg }}"><i class="{{ a.i }}" style="font-size:12px"></i>{{ a.type }}</span>
+            <span style="font:12px ui-monospace,Menlo,monospace;color:#71717a">{{ a.id }}</span>
+            <span style="color:#e4e4e7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</span>
+            <span style="font-size:12px;color:#a1a1aa">{{ a.state }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:10px;background:#18181b;border:1px solid #27272a;font-size:13px;color:#71717a">
+        <i class="icon-plus" style="font-size:16px;color:#818cf8"></i><span style="flex:1">Add to Platform API… <span style="color:#52525b">!high #backend @fri</span></span>
+        <span style="display:flex;gap:2px"><i class="icon-flag" style="font-size:14px;padding:5px"></i><i class="icon-calendar" style="font-size:14px;padding:5px"></i><i class="icon-tag" style="font-size:14px;padding:5px"></i></span>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        <sc-for list="{{ apiGroups }}" as="g" hint-placeholder-count="2">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 8px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:{{ g.c }}">{{ g.label }}<span style="font-weight:400;color:#52525b">{{ g.n }}</span></div>
+          <sc-for list="{{ g.rows }}" as="t" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 140px 130px 84px;align-items:center;gap:12px;padding:8px;border-top:1px solid #1c1c20;background:{{ t.rowBg }};box-shadow:inset 2px 0 0 {{ t.cbDot }}">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                <span style="width:18px;height:18px;border-radius:6px;border:1px solid {{ t.cbB }};background:{{ t.cbBg }};display:flex;align-items:center;justify-content:center;flex:none"><span style="width:7px;height:7px;border-radius:2px;background:{{ t.cbDot }}"></span></span>
+                <span style="font-size:14px;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.title }}</span>
+                <sc-for list="{{ t.badges }}" as="b" hint-placeholder-count="0"><span style="flex:none;display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:4px;font-size:11px;color:{{ b.fg }};background:{{ b.bg }}"><i class="{{ b.i }}" style="font-size:11px"></i>{{ b.t }}</span></sc-for>
+              </div>
+              <span style="font-size:12px;color:#a1a1aa">{{ t.tags }}</span>
+              <span style="justify-self:start;font-size:12px;padding:2px 7px;border-radius:5px;color:{{ t.dueC }};background:{{ t.dueBg }}">{{ t.dueShort }}</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:{{ t.priC }}"><span style="width:6px;height:6px;border-radius:99px;background:{{ t.priDot }}"></span>{{ t.priL }}</span>
+            </div>
+          </sc-for>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 8px;border-top:1px solid #1c1c20;font-size:12px;color:#71717a"><i class="icon-chevron-right" style="font-size:13px"></i>Completed <span style="color:#52525b">9</span></div>
+      </div>
+    </main>
+  </div>
+</div></div>
+
+
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tab: 'Trends' };
+  renderVals() {
+    const vals = [2,3,1,4,0,0,3,5,2,4,3,1,2,4];
+    const max = 5;
+    const mk = (H, hi, lo) => vals.map((v, i) => ({ h: Math.max(v / max * H, v ? 3 : 0), c: i === 13 ? hi : lo }));
+    const heatC = v => v === 0 ? '#27272a' : v <= 2 ? 'rgba(99,102,241,.35)' : v === 3 ? 'rgba(99,102,241,.6)' : '#6366f1';
+    const tabNames = ['Trends','Projects','Gone stale · 3','Azure DevOps · 1 review','Scratchpad','Quick links'];
+    const bodies = {
+      'Projects': 'Platform API 9/16 · Client Portal 4/9 · Infra 3/6 · Personal 2/5 · Hiring 0/1',
+      'Gone stale · 3': 'Tidy up feature flags (21d) · Benchmark search indexer (18d) · Archive old Jira exports (15d)',
+      'Azure DevOps · 1 review': '2 new items · 1 review waiting · 1 closed · checked 12 min ago',
+      'Scratchpad': 'ask Priya about rollout window · check cert expiry on edge nodes · idea: cache warmup job',
+      'Quick links': 'Grafana · ADO Boards · Staging API · Runbooks'
+    };
+    const tab = this.state.tab;
+    const P = { api: ['Platform API', '#6366f1'], portal: ['Client Portal', '#3b82f6'], infra: ['Infra', '#10b981'], personal: ['Personal', '#f59e0b'], hiring: ['Hiring', '#ec4899'] };
+    const DUE = { od: ['#fca5a5', 'rgba(239,68,68,.12)'], today: ['#6ee7b7', 'rgba(16,185,129,.12)'], tom: ['#a5b4fc', 'rgba(99,102,241,.14)'], date: ['#d4d4d8', '#27272a'], none: ['#52525b', 'transparent'] };
+    const PRI = [['None', '#71717a', '#52525b'], ['Low', '#7dd3fc', '#0ea5e9'], ['Medium', '#fcd34d', '#f59e0b'], ['High', '#fdba74', '#f97316'], ['Urgent', '#fca5a5', '#ef4444']];
+    const BADGE = {
+      att: { i: 'icon-bot', t: '', fg: '#fcd34d', bg: 'rgba(245,158,11,.14)' },
+      run: { i: 'icon-bot', t: '', fg: '#a5b4fc', bg: 'rgba(99,102,241,.15)' },
+      notes: { i: 'icon-align-left', t: '', fg: '#a1a1aa', bg: '#27272a' },
+      rep: { i: 'icon-repeat', t: '', fg: '#a1a1aa', bg: '#27272a' }
+    };
+    const badge = b => BADGE[b] || (b.startsWith('pr') ? { i: 'icon-git-pull-request', t: 'PR ' + b.slice(2), fg: '#d4d4d8', bg: '#27272a' } : b.startsWith('wi') ? { i: 'icon-external-link', t: '#' + b.slice(2), fg: '#d4d4d8', bg: '#27272a' } : { i: 'icon-square-check', t: b.slice(3), fg: '#d4d4d8', bg: '#27272a' });
+    const raw = {
+      t1: ['Fix flaky auth integration test', 'api', 1, 3, 'today', 'Today', ['backend', 'tests'], ['sub2/4', 'att']],
+      t2: ['Reply to security review comments', 'api', 0, 4, 'od', 'Overdue · Oct 22', ['security'], []],
+      t3: ['Review PR #482: rate limiter', 'api', 0, 3, 'today', 'Today', ['review'], ['pr482']],
+      t4: ['1:1 prep with Sam', 'personal', 0, 0, 'today', 'Today', [], ['rep']],
+      t5: ['Refactor billing webhook handler', 'portal', 1, 2, 'date', 'Wed, Oct 29', ['backend'], ['notes', 'run']],
+      t6: ['Migrate staging DB to Postgres 16', 'infra', 0, 3, 'tom', 'Tomorrow', ['ops', 'db'], []],
+      t7: ['Write Q4 roadmap draft', 'portal', 0, 2, 'tom', 'Tomorrow', ['docs'], []],
+      t8: ['Renew wildcard SSL cert', 'infra', 0, 2, 'date', 'Mon, Oct 27', ['ops'], ['rep']],
+      t9: ['Update onboarding docs', 'hiring', 1, 1, 'none', 'No date', ['docs'], ['sub2/5']],
+      t10: ['Add OpenAPI examples for /orders', 'api', 0, 1, 'date', 'Fri, Oct 31', ['docs', 'api'], ['wi3127']],
+      t11: ['Tidy up feature flags', 'api', 0, 0, 'none', 'No date', ['backend'], []],
+      t12: ['Benchmark search indexer', 'api', 0, 1, 'none', 'No date', [], ['notes']],
+      t13: ['Fix date picker a11y on mobile', 'portal', 0, 2, 'date', 'Thu, Oct 30', ['frontend'], ['wi3140']],
+      t14: ['Rotate API keys for partners', 'api', 0, 2, 'date', 'Mon, Nov 3', ['security'], []]
+    };
+    const row = id => {
+      const [title, p, ip, pri, dt, dl, tags, bs] = raw[id];
+      return {
+        title, pn: P[p][0], pc: P[p][1],
+        cbB: ip ? '#fbbf24' : '#52525b', cbBg: ip ? 'rgba(251,191,36,.15)' : 'transparent', cbDot: ip ? '#fbbf24' : 'transparent',
+        rowBg: ip ? 'rgba(245,158,11,.04)' : 'transparent', edge: ip ? '#fbbf24' : '#27272a',
+        dueL: dl, dueC: DUE[dt][0], dueBg: DUE[dt][1], dueShort: dl.replace('Overdue · ', ''),
+        priL: PRI[pri][0], priC: PRI[pri][1], priDot: PRI[pri][2], priShow: pri > 0,
+        tags: tags.join(' · '), hashTags: tags.map(t => '#' + t).join(' '),
+        badges: bs.map(badge)
+      };
+    };
+    const grp = (label, c, ids) => ({ label, c, n: ids.length, rows: ids.map(row) });
+    const done = t => ({ title: t[0], pn: P[t[1]][0], pc: P[t[1]][1] });
+    return {
+      allGroups: [grp('Overdue', '#f87171', ['t2']), grp('Today', '#6ee7b7', ['t1', 't3', 't4']), grp('Tomorrow', '#a5b4fc', ['t6', 't7']), grp('This week', '#a1a1aa', ['t8', 't5', 't13', 't10']), grp('No date', '#71717a', ['t9', 't11', 't12'])],
+      apiGroups: [grp('In progress', '#fbbf24', ['t1']), grp('To do', '#a1a1aa', ['t2', 't3', 't10', 't14', 't11', 't12'])],
+      apiMotion: ['t1'].map(row), apiTodo: ['t2', 't3', 't10', 't14'].map(row),
+      boardTodo: ['t2', 't3', 't4', 't6', 't7', 't8'].map(row), boardIp: ['t1', 't5', 't9'].map(row),
+      boardDone: [['Ship health check endpoint', 'api'], ['Merge dependabot PRs', 'portal'], ['Tune Grafana alert thresholds', 'infra'], ['Send October invoice', 'personal']].map(done),
+      projTodo: ['t2', 't3', 't10', 't14'].map(row), projIp: ['t1'].map(row),
+      projDone: [['Ship health check endpoint', 'api'], ['Add request tracing', 'api'], ['Pin Node to 22 LTS', 'api']].map(done),
+      ado: [
+        { i: 'icon-bug', type: 'Bug', id: '3152', title: '500 on /orders when cart is empty', state: 'Active', fg: '#fca5a5', isNew: true },
+        { i: 'icon-square-check', type: 'PBI', id: '3160', title: 'Idempotency keys for payments', state: 'New', fg: '#7dd3fc', isNew: true },
+        { i: 'icon-git-pull-request', type: 'Review', id: 'PR 491', title: 'Add retry to webhook sender', state: 'Active', fg: '#c4b5fd', isNew: false }
+      ].map(a => ({ ...a, cb: a.isNew ? '#4f46e5' : 'transparent', action: a.isNew ? 'Import as task' : 'Import review' })),
+      projSquares: Array.from({ length: 16 }, (_, i) => ({ c: i < 9 ? '#6366f1' : '#27272a' })),
+      bars: mk(56, '#a5b4fc', '#6366f1'),
+      barsSm: mk(48, '#a5b4fc', '#4f46e5'),
+      barsCur: mk(56, '#a5b4fc', '#6366f1'),
+      heat: vals.map((v, i) => ({ c: heatC(v), o: i === 13 ? '1px solid #a5b4fc' : 'none' })),
+      tabs: tabNames.map(n => ({ label: n, bg: n === tab ? '#27272a' : 'transparent', fg: n === tab ? '#f4f4f5' : '#a1a1aa', select: () => this.setState({ tab: n }) })),
+      tabTrends: tab === 'Trends',
+      tabOther: tab !== 'Trends',
+      tabBody: bodies[tab] || '',
+      projects: [
+        { name: 'Platform API', label: '9/16', pct: 56, color: '#6366f1' },
+        { name: 'Client Portal', label: '4/9', pct: 44, color: '#3b82f6' },
+        { name: 'Infra', label: '3/6', pct: 50, color: '#10b981' },
+        { name: 'Personal', label: '2/5', pct: 40, color: '#f59e0b' },
+        { name: 'Hiring', label: '0/1', pct: 0, color: '#ec4899' }
+      ],
+      links: [
+        { t: 'Grafana', c: 'Ops', u: 'localhost:3000' },
+        { t: 'ADO Boards', c: 'Dev', u: 'dev.azure.com/onebeyond' },
+        { t: 'Staging API', c: 'Dev', u: 'localhost:8080' },
+        { t: 'Runbooks', c: 'Docs', u: 'wiki.internal/runbooks' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
