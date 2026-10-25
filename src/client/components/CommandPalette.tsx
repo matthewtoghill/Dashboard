@@ -18,6 +18,7 @@ import {
   Bookmark,
   Settings,
   CloudDownload,
+  PanelLeft,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -32,6 +33,7 @@ interface CommandPaletteProps {
   onApplySavedView: (id: string) => void;
   onFocusQuickAdd: () => void;
   onToggleTheme: () => void;
+  onToggleSidebar: () => void;
   onOpenSettings: () => void;
   onOpenAdoImport: () => void;
   onArchiveCompleted: () => void;
@@ -60,6 +62,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onApplySavedView,
   onFocusQuickAdd,
   onToggleTheme,
+  onToggleSidebar,
   onOpenSettings,
   onOpenAdoImport,
   onArchiveCompleted,
@@ -94,7 +97,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'nav-overview',
-        label: 'Go to Dashboard Home Overview',
+        label: 'Go to Home',
         category: 'Views',
         icon: LayoutDashboard,
         action: () => {
@@ -183,6 +186,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'act-sidebar',
+        label: 'Toggle Sidebar',
+        category: 'Preferences',
+        icon: PanelLeft,
+        action: () => {
+          onToggleSidebar();
+          onClose();
+        },
+      },
+      {
         id: 'act-settings',
         label: 'Open Settings',
         category: 'Preferences',
@@ -265,6 +278,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onSelectNav,
     onOpenCalendar,
     onToggleTheme,
+    onToggleSidebar,
     onOpenSettings,
     onOpenAdoImport,
     onArchiveCompleted,

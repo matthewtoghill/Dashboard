@@ -5,9 +5,9 @@ import {
   Calendar,
   CalendarClock,
   CalendarDays,
-  CheckCircle2,
+  CircleCheck,
   Archive,
-  FolderPlus,
+  Plus,
   Trash2,
   Tag,
   X,
@@ -15,11 +15,13 @@ import {
   Pencil,
   Settings2,
   Bookmark,
+  ChevronRight,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { PROJECT_COLORS, getTodayIso } from '../utils/taskUtils.ts';
 import { ActiveNavigation, SmartViewId, resolveSavedView, viewTaskCount } from '../utils/taskView.ts';
 import { ViewNameInput } from './SavedViewControls.tsx';
+import { Dot, LABEL_CLASS } from './ui.tsx';
 
 interface SidebarProps {
   tasks: Task[];
@@ -37,9 +39,45 @@ interface SidebarProps {
   onApplySavedView: (id: string) => void;
   onRenameSavedView: (id: string, name: string) => void;
   onDeleteSavedView: (id: string) => void;
-  /** Claude sessions waiting on the user, badged on Dashboard Home. */
+  /** Claude sessions waiting on the user, badged on Home. */
   claudeAttentionCount: number;
 }
+
+const SECTIONS_KEY = 'dashboard_sidebar_sections';
+const ROW_CLASS = 'w-full flex items-center gap-2.5 px-2.5 rounded-lg transition-colors duration-150 cursor-pointer';
+const ACTIVE_CLASS = 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium';
+const IDLE_CLASS = 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-900';
+const HOVER_ICON_CLASS =
+  'hidden group-hover:block group-focus-within:block p-0.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer';
+
+type Sections = { savedViews: boolean; tags: boolean };
+
+function loadSections(): Sections {
+  try {
+    return { savedViews: false, tags: false, ...JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? '{}') };
+  } catch {
+    return { savedViews: false, tags: false };
+  }
+}
+
+/** Collapsible secondary row: chevron, label and count. */
+const SectionToggle: React.FC<{ label: string; count: number; open: boolean; onToggle: () => void }> = ({
+  label,
+  count,
+  open,
+  onToggle,
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-expanded={open}
+    className={`${ROW_CLASS} py-1.5 hover:bg-zinc-200/60 dark:hover:bg-zinc-900`}
+  >
+    <ChevronRight className={`w-[13px] h-[13px] shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+    <span className="flex-1 text-left">{label}</span>
+    <span className="text-xs text-zinc-500">{count}</span>
+  </button>
+);
 
 export const Sidebar: React.FC<SidebarProps> = ({
   tasks,
@@ -62,6 +100,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
+  const [sections, setSections] = useState(loadSections);
+  const toggleSection = (key: keyof Sections) =>
+    setSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
+      return next;
+    });
 
   const today = getTodayIso();
 
@@ -95,131 +140,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
     label: string;
     icon: React.FC<{ className?: string }>;
     count?: number;
-    badgeColor?: string;
+    countClass?: string;
     title?: string;
     /** The Calendar entry: All Active in month layout. */
     calendar?: true;
   }[] = [
     {
       id: 'overview',
-      label: 'Dashboard Home',
+      label: 'Home',
       icon: LayoutDashboard,
       ...(claudeAttentionCount > 0 && {
         count: claudeAttentionCount,
-        badgeColor: 'text-amber-600 dark:text-amber-400 font-semibold',
+        countClass:
+          'px-1.5 py-px rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300',
         title: `${claudeAttentionCount} Claude session${claudeAttentionCount === 1 ? '' : 's'} need${claudeAttentionCount === 1 ? 's' : ''} attention`,
       }),
     },
-    {
-      id: 'inbox',
-      label: 'All Active',
-      icon: Inbox,
-      count: activeTasks.length,
-    },
+    { id: 'inbox', label: 'All Active', icon: Inbox, count: activeTasks.length },
     {
       id: 'today',
       label: 'Today & Overdue',
       icon: Calendar,
       count: todayCount,
-      badgeColor:
-        todayCount > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : undefined,
+      countClass: todayCount > 0 ? 'text-xs font-semibold text-emerald-600 dark:text-emerald-400' : undefined,
     },
-    {
-      id: 'upcoming',
-      label: 'Upcoming',
-      icon: CalendarClock,
-      count: upcomingCount,
-    },
-    {
-      id: 'inbox',
-      label: 'Calendar',
-      icon: CalendarDays,
-      calendar: true,
-    },
-    {
-      id: 'completed',
-      label: 'Completed',
-      icon: CheckCircle2,
-      count: completedCount,
-    },
-    {
-      id: 'archived',
-      label: 'Archive',
-      icon: Archive,
-      count: archivedCount,
-    },
+    { id: 'upcoming', label: 'Upcoming', icon: CalendarClock, count: upcomingCount },
+    { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
+    { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
   ];
 
+  const isArchiveSelected = activeNav.type === 'smart' && activeNav.id === 'archived';
+
   return (
-    <aside className="w-64 flex-shrink-0 sticky top-14 max-h-[calc(100vh-3.5rem)] border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/50 dark:bg-zinc-900/40 flex flex-col select-none">
-      <div className="p-3 space-y-6 flex-1 overflow-y-auto overscroll-contain">
+    <aside className="w-[232px] shrink-0 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50 dark:bg-zinc-950 flex flex-col select-none text-[13px] max-[900px]:fixed max-[900px]:top-[52px] max-[900px]:bottom-0 max-[900px]:left-0 max-[900px]:z-30 max-[900px]:shadow-xl">
+      <div className="px-2.5 py-3.5 flex flex-col gap-[22px] flex-1 overflow-y-auto overscroll-contain">
         {/* Smart Views */}
-        <div>
-          <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Views
-          </div>
-          <nav className="space-y-0.5" aria-label="Smart Views">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isSelected =
-                activeNav.type === 'smart' &&
-                activeNav.id === item.id &&
-                (item.id !== 'inbox' || isCalendar === !!item.calendar);
-              return (
-                <button
-                  key={item.calendar ? 'calendar' : item.id}
-                  type="button"
-                  onClick={() => (item.calendar ? onOpenCalendar() : onSelectNav({ type: 'smart', id: item.id }))}
-                  title={item.title}
-                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    isSelected
-                      ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
-                      : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60'
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5 truncate">
-                    <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </span>
-                  {item.count !== undefined && (
-                    <span
-                      className={`text-xs ${
-                        item.badgeColor ??
-                        (isSelected
-                          ? 'text-indigo-600 dark:text-indigo-400'
-                          : 'text-zinc-400 dark:text-zinc-500')
-                      }`}
-                    >
-                      {item.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+        <nav className="flex flex-col gap-px" aria-label="Smart Views">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isSelected =
+              activeNav.type === 'smart' &&
+              activeNav.id === item.id &&
+              (item.id !== 'inbox' || isCalendar === !!item.calendar);
+            return (
+              <button
+                key={item.calendar ? 'calendar' : item.id}
+                type="button"
+                onClick={() => (item.calendar ? onOpenCalendar() : onSelectNav({ type: 'smart', id: item.id }))}
+                title={item.title}
+                aria-current={isSelected ? 'page' : undefined}
+                className={`${ROW_CLASS} py-[7px] ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}
+              >
+                <Icon className={`w-[15px] h-[15px] shrink-0 ${isSelected ? '' : 'text-zinc-500 dark:text-zinc-400'}`} />
+                <span className="flex-1 truncate text-left">{item.label}</span>
+                {item.count !== undefined && (
+                  <span className={item.countClass ?? 'text-xs text-zinc-500'}>{item.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
         {/* Projects Section */}
         <div>
-          <div className="flex items-center justify-between px-2.5 pb-1.5">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-              Projects
-            </span>
+          <div className={`flex items-center justify-between px-2.5 pb-1.5 ${LABEL_CLASS} text-zinc-500`}>
+            <span>Projects</span>
             <button
               type="button"
               onClick={() => setIsAddingProject((v) => !v)}
               aria-label="New project"
-              className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 cursor-pointer"
-              title="Create Project"
+              title="New project"
+              className="p-0.5 rounded text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
             >
-              <FolderPlus className="w-3.5 h-3.5" />
+              <Plus className="w-[13px] h-[13px]" />
             </button>
           </div>
 
           {isAddingProject && (
             <form
               onSubmit={handleCreateProjectSubmit}
-              className="mb-2 p-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2 shadow-xs"
+              className="mb-2 p-2.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 space-y-2"
             >
               <input
                 type="text"
@@ -268,62 +268,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </form>
           )}
 
-          <div className="space-y-0.5">
+          <div className="flex flex-col gap-px">
             {projects.length === 0 && !isAddingProject ? (
-              <p className="px-2.5 py-2 text-xs text-zinc-400 dark:text-zinc-500 italic">
-                No projects yet
-              </p>
+              <p className="px-2.5 py-1.5 text-xs text-zinc-500">No projects yet</p>
             ) : (
               projects.map((project) => {
                 const isSelected = activeNav.type === 'project' && activeNav.id === project.id;
-                const projectTaskCount = activeTasks.filter(
-                  (t) => t.projectId === project.id
-                ).length;
+                const projectTaskCount = activeTasks.filter((t) => t.projectId === project.id).length;
 
                 return (
                   <div
                     key={project.id}
                     data-menu-project={project.id}
-                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-                      isSelected
-                        ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60'
-                    }`}
+                    className={`group ${ROW_CLASS} py-1.5 ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}
                   >
                     <button
                       type="button"
                       onClick={() => onSelectNav({ type: 'project', id: project.id })}
+                      aria-current={isSelected ? 'page' : undefined}
                       className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
                     >
-                      <span
-                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: project.color }}
-                      />
+                      <Dot color={project.color} size={8} />
                       <span className="truncate">{project.name}</span>
                     </button>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onOpenProjectSettings(project.id)}
-                        aria-label={`Settings for project ${project.name}`}
-                        title="Project settings"
-                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer transition-opacity"
-                      >
-                        <Settings2 className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteProject(project.id)}
-                        aria-label={`Delete project ${project.name}`}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer transition-opacity"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500 min-w-[1rem] text-right">
-                        {projectTaskCount}
-                      </span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenProjectSettings(project.id)}
+                      aria-label={`Settings for project ${project.name}`}
+                      title="Project settings"
+                      className={HOVER_ICON_CLASS}
+                    >
+                      <Settings2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteProject(project.id)}
+                      aria-label={`Delete project ${project.name}`}
+                      title="Delete project"
+                      className={`${HOVER_ICON_CLASS} hover:text-red-500!`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                    <span className={`text-xs ${isSelected ? '' : 'text-zinc-500'}`}>{projectTaskCount}</span>
                   </div>
                 );
               })
@@ -331,58 +317,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Saved Views Section */}
-        <div>
-          <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-            Saved Views
-          </div>
-          <div className="space-y-0.5">
-            {savedViews.length === 0 ? (
-              <p className="px-2.5 py-2 text-xs text-zinc-400 dark:text-zinc-500 italic">
-                Use "Save view" above a task list
-              </p>
-            ) : (
-              savedViews.map((saved) => {
-                if (renamingViewId === saved.id) {
+        {/* Secondary: saved views and tags collapse; Archive */}
+        <div className="flex flex-col gap-px text-zinc-500 dark:text-zinc-400">
+          <SectionToggle
+            label="Saved views"
+            count={savedViews.length}
+            open={sections.savedViews}
+            onToggle={() => toggleSection('savedViews')}
+          />
+          {sections.savedViews && (
+            <div className="flex flex-col gap-px pl-3 pb-1">
+              {savedViews.length === 0 ? (
+                <p className="px-2.5 py-1.5 text-xs text-zinc-500">Use "Save view" above a task list</p>
+              ) : (
+                savedViews.map((saved) => {
+                  if (renamingViewId === saved.id) {
+                    return (
+                      <div key={saved.id} className="px-1.5 py-1">
+                        <ViewNameInput
+                          initial={saved.name}
+                          label={`Rename view ${saved.name}`}
+                          onSubmit={(name) => {
+                            onRenameSavedView(saved.id, name);
+                            setRenamingViewId(null);
+                          }}
+                          onCancel={() => setRenamingViewId(null)}
+                        />
+                      </div>
+                    );
+                  }
+                  const isSelected = appliedViewId === saved.id;
                   return (
-                    <div key={saved.id} className="px-1.5 py-1">
-                      <ViewNameInput
-                        initial={saved.name}
-                        label={`Rename view ${saved.name}`}
-                        onSubmit={(name) => {
-                          onRenameSavedView(saved.id, name);
-                          setRenamingViewId(null);
-                        }}
-                        onCancel={() => setRenamingViewId(null)}
-                      />
-                    </div>
-                  );
-                }
-                const isSelected = appliedViewId === saved.id;
-                return (
-                  <div
-                    key={saved.id}
-                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
-                      isSelected
-                        ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onApplySavedView(saved.id)}
-                      aria-current={isSelected ? 'true' : undefined}
-                      className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
-                    >
-                      <Bookmark className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{saved.name}</span>
-                    </button>
-                    <div className="flex items-center gap-1">
+                    <div key={saved.id} className={`group ${ROW_CLASS} py-1.5 ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}>
+                      <button
+                        type="button"
+                        onClick={() => onApplySavedView(saved.id)}
+                        aria-current={isSelected ? 'true' : undefined}
+                        className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+                      >
+                        <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{saved.name}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setRenamingViewId(saved.id)}
                         aria-label={`Rename view ${saved.name}`}
-                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer transition-opacity"
+                        className={HOVER_ICON_CLASS}
                       >
                         <Pencil className="w-3 h-3" />
                       </button>
@@ -390,33 +370,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         type="button"
                         onClick={() => onDeleteSavedView(saved.id)}
                         aria-label={`Delete view ${saved.name}`}
-                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer transition-opacity"
+                        className={`${HOVER_ICON_CLASS} hover:text-red-500!`}
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500 min-w-[1rem] text-right">
-                        {viewTaskCount(
-                          tasks,
-                          resolveSavedView(saved.view, projects, tasks).view,
-                          projects,
-                          today
-                        )}
+                      <span className="text-xs text-zinc-500">
+                        {viewTaskCount(tasks, resolveSavedView(saved.view, projects, tasks).view, projects, today)}
                       </span>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Tags Section */}
-        {allTags.length > 0 && (
-          <div>
-            <div className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-              Tags
+                  );
+                })
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5 px-2">
+          )}
+
+          <SectionToggle label="Tags" count={allTags.length} open={sections.tags} onToggle={() => toggleSection('tags')} />
+          {sections.tags && (
+            <div className="flex flex-wrap gap-1.5 px-2.5 pt-1 pb-2">
+              {allTags.length === 0 && <p className="text-xs text-zinc-500">No tags on active tasks</p>}
               {allTags.map(([tag, count]) => {
                 const isSelected = activeNav.type === 'tag' && activeNav.id === tag;
                 return (
@@ -424,7 +395,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={tag}
                     type="button"
                     onClick={() => onSelectNav({ type: 'tag', id: tag })}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors cursor-pointer ${
+                    aria-current={isSelected ? 'page' : undefined}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors duration-150 cursor-pointer ${
                       isSelected
                         ? 'bg-indigo-600 text-white border-indigo-600'
                         : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-indigo-400'
@@ -437,8 +409,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 );
               })}
             </div>
-          </div>
-        )}
+          )}
+
+          <button
+            type="button"
+            onClick={() => onSelectNav({ type: 'smart', id: 'archived' })}
+            aria-current={isArchiveSelected ? 'page' : undefined}
+            className={`${ROW_CLASS} py-1.5 ${isArchiveSelected ? ACTIVE_CLASS : 'hover:bg-zinc-200/60 dark:hover:bg-zinc-900'}`}
+          >
+            <Archive className="w-[13px] h-[13px] shrink-0" />
+            <span className="flex-1 text-left">Archive</span>
+            <span className="text-xs text-zinc-500">{archivedCount}</span>
+          </button>
+        </div>
       </div>
     </aside>
   );

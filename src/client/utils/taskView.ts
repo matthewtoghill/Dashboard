@@ -219,7 +219,7 @@ export function visibleTaskOrder(model: TaskListModel, showCompleted: boolean): 
 }
 
 const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
-  overview: 'Dashboard Overview',
+  overview: 'Home',
   inbox: 'All Active',
   today: 'Today & Overdue',
   upcoming: 'Upcoming',

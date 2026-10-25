@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  CheckSquare,
+  SquareCheckBig,
   Sun,
   Moon,
   ChevronDown,
@@ -10,8 +10,6 @@ import {
   AlertCircle,
   Search,
   X,
-  PanelLeft,
-  Command,
   Archive,
   Settings,
   CloudDownload,
@@ -68,6 +66,7 @@ import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
 import { TaskListToolbar } from './components/TaskListToolbar.tsx';
 import { ContextMenuHost, MenuContent } from './components/ContextMenu.tsx';
+import { KBD_CLASS } from './components/ui.tsx';
 import { projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
 import {
   ConfirmDialog,
@@ -97,12 +96,22 @@ import {
 } from './utils/taskUtils.ts';
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
+const SIDEBAR_KEY = 'dashboard_sidebar_open';
 
 export const App: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Sidebar & Navigation state
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Below 900px the sidebar is an overlay, so it starts closed there
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.innerWidth >= 900 && localStorage.getItem(SIDEBAR_KEY) !== '0'
+  );
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((open) => {
+      localStorage.setItem(SIDEBAR_KEY, open ? '0' : '1');
+      return !open;
+    });
+  }, []);
   // List view: navigation, search, priority filter, grouping and sorting
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
@@ -191,6 +200,7 @@ export const App: React.FC = () => {
       }),
     focusQuickAdd,
     focusSearch: () => searchInputRef.current?.focus(),
+    toggleSidebar,
   });
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
@@ -603,11 +613,6 @@ export const App: React.FC = () => {
     };
   };
 
-  const totalActiveCount = tasks.filter(
-    (t) => t.status !== 'done' && t.status !== 'archived'
-  ).length;
-  const totalDoneCount = tasks.filter((t) => t.status === 'done').length;
-
   const backgroundInert = selectedTask !== null || selectedSession !== null || commandPaletteOpen;
   // Drag-to-reorder only makes sense in one flat, manually sorted list
   const canReorder = sortBy === 'manual' && groupBy === 'none';
@@ -637,114 +642,87 @@ export const App: React.FC = () => {
       {/* Top Header */}
       <header
         inert={backgroundInert}
-        className="sticky top-0 z-20 backdrop-blur-md bg-zinc-50/85 dark:bg-zinc-950/85 border-b border-zinc-200/80 dark:border-zinc-800/80">
-        <div className="px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
+        className="h-[52px] shrink-0 px-5 flex items-center gap-4 border-b border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50 dark:bg-zinc-950"
+      >
+        {/* Brand block lines up with the sidebar edge; the logo toggles the sidebar */}
+        <div className="w-[212px] shrink-0 flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={sidebarOpen}
+            title={`${sidebarOpen ? 'Collapse' : 'Expand'} sidebar ([)`}
+            className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-colors duration-150 cursor-pointer"
+          >
+            <SquareCheckBig className="w-[15px] h-[15px]" />
+          </button>
+          <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+        </div>
+
+        {/* Search; Ctrl+K opens the command palette */}
+        <div className="flex-1 max-w-[560px] h-8 px-2.5 flex items-center gap-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus-within:border-indigo-500/60 text-[13px] text-zinc-500 transition-colors duration-150">
+          <Search className="w-3.5 h-3.5 shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) =>
+              updateView({
+                search: e.target.value,
+                // Typing a search on Home jumps to the task list
+                ...(isOverviewPage && e.target.value.trim()
+                  ? { nav: { type: 'smart', id: 'inbox' } as const }
+                  : {}),
+              })
+            }
+            placeholder="Search tasks or run a command…"
+            aria-label="Search tasks"
+            className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none"
+          />
+          {searchQuery ? (
             <button
               type="button"
-              onClick={() => setSidebarOpen((v) => !v)}
-              aria-label="Toggle sidebar"
-              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
-              title="Toggle Sidebar"
+              onClick={() => updateView({ search: '' })}
+              aria-label="Clear search"
+              className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
             >
-              <PanelLeft className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
+          ) : (
+            <>
+              <kbd className={KBD_CLASS}>/</kbd>
+              <button
+                type="button"
+                onClick={() => setCommandPaletteOpen(true)}
+                aria-label="Open command palette"
+                title="Command palette (Ctrl+K)"
+                className="cursor-pointer"
+              >
+                <kbd className={KBD_CLASS}>Ctrl K</kbd>
+              </button>
+            </>
+          )}
+        </div>
 
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
-              <CheckSquare className="w-4 h-4 stroke-[2.5]" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight leading-none">
-                Dashboard
-              </h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Personal Task Manager
-              </p>
-            </div>
-          </div>
-
-          {/* Search Input in Header */}
-          <div className="flex-1 max-w-md mx-2">
-            <div className="relative flex items-center">
-              <Search className="w-4 h-4 text-zinc-400 absolute left-3 pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) =>
-                  updateView({
-                    search: e.target.value,
-                    // Typing a search on the Overview page jumps to the task list
-                    ...(isOverviewPage && e.target.value.trim()
-                      ? { nav: { type: 'smart', id: 'inbox' } as const }
-                      : {}),
-                  })
-                }
-                placeholder="Search tasks, tags, or projects... (Press /)"
-                aria-label="Search tasks"
-                className="w-full pl-9 pr-8 py-1.5 rounded-lg text-xs sm:text-sm bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-zinc-900 transition-all"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => updateView({ search: '' })}
-                  aria-label="Clear search"
-                  className="absolute right-2.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
+        <div className="ml-auto flex items-center gap-1">
+          {(
+            [
+              ['Fetch from Azure DevOps', CloudDownload, () => setAdoImportOpen(true)],
+              ['Settings', Settings, () => setSettingsOpen(true)],
+              [darkMode ? 'Switch to light mode' : 'Switch to dark mode', darkMode ? Sun : Moon, toggleTheme],
+            ] as const
+          ).map(([label, Icon, onClick]) => (
             <button
+              key={label}
               type="button"
-              onClick={() => setCommandPaletteOpen(true)}
-              aria-label="Open command palette"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 hover:border-indigo-400 transition-colors cursor-pointer"
-              title="Command Palette (Ctrl+K)"
+              onClick={onClick}
+              aria-label={label}
+              title={label}
+              className="p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
             >
-              <Command className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Ctrl+K</span>
+              <Icon className="w-4 h-4" />
             </button>
-
-            <div className="hidden md:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-900 px-2.5 py-1 rounded-full border border-zinc-200/60 dark:border-zinc-800">
-              <span>{totalActiveCount} active</span>
-              <span>â€¢</span>
-              <span>{totalDoneCount} done</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setAdoImportOpen(true)}
-              aria-label="Fetch from Azure DevOps"
-              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
-              title="Fetch from Azure DevOps"
-            >
-              <CloudDownload className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Open settings"
-              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
-              title="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label="Toggle color theme"
-              className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer"
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-          </div>
+          ))}
         </div>
       </header>
 
@@ -1034,6 +1012,7 @@ export const App: React.FC = () => {
         onApplySavedView={handleApplySavedView}
         onFocusQuickAdd={focusQuickAdd}
         onToggleTheme={toggleTheme}
+        onToggleSidebar={toggleSidebar}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAdoImport={() => setAdoImportOpen(true)}
         onArchiveCompleted={() =>
