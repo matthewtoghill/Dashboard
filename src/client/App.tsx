@@ -52,6 +52,7 @@ import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
 import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
+import { PomodoroTimer } from './components/PomodoroTimer.tsx';
 import {
   ClaudeSessionActions,
   ClaudeSessionPanel,
@@ -744,6 +745,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="ml-auto flex items-center gap-1">
+          <PomodoroTimer />
           {(
             [
               ['Fetch from Azure DevOps', CloudDownload, () => setAdoImportOpen(true)],
