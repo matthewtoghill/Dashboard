@@ -11,6 +11,7 @@ import {
   Archive,
   Settings,
   CloudDownload,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   fetchTasks,
@@ -48,6 +49,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { HomeView } from './components/Home.tsx';
+import { HomeDrawerProps, WidgetsPanel } from './components/DashboardWidgets.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
 import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
@@ -95,6 +97,7 @@ import {
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
 const SIDEBAR_KEY = 'dashboard_sidebar_open';
+const WIDGETS_OPEN_KEY = 'dashboard_widgets_open';
 
 /** Group label colours by section key (due-date and status groups). */
 const GROUP_LABEL_COLORS: Record<string, string> = {
@@ -142,6 +145,11 @@ export const App: React.FC = () => {
       return !open;
     });
   }, []);
+  const [widgetsOpen, setWidgetsOpen] = useState(() => localStorage.getItem(WIDGETS_OPEN_KEY) === '1');
+  const toggleWidgets = () => {
+    localStorage.setItem(WIDGETS_OPEN_KEY, widgetsOpen ? '0' : '1');
+    setWidgetsOpen(!widgetsOpen);
+  };
   // List view: navigation, search, priority filter, grouping and sorting
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
@@ -645,6 +653,30 @@ export const App: React.FC = () => {
   };
 
   const backgroundInert = selectedTask !== null || selectedSession !== null || commandPaletteOpen;
+  // Shared by Home's bottom drawer and the Widgets panel
+  const widgetProps: HomeDrawerProps = {
+    tasks,
+    widgetConfig,
+    taskWidgetActions: {
+      projects,
+      claudeSessionsByTaskId,
+      onToggleTask: handleToggleTask,
+      onOpenTask: claudeSessionActions.onOpenTask,
+      onOpenSession: claudeSessionActions.onOpen,
+    },
+    projects,
+    scratchpad,
+    quickLinks,
+    staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
+    onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
+    onConvertLineToTask: handleConvertScratchpadLineToTask,
+    onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
+    onUpdateQuickLink: (id, title, url, category) =>
+      updateQuickLinkMutation.mutate({ id, input: { title, url, category } }),
+    onDeleteQuickLink: handleDeleteQuickLink,
+    onSelectProject: (id) => setActiveNav({ type: 'project', id }),
+    onOpenAdoImport: () => setAdoImportOpen(true),
+  };
   // Drag-to-reorder only makes sense in one flat, manually sorted list
   const canReorder = sortBy === 'manual' && groupBy === 'none';
   // Shared by the full (Overview) and compact (above the task list) widget layouts
@@ -746,6 +778,18 @@ export const App: React.FC = () => {
 
         <div className="ml-auto flex items-center gap-1">
           <PomodoroTimer />
+          <button
+            type="button"
+            onClick={toggleWidgets}
+            aria-label="Widgets"
+            aria-pressed={widgetsOpen}
+            title={widgetsOpen ? 'Hide widgets' : 'Show widgets'}
+            className={`p-2 rounded-lg hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer ${
+              widgetsOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
           {(
             [
               ['Fetch from Azure DevOps', CloudDownload, () => setAdoImportOpen(true)],
@@ -809,29 +853,10 @@ export const App: React.FC = () => {
               tasks={tasks}
               claudeSessions={claudeSessions}
               claudeSessionActions={claudeSessionActions}
-              taskWidgetActions={{
-                projects,
-                claudeSessionsByTaskId,
-                onToggleTask: handleToggleTask,
-                onOpenTask: claudeSessionActions.onOpenTask,
-                onOpenSession: claudeSessionActions.onOpen,
-              }}
+              taskWidgetActions={widgetProps.taskWidgetActions}
               widgetConfig={widgetConfig}
               onOpenOverdue={() => setActiveNav({ type: 'smart', id: 'today' })}
-              drawer={{
-                projects,
-                scratchpad,
-                quickLinks,
-                staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
-                onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
-                onConvertLineToTask: handleConvertScratchpadLineToTask,
-                onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
-                onUpdateQuickLink: (id, title, url, category) =>
-                  updateQuickLinkMutation.mutate({ id, input: { title, url, category } }),
-                onDeleteQuickLink: handleDeleteQuickLink,
-                onSelectProject: (id) => setActiveNav({ type: 'project', id }),
-                onOpenAdoImport: () => setAdoImportOpen(true),
-              }}
+              drawer={widgetProps}
             />
           ) : (
             <>
@@ -1027,6 +1052,8 @@ export const App: React.FC = () => {
           )}
           </div>
         </main>
+
+        {widgetsOpen && <WidgetsPanel {...widgetProps} onClose={toggleWidgets} />}
       </div>
 
       <datalist id="tag-suggestions">

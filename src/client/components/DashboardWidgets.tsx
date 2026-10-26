@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, X, ChevronRight } from 'lucide-react';
 import { Task, Project, QuickLink, WidgetConfig } from '../../shared/types.ts';
 import {
   completionsByDay,
@@ -20,7 +20,7 @@ export type HomeDrawerTab = 'trends' | 'projects' | 'stale' | 'ado' | 'scratchpa
 const TAB_KEY = 'dashboard_home_drawer_tab';
 const COLLAPSED_KEY = 'dashboard_home_drawer_collapsed';
 
-interface HomeDrawerProps {
+export interface HomeDrawerProps {
   tasks: Task[];
   projects: Project[];
   scratchpad: string;
@@ -43,21 +43,7 @@ interface HomeDrawerProps {
  * collapsed (click the open tab again), are remembered per browser.
  */
 export const HomeDrawer: React.FC<HomeDrawerProps> = (props) => {
-  const { tasks, projects, widgetConfig, taskWidgetActions, staleTaskDays } = props;
-  const { data: adoData } = useAdoSync();
-  const staleCount = staleTasks(tasks, staleTaskDays).length;
-  const reviewCount = (adoData?.items ?? []).filter((i) => i.role === 'reviewer').length;
-
-  const tabs = (
-    [
-      ['trends', 'Trends', widgetConfig.showTrends],
-      ['projects', 'Projects', widgetConfig.showTrends],
-      ['stale', staleCount ? `Gone stale · ${staleCount}` : 'Gone stale', widgetConfig.showStale],
-      ['ado', reviewCount ? `Azure DevOps · ${reviewCount} review` : 'Azure DevOps', widgetConfig.showAdo],
-      ['scratchpad', 'Scratchpad', widgetConfig.showScratchpad],
-      ['links', 'Quick links', widgetConfig.showQuickLinks],
-    ] as const
-  ).filter(([, , shown]) => shown);
+  const tabs = useWidgetList(props);
 
   const [storedTab, setStoredTab] = useState(() => (localStorage.getItem(TAB_KEY) as HomeDrawerTab) || 'trends');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === '1');
@@ -109,33 +95,177 @@ export const HomeDrawer: React.FC<HomeDrawerProps> = (props) => {
           }`}
         >
           <div role="tabpanel" inert={collapsed} className="min-h-0 overflow-hidden">
-            <div className="max-h-[240px] overflow-auto pb-1">
-              {tab === 'trends' && <TrendsPanel tasks={tasks} />}
-              {tab === 'projects' && (
-                <ProjectsPanel tasks={tasks} projects={projects} onSelectProject={props.onSelectProject} />
-              )}
-              {tab === 'stale' && <StaleList tasks={tasks} days={staleTaskDays} actions={taskWidgetActions} />}
-              {tab === 'ado' && <AdoSummaryPanel tasks={tasks} onOpenAdoImport={props.onOpenAdoImport} />}
-              {tab === 'scratchpad' && (
-                <ScratchpadPanel
-                  scratchpad={props.scratchpad}
-                  onSave={props.onSaveScratchpad}
-                  onConvertLineToTask={props.onConvertLineToTask}
-                />
-              )}
-              {tab === 'links' && (
-                <QuickLinksPanel
-                  quickLinks={props.quickLinks}
-                  onCreate={props.onCreateQuickLink}
-                  onUpdate={props.onUpdateQuickLink}
-                  onDelete={props.onDeleteQuickLink}
-                />
-              )}
+            <div className="@container max-h-[240px] overflow-auto pb-1">
+              <WidgetBody id={tab} {...props} />
             </div>
           </div>
         </div>
       )}
     </section>
+  );
+};
+
+/** The widgets the settings leave shown, as [id, label] with live counts in the labels. */
+const useWidgetList = ({ tasks, widgetConfig, staleTaskDays }: HomeDrawerProps) => {
+  const { data: adoData } = useAdoSync();
+  const staleCount = staleTasks(tasks, staleTaskDays).length;
+  const reviewCount = (adoData?.items ?? []).filter((i) => i.role === 'reviewer').length;
+  return (
+    [
+      ['trends', 'Trends', widgetConfig.showTrends],
+      ['projects', 'Projects', widgetConfig.showTrends],
+      ['stale', staleCount ? `Gone stale · ${staleCount}` : 'Gone stale', widgetConfig.showStale],
+      ['ado', reviewCount ? `Azure DevOps · ${reviewCount} review` : 'Azure DevOps', widgetConfig.showAdo],
+      ['scratchpad', 'Scratchpad', widgetConfig.showScratchpad],
+      ['links', 'Quick links', widgetConfig.showQuickLinks],
+    ] as const
+  ).filter(([, , shown]) => shown);
+};
+
+const WidgetBody: React.FC<HomeDrawerProps & { id: HomeDrawerTab }> = ({ id, ...props }) => {
+  const { tasks } = props;
+  switch (id) {
+    case 'trends':
+      return <TrendsPanel tasks={tasks} />;
+    case 'projects':
+      return <ProjectsPanel tasks={tasks} projects={props.projects} onSelectProject={props.onSelectProject} />;
+    case 'stale':
+      return <StaleList tasks={tasks} days={props.staleTaskDays} actions={props.taskWidgetActions} />;
+    case 'ado':
+      return <AdoSummaryPanel tasks={tasks} onOpenAdoImport={props.onOpenAdoImport} />;
+    case 'scratchpad':
+      return (
+        <ScratchpadPanel
+          scratchpad={props.scratchpad}
+          onSave={props.onSaveScratchpad}
+          onConvertLineToTask={props.onConvertLineToTask}
+        />
+      );
+    case 'links':
+      return (
+        <QuickLinksPanel
+          quickLinks={props.quickLinks}
+          onCreate={props.onCreateQuickLink}
+          onUpdate={props.onUpdateQuickLink}
+          onDelete={props.onDeleteQuickLink}
+        />
+      );
+  }
+};
+
+const WIDGETS_WIDTH_KEY = 'dashboard_widgets_width';
+const WIDGETS_COLLAPSED_KEY = 'dashboard_widgets_collapsed';
+const WIDGETS_MIN_WIDTH = 300;
+// Leave the main view at least 400px
+const clampWidgetsWidth = (w: number) =>
+  Math.round(Math.max(WIDGETS_MIN_WIDTH, Math.min(w, window.innerWidth - 400)));
+
+/**
+ * Right-hand Widgets panel, docked beside the main view. Widgets flow in a grid that fits as
+ * many columns as the width allows; each one collapses from its header. Width and collapsed
+ * widgets are remembered per browser.
+ */
+export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> = ({ onClose, ...props }) => {
+  const widgets = useWidgetList(props);
+  const [width, setWidth] = useState(() => Number(localStorage.getItem(WIDGETS_WIDTH_KEY)) || 380);
+  const [collapsed, setCollapsed] = useState<HomeDrawerTab[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(WIDGETS_COLLAPSED_KEY) ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const saveWidth = (w: number) => localStorage.setItem(WIDGETS_WIDTH_KEY, String(w));
+  const toggle = (id: HomeDrawerTab) => {
+    const next = collapsed.includes(id) ? collapsed.filter((c) => c !== id) : [...collapsed, id];
+    setCollapsed(next);
+    localStorage.setItem(WIDGETS_COLLAPSED_KEY, JSON.stringify(next));
+  };
+
+  return (
+    <aside
+      aria-label="Widgets"
+      style={{ width }}
+      className="relative shrink-0 max-w-full h-full flex flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+    >
+      {/* Resize handle: drag, or focus and use Left/Right arrows */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize widgets panel"
+        aria-valuenow={width}
+        aria-valuemin={WIDGETS_MIN_WIDTH}
+        tabIndex={0}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            setWidth(clampWidgetsWidth(window.innerWidth - e.clientX));
+          }
+        }}
+        onPointerUp={() => saveWidth(width)}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          const next = clampWidgetsWidth(width + (e.key === 'ArrowLeft' ? 32 : -32));
+          setWidth(next);
+          saveWidth(next);
+        }}
+        className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize touch-none focus:outline-none group/resize"
+      >
+        <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-indigo-500/60 group-focus-visible/resize:bg-indigo-500 group-active/resize:bg-indigo-500 transition-colors" />
+      </div>
+
+      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Widgets</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close widgets"
+          title="Close widgets"
+          className="p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        {widgets.length === 0 ? (
+          <EmptyNote>All widgets are turned off in Settings.</EmptyNote>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] items-start gap-3">
+            {widgets.map(([id, label]) => {
+              const open = !collapsed.includes(id);
+              return (
+                <section
+                  key={id}
+                  aria-label={label}
+                  className="min-w-0 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/40"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggle(id)}
+                    aria-expanded={open}
+                    className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors duration-150 cursor-pointer"
+                  >
+                    <ChevronRight className={`w-3 h-3 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
+                    {label}
+                  </button>
+                  {open && (
+                    <div className="@container px-3 pb-3">
+                      <WidgetBody id={id} {...props} />
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </aside>
   );
 };
 
@@ -153,7 +283,7 @@ const TrendsPanel: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   const diff = total - previous;
 
   return (
-    <div className="flex items-end gap-7">
+    <div className="flex flex-wrap items-end gap-x-7 gap-y-2">
       <div aria-hidden className="flex items-end gap-[5px]" style={{ height: TREND_HEIGHT }}>
         {days.map((d) => (
           <span
@@ -209,7 +339,7 @@ const ProjectsPanel: React.FC<{
 }> = ({ tasks, projects, onSelectProject }) => {
   if (projects.length === 0) return <EmptyNote>No projects yet. Add one from the sidebar.</EmptyNote>;
   return (
-    <ul className="grid grid-cols-3 max-[1100px]:grid-cols-2 gap-x-6 gap-y-1">
+    <ul className="grid grid-cols-1 @sm:grid-cols-2 @3xl:grid-cols-3 gap-x-6 gap-y-1">
       {projectProgress(tasks, projects).map((row) => {
         const percent = row.total > 0 ? Math.round((row.done / row.total) * 100) : 0;
         const content = (
@@ -421,7 +551,7 @@ const QuickLinksPanel: React.FC<{
       )}
 
       {quickLinks.length > 0 && (
-        <ul className="grid grid-cols-4 max-[1100px]:grid-cols-2 gap-2">
+        <ul className="grid grid-cols-1 @sm:grid-cols-2 @4xl:grid-cols-4 gap-2">
           {quickLinks.map((link) => (
             <li
               key={link.id}

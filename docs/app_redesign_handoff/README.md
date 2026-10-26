@@ -429,4 +429,5 @@ Choices made while building this on the `app-redesign` branch, where the spec le
 - **Tags in list rows** are plain text with a hover "+" to add a tag. Removing a tag happens in the task drawer.
 - **Project ADO panel** drops the old filter, group, sort and "show imported" controls. Imported items are hidden, new work items start ticked, reviews start unticked, and the ticks reset after each check.
 - **Claude sessions rail** lists live sessions only (not ended, not cleared). Ended sessions still show on their task's drawer.
+- **Widgets panel.** A header button (left of Azure DevOps) toggles a right-hand panel docked beside the main view, available on every page. It shows the same widgets as Home's bottom drawer, filtered by the same widget settings, as cards in a grid that fits as many 300px columns as the panel width allows. Each card collapses from its header. Open state, width and collapsed cards are remembered per browser. Home's drawer is unchanged.
 - **Light mode** follows the structure of the dark design using the app's existing light classes. It still needs a design review.
