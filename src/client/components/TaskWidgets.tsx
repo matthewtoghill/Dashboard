@@ -38,10 +38,11 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
   return (
     <li
       data-menu-task={task.id}
-      className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-150 ${
+      // Transparent border on other rows so in-progress rows don't shift the layout
+      className={`flex items-center gap-3 p-2 rounded-lg border transition-colors duration-150 ${
         task.status === 'in_progress'
-          ? 'bg-(--in-progress)/5 hover:bg-(--in-progress)/10'
-          : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
+          ? 'border-(--in-progress)/35 bg-(--in-progress)/10 hover:bg-(--in-progress)/15 dark:border-(--in-progress)/30 dark:bg-(--in-progress)/[.07] dark:hover:bg-(--in-progress)/[.12]'
+          : 'border-transparent hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
       }`}
     >
       <TaskStatusCheckbox task={task} onToggle={actions.onToggleTask} />
