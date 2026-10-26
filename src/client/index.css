@@ -5,6 +5,8 @@
 /* Native controls (select popups, date pickers, scrollbars) follow the app theme. */
 :root {
   color-scheme: light;
+  /* In-progress accent; overridden from the inProgressColor setting. */
+  --in-progress: #fbbf24;
 }
 :root.dark {
   color-scheme: dark;

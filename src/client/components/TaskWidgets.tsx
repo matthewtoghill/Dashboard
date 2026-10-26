@@ -40,7 +40,7 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
       data-menu-task={task.id}
       className={`flex items-center gap-3 p-2 rounded-lg transition-colors duration-150 ${
         task.status === 'in_progress'
-          ? 'bg-amber-500/5 hover:bg-amber-500/10'
+          ? 'bg-(--in-progress)/5 hover:bg-(--in-progress)/10'
           : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
       }`}
     >

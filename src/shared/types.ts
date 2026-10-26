@@ -289,6 +289,11 @@ export const SettingsSchema = z.object({
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
   /** The Overview's stale widget lists to-do tasks untouched for this many days. */
   staleTaskDays: z.number().int().min(1).max(365).default(14),
+  /** Accent for in-progress tasks, as #rrggbb. */
+  inProgressColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Expected a #rrggbb colour')
+    .default('#fbbf24'),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();

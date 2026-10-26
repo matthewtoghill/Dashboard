@@ -105,7 +105,7 @@ const GROUP_LABEL_COLORS: Record<string, string> = {
   'due-today': 'text-emerald-600 dark:text-emerald-300',
   'due-tomorrow': 'text-indigo-600 dark:text-indigo-300',
   'due-none': 'text-zinc-500',
-  'status-in_progress': 'text-amber-600 dark:text-amber-400',
+  'status-in_progress': 'text-(--in-progress)',
 };
 
 /** "› Later 6": a collapsible list toggle in the task list footer. */
@@ -246,6 +246,10 @@ export const App: React.FC = () => {
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
   const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
+  const inProgressColor = settingsData?.settings.inProgressColor;
+  useEffect(() => {
+    if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
+  }, [inProgressColor]);
 
   // The quick-add project follows the current view (else the settings default), and resets when leaving it
   useEffect(() => {

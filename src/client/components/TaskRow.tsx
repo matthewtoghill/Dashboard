@@ -87,12 +87,12 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
         isDone
           ? 'bg-indigo-600 border-indigo-600 text-white'
           : isInProgress
-          ? 'border-amber-500 dark:border-amber-400 bg-amber-400/15 hover:bg-amber-400/25'
+          ? 'border-(--in-progress) bg-(--in-progress)/15 hover:bg-(--in-progress)/25'
           : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400'
       }`}
     >
       {isDone && <Check className="w-3 h-3 stroke-[3]" />}
-      {isInProgress && <span className="w-[7px] h-[7px] rounded-sm bg-amber-500 dark:bg-amber-400" />}
+      {isInProgress && <span className="w-2 h-2 rounded-sm bg-(--in-progress)" />}
     </button>
   );
 };
@@ -288,9 +288,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         isSelected
           ? 'bg-indigo-500/10'
           : isInProgress
-          ? 'bg-amber-500/[.04] hover:bg-amber-500/[.08]'
+          ? 'bg-(--in-progress)/[.04] hover:bg-(--in-progress)/[.08]'
           : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
-      } ${isInProgress ? 'shadow-[inset_2px_0_0_var(--color-amber-400)]' : ''}`}
+      } ${isInProgress ? 'shadow-[inset_2px_0_0_var(--in-progress)]' : ''}`}
     >
       {/* Task: checkbox, title, badges; row actions appear at the end on hover */}
       <div className="flex items-center gap-2.5 min-w-0">

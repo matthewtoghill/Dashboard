@@ -250,6 +250,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </fieldset>
+            <label className="flex items-center gap-4">
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">In progress colour</span>
+              <input
+                type="color"
+                value={settings?.inProgressColor ?? '#fbbf24'}
+                onChange={(e) => save.mutate({ inProgressColor: e.target.value })}
+                disabled={!settings}
+                className="h-8 w-12 cursor-pointer rounded-lg bg-transparent"
+              />
+            </label>
           </Section>
 
           <Section title="Home widgets">
