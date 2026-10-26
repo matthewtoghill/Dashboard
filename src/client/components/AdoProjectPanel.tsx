@@ -1,16 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Bug,
-  Check,
-  ChevronDown,
-  Download,
-  GitPullRequest,
-  Link2Off,
-  RefreshCw,
-  SquareCheck,
-  type LucideIcon,
-} from 'lucide-react';
+import { Check, ChevronDown, Download, GitPullRequest, Link2Off, RefreshCw } from 'lucide-react';
 import { AdoItem, Project, Task } from '../../shared/types.ts';
 import { fetchAdoProjectLinks } from '../api.ts';
 import { formatRelativeTime } from '../utils/taskUtils.ts';
@@ -20,6 +10,7 @@ import {
   externalLinkLabel,
   externalShortLabel,
   inputClass,
+  TypeLabel,
   useAdoSync,
   useImportAdoItems,
   useSaveAdoLinks,
@@ -171,18 +162,6 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
   );
 };
 
-/** Type cell: colour, icon and short label for a panel item. */
-function typeStyle(item: PanelItem): { label: string; icon: LucideIcon; className: string } {
-  if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-300' };
-  if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-300' };
-  if (item.externalId.startsWith('pr/')) return { label: 'PR', icon: GitPullRequest, className: 'text-sky-700 dark:text-sky-300' };
-  return {
-    label: item.type === 'Product Backlog Item' ? 'PBI' : item.type,
-    icon: SquareCheck,
-    className: 'text-sky-700 dark:text-sky-300',
-  };
-}
-
 const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_136px_70px] gap-3 items-center';
 
 /**
@@ -333,8 +312,6 @@ export const AdoProjectPanel: React.FC<{
           ) : (
             <ul>
               {shown.map((item, index) => {
-                const type = typeStyle(item);
-                const TypeIcon = type.icon;
                 const checked = selected.has(item.externalId);
                 const [kind, id] = item.externalId.split('/');
                 return (
@@ -354,10 +331,7 @@ export const AdoProjectPanel: React.FC<{
                     >
                       {checked && <Check className="w-[10px] h-[10px] stroke-[3]" />}
                     </button>
-                    <span className={`inline-flex items-center gap-1.5 text-xs truncate ${type.className}`} title={itemType(item)}>
-                      <TypeIcon className="w-3 h-3 shrink-0" />
-                      {type.label}
-                    </span>
+                    <TypeLabel item={item} />
                     <a
                       href={item.url}
                       target="_blank"

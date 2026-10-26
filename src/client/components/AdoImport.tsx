@@ -1,6 +1,20 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CloudDownload, ExternalLink, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import {
+  Bug,
+  CloudDownload,
+  Crown,
+  ExternalLink,
+  GitPullRequest,
+  Plus,
+  RefreshCw,
+  SquareCheck,
+  SquareMenu,
+  Trash2,
+  Trophy,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { AdoItem, AdoProjectLink, AdoSyncResult, Project, Settings, UpdateSettingsInput } from '../../shared/types.ts';
 import {
   fetchAdoItems,
@@ -23,6 +37,35 @@ export function externalShortLabel(externalId: string): string {
   const [kind, id] = externalId.split('/');
   return kind === 'pr' ? `PR #${id}` : `#${id}`;
 }
+
+/** Colour, icon and short label for an Azure DevOps item's type. */
+function typeStyle(item: AdoItem): { label: string; icon: LucideIcon; className: string } {
+  if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-400' };
+  if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-400' };
+  if (item.externalId.startsWith('pr/')) return { label: 'PR', icon: GitPullRequest, className: 'text-blue-700 dark:text-blue-500' };
+  if (item.type === 'Epic') return { label: 'Epic', icon: Crown, className: 'text-orange-600 dark:text-orange-300' };
+  if (item.type === 'Feature') return { label: 'Feature', icon: Trophy, className: 'text-purple-700 dark:text-purple-400' };
+  if (item.type === 'Task') return { label: 'Task', icon: SquareCheck, className: 'text-yellow-600 dark:text-yellow-300' };
+  return {
+    label: item.type === 'Product Backlog Item' ? 'PBI' : item.type,
+    icon: SquareMenu,
+    className: 'text-sky-700 dark:text-sky-400',
+  };
+}
+
+/** An Azure DevOps item's type as a coloured icon and short label. */
+export const TypeLabel: React.FC<{ item: AdoItem; className?: string }> = ({ item, className = '' }) => {
+  const { label, icon: Icon, className: colour } = typeStyle(item);
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs truncate ${colour} ${className}`}
+      title={item.role === 'reviewer' ? 'PR (review)' : item.type}
+    >
+      <Icon className="w-3 h-3 shrink-0" />
+      {label}
+    </span>
+  );
+};
 
 export const inputClass =
   'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
@@ -665,9 +708,7 @@ export const AdoImportDialog: React.FC<{
                           disabled={!!item.taskId}
                           onChange={(e) => toggle([item.externalId], e.target.checked)}
                         />
-                        <span className="shrink-0 w-28 truncate text-xs text-zinc-500" title={item.type}>
-                          {item.role === 'reviewer' ? 'PR (review)' : item.type}
-                        </span>
+                        <TypeLabel item={item} className="shrink-0 w-28" />
                         <span className={`flex-1 truncate ${item.taskId ? 'text-zinc-400' : ''}`} title={item.title}>
                           {item.title}
                         </span>
