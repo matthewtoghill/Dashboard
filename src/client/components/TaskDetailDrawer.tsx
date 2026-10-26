@@ -19,6 +19,7 @@ import {
   Bot,
   ExternalLink,
   History,
+  Copy,
 } from 'lucide-react';
 import {
   Task,
@@ -191,6 +192,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPreviewingNotes, setIsPreviewingNotes] = useState(false);
+  const [notesCopied, setNotesCopied] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
@@ -721,26 +723,42 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <AlignLeft className="w-3.5 h-3.5" />
                 <span>Notes (Markdown)</span>
               </label>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isPreviewingNotes) handleDescriptionBlur();
-                  setIsPreviewingNotes((v) => !v);
-                }}
-                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-              >
-                {isPreviewingNotes ? (
-                  <>
-                    <Edit3 className="w-3 h-3" />
-                    <span>Edit</span>
-                  </>
-                ) : (
-                  <>
-                    <Eye className="w-3 h-3" />
-                    <span>Preview</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={!description.trim()}
+                  aria-label={notesCopied ? 'Notes copied' : 'Copy notes'}
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(description);
+                    setNotesCopied(true);
+                    setTimeout(() => setNotesCopied(false), 1500);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:no-underline"
+                >
+                  {notesCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  <span>{notesCopied ? 'Copied' : 'Copy'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isPreviewingNotes) handleDescriptionBlur();
+                    setIsPreviewingNotes((v) => !v);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  {isPreviewingNotes ? (
+                    <>
+                      <Edit3 className="w-3 h-3" />
+                      <span>Edit</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3 h-3" />
+                      <span>Preview</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {isPreviewingNotes ? (
