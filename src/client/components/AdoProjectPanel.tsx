@@ -221,10 +221,7 @@ export const AdoProjectPanel: React.FC<{
     groupBy: 'none',
   });
   const checkedAt = data?.checkedAt ?? null;
-  const selected =
-    picked && picked.checkedAt === checkedAt
-      ? picked.ids
-      : new Set(shown.filter((i) => i.role !== 'reviewer').map((i) => i.externalId));
+  const selected = picked && picked.checkedAt === checkedAt ? picked.ids : new Set<string>();
   const toImport = shown.filter((i) => selected.has(i.externalId));
   const newCount = shown.filter((i) => i.role !== 'reviewer').length;
   const reviewCount = shown.length - newCount;
