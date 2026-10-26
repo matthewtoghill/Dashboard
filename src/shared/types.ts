@@ -294,6 +294,8 @@ export const SettingsSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Expected a #rrggbb colour')
     .default('#fbbf24'),
+  /** UI density: scales Tailwind's spacing unit, leaving text size alone. */
+  density: z.enum(['compact', 'comfortable', 'spacious']).default('comfortable'),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();

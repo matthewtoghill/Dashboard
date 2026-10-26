@@ -352,7 +352,7 @@ export const AdoProjectPanel: React.FC<{
                         checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'
                       }`}
                     >
-                      {checked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                      {checked && <Check className="w-[10px] h-[10px] stroke-[3]" />}
                     </button>
                     <span className={`inline-flex items-center gap-1.5 text-xs truncate ${type.className}`} title={itemType(item)}>
                       <TypeIcon className="w-3 h-3 shrink-0" />

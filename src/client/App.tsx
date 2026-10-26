@@ -256,6 +256,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
   }, [inProgressColor]);
+  const density = settingsData?.settings.density;
+  useEffect(() => {
+    if (density) document.documentElement.dataset.density = density;
+  }, [density]);
 
   // The quick-add project follows the current view (else the settings default), and resets when leaving it
   useEffect(() => {

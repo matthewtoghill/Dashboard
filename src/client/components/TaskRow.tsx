@@ -91,8 +91,8 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
           : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400'
       }`}
     >
-      {isDone && <Check className="w-3 h-3 stroke-[3]" />}
-      {isInProgress && <span className="w-2 h-2 rounded-sm bg-(--in-progress)" />}
+      {isDone && <Check className="w-[12px] h-[12px] stroke-[3]" />}
+      {isInProgress && <span className="w-[8px] h-[8px] rounded-sm bg-(--in-progress)" />}
     </button>
   );
 };

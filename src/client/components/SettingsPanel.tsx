@@ -250,6 +250,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </fieldset>
+            <fieldset className="flex items-center gap-4">
+              <legend className="sr-only">Density</legend>
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">Density</span>
+              {(['compact', 'comfortable', 'spacious'] as const).map((value) => (
+                <label key={value} className="inline-flex items-center gap-1.5 cursor-pointer capitalize">
+                  <input
+                    type="radio"
+                    name="density"
+                    checked={settings?.density === value}
+                    onChange={() => save.mutate({ density: value })}
+                    disabled={!settings}
+                  />
+                  {value}
+                </label>
+              ))}
+            </fieldset>
             <label className="flex items-center gap-4">
               <span className="w-32 text-zinc-600 dark:text-zinc-300">In progress colour</span>
               <input

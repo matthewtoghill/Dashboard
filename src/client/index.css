@@ -12,6 +12,14 @@
   color-scheme: dark;
 }
 
+/* Density setting: every Tailwind spacing/size utility is a multiple of --spacing (default 0.25rem). */
+:root[data-density='compact'] {
+  --spacing: 0.2rem;
+}
+:root[data-density='spacious'] {
+  --spacing: 0.3rem;
+}
+
 /* Browsers without customizable selects: at least theme the native option list. */
 @layer base {
   option {
