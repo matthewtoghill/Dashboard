@@ -706,7 +706,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <Bot className="w-3.5 h-3.5" />
                 <span>Claude sessions</span>
               </label>
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              <ul className="space-y-1.5">
                 {claudeSessions.map((s) => (
                   <ClaudeSessionItem key={s.sessionId} session={s} {...claudeSessionActions} />
                 ))}

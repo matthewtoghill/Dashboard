@@ -1,9 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bot, Check, Copy, ExternalLink, Link2, ListPlus, Unlink, X, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  Link2,
+  ListPlus,
+  Unlink,
+  X,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+} from 'lucide-react';
 import { ClaudeSession, ClaudeSessionState, Task } from '../../shared/types.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
-import { SectionHeader } from './ui.tsx';
+import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
 export const STATE_STYLES: Record<ClaudeSessionState, { label: string; className: string }> = {
   needs_attention: {
@@ -344,7 +357,7 @@ export interface ClaudeSessionActions {
 export const ClaudeSessionItem: React.FC<
   { session: ClaudeSession; tasks?: Task[] } & ClaudeSessionActions
 > = ({ session, tasks, onOpen, onOpenTask, onLink, onCreateTask, onToggleCleared }) => (
-  <li className="flex items-center gap-2 py-2">
+  <li className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border ${CARD_STYLES[session.state].card}`}>
     <StateBadge state={session.state} />
     <button
       type="button"
@@ -431,7 +444,12 @@ export const ClaudeSessionsRail: React.FC<
       ) : (
         <ul className="pt-1.5">
           {live.map((s) => (
-            <li key={s.sessionId} className="group flex items-center gap-2.5 px-1 py-1.5">
+            <li
+              key={s.sessionId}
+              className={`group flex items-center gap-2.5 py-1.5 ${
+                s.state === 'needs_attention' ? '-mx-1 px-2 rounded-lg bg-amber-50 dark:bg-amber-500/10' : 'px-1'
+              }`}
+            >
               <span
                 role="img"
                 aria-label={STATE_STYLES[s.state].label}
@@ -713,5 +731,180 @@ export const ClaudeSessionPanel: React.FC<
         </div>
       </aside>
     </div>
+  );
+};
+
+/** Claude's starburst mark, drawn in currentColor. */
+export const ClaudeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 24 24" aria-hidden className={className}>
+    <g stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+      {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((deg, i) => (
+        <line key={deg} x1={12} y1={i % 2 ? 6 : 3} x2={12} y2={10} transform={`rotate(${deg} 12 12)`} />
+      ))}
+    </g>
+  </svg>
+);
+
+/** Card look per state: border and background, dot, and state label colour. */
+const CARD_STYLES: Record<ClaudeSessionState, { card: string; dot: string; label: string }> = {
+  needs_attention: {
+    card: 'border-amber-400/70 dark:border-amber-500/50 bg-amber-100/70 dark:bg-amber-500/[.12] shadow-sm shadow-amber-500/10',
+    dot: 'bg-amber-400 ring-[3px] ring-amber-400/25 animate-pulse',
+    label: 'text-amber-700 dark:text-amber-300',
+  },
+  running: {
+    card: 'border-indigo-300/70 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10',
+    dot: 'bg-indigo-400 animate-pulse',
+    label: 'text-indigo-600 dark:text-indigo-300',
+  },
+  idle: {
+    card: 'border-emerald-200/80 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/[.07]',
+    dot: 'bg-emerald-400',
+    label: 'text-emerald-700 dark:text-emerald-400',
+  },
+  ended: {
+    card: 'border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/40 opacity-75 hover:opacity-100 focus-within:opacity-100',
+    dot: 'bg-zinc-300 dark:bg-zinc-600',
+    label: 'text-zinc-500 dark:text-zinc-400',
+  },
+};
+
+/** One session in the side panel: state, time, title, folder, attention message or last prompt, actions. */
+const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSessionActions> = ({
+  session: s,
+  tasks,
+  onOpen,
+  onToggleCleared,
+  ...linkActions
+}) => {
+  const style = CARD_STYLES[s.state];
+  const attention = s.state === 'needs_attention';
+  const detail = attention ? s.attentionMessage || 'Waiting for your input' : s.lastPrompt;
+  return (
+    <li className={`rounded-xl border p-3 space-y-2 transition-opacity duration-150 ${style.card}`}>
+      <div className="flex items-center gap-2 text-[11px]">
+        <span aria-hidden className={`shrink-0 w-2 h-2 rounded-full ${style.dot}`} />
+        <span className={`font-semibold uppercase tracking-[0.04em] truncate ${style.label}`}>
+          {s.state === 'running' && s.lastTool ? `Running · ${s.lastTool}` : STATE_STYLES[s.state].label}
+        </span>
+        <span className="ml-auto shrink-0 text-zinc-500 dark:text-zinc-400" title={formatTimestamp(s.lastEventAt)}>
+          {formatRelativeTime(s.lastEventAt)}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpen(s.sessionId)}
+        title="Show session details"
+        className="block w-full text-left cursor-pointer group"
+      >
+        <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 line-clamp-2 break-words group-hover:underline">
+          {s.title || 'Untitled session'}
+        </span>
+        <span className="block truncate text-[11px] text-zinc-500 dark:text-zinc-400" title={s.cwd}>
+          {folderName(s.cwd)}
+          {CLIENT_LABELS[s.entrypoint] && ` · ${CLIENT_LABELS[s.entrypoint]}`}
+        </span>
+      </button>
+
+      {detail && (
+        <p
+          className={`text-xs line-clamp-2 break-words ${
+            attention ? 'text-amber-900 dark:text-amber-200' : 'text-zinc-600 dark:text-zinc-400'
+          }`}
+        >
+          {attention ? <InlineCode text={detail} /> : detail}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-zinc-200/70 dark:border-zinc-800/70">
+        <TaskLinkControls session={s} tasks={tasks} {...linkActions} />
+        <span className="ml-auto flex items-center">
+          <OpenSessionLink session={s} />
+          <CopyResumeButton session={s} />
+          <button
+            type="button"
+            aria-label={s.dismissedAt ? 'Restore session' : 'Clear session'}
+            title={s.dismissedAt ? 'Restore' : 'Clear (it comes back if the session becomes active)'}
+            onClick={() => onToggleCleared(s)}
+            className={iconButtonClass}
+          >
+            {s.dismissedAt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+};
+
+/** Sessions needing the user first, then the rest by latest activity; cleared ones kept apart. */
+export function groupSessionsForPanel(sessions: ClaudeSession[]) {
+  const byActivity = [...sessions].sort((a, b) => b.lastEventAt - a.lastEventAt);
+  const shown = byActivity.filter((s) => !s.dismissedAt);
+  return {
+    attention: shown.filter((s) => s.state === 'needs_attention'),
+    rest: shown.filter((s) => s.state !== 'needs_attention'),
+    cleared: byActivity.filter((s) => s.dismissedAt),
+  };
+}
+
+/** Docked right-hand panel with every Claude session, live or ended, as a card. */
+export const ClaudeSessionsSidePanel: React.FC<
+  { sessions: ClaudeSession[]; tasks: Task[]; onClose: () => void } & ClaudeSessionActions
+> = ({ sessions, tasks, onClose, ...actions }) => {
+  const { attention, rest, cleared } = groupSessionsForPanel(sessions);
+  const count = (state: ClaudeSessionState) => rest.filter((s) => s.state === state).length;
+  const summary = [
+    attention.length && `${attention.length} need you`,
+    count('running') && `${count('running')} running`,
+    count('idle') && `${count('idle')} idle`,
+    count('ended') && `${count('ended')} ended`,
+  ].filter(Boolean);
+  const cards = (list: ClaudeSession[]) => (
+    <ul className="space-y-2">
+      {list.map((s) => (
+        <SessionCard key={s.sessionId} session={s} tasks={tasks} {...actions} />
+      ))}
+    </ul>
+  );
+
+  return (
+    <DockedPanel title="Claude sessions" widthKey="dashboard_claude_panel_width" onClose={onClose}>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+        {sessions.length === 0 ? (
+          <p className="px-1 py-3 text-[13px] text-zinc-500">
+            No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
+            Tracking" in PLAN.md).
+          </p>
+        ) : (
+          <>
+            {summary.length > 0 && <p className="px-1 text-xs text-zinc-500">{summary.join(' · ')}</p>}
+            {attention.length > 0 && (
+              <section aria-label="Needs your input" className="space-y-2">
+                <h3 className={`px-1 ${LABEL_CLASS} text-amber-700 dark:text-amber-300`}>Needs your input</h3>
+                {cards(attention)}
+              </section>
+            )}
+            {rest.length > 0 && (
+              <section aria-label="Recent activity" className="space-y-2">
+                {attention.length > 0 && <h3 className={`px-1 ${LABEL_CLASS} text-zinc-500`}>Recent activity</h3>}
+                {cards(rest)}
+              </section>
+            )}
+            {cleared.length > 0 && (
+              <details className="group/cleared space-y-2">
+                <summary
+                  className={`flex items-center gap-1.5 px-1 list-none cursor-pointer ${LABEL_CLASS} text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300`}
+                >
+                  <ChevronRight className="w-3 h-3 transition-transform duration-150 group-open/cleared:rotate-90" />
+                  Cleared · {cleared.length}
+                </summary>
+                {cards(cleared)}
+              </details>
+            )}
+          </>
+        )}
+      </div>
+    </DockedPanel>
   );
 };

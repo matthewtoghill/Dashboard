@@ -12,6 +12,7 @@ import {
 } from '../routes/claude.ts';
 import { ClaudeSession, ClaudeSessionSchema } from '../../shared/types.ts';
 import {
+  groupSessionsForPanel,
   primaryClaudeSession,
   sessionLink,
   taskFromSession,
@@ -124,6 +125,22 @@ describe('session links and tasks', () => {
     const s4 = { ...session, sessionId: 's4', state: 'needs_attention' as const, lastEventAt: 50 };
     expect(primaryClaudeSession([s1, s2, s3])?.sessionId).toBe('s3');
     expect(primaryClaudeSession([s1, s2, s3, s4])?.sessionId).toBe('s4');
+  });
+
+  it('groups the side panel: needs attention first, then by activity, cleared apart', () => {
+    const s = (sessionId: string, state: ClaudeSession['state'], lastEventAt: number, dismissedAt: number | null = null) =>
+      ({ ...session, sessionId, state, lastEventAt, dismissedAt });
+    const ids = (list: ClaudeSession[]) => list.map((x) => x.sessionId);
+    const groups = groupSessionsForPanel([
+      s('ended', 'ended', 400),
+      s('old-wait', 'needs_attention', 10),
+      s('idle', 'idle', 300),
+      s('new-wait', 'needs_attention', 200),
+      s('hidden', 'running', 500, 1),
+    ]);
+    expect(ids(groups.attention)).toEqual(['new-wait', 'old-wait']);
+    expect(ids(groups.rest)).toEqual(['ended', 'idle']);
+    expect(ids(groups.cleared)).toEqual(['hidden']);
   });
 });
 

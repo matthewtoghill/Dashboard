@@ -56,8 +56,10 @@ import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
 import { PomodoroTimer } from './components/PomodoroTimer.tsx';
 import {
+  ClaudeIcon,
   ClaudeSessionActions,
   ClaudeSessionPanel,
+  ClaudeSessionsSidePanel,
   taskFromSession,
 } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
@@ -97,7 +99,8 @@ import {
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
 const SIDEBAR_KEY = 'dashboard_sidebar_open';
-const WIDGETS_OPEN_KEY = 'dashboard_widgets_open';
+const SIDE_PANEL_KEY = 'dashboard_side_panel';
+type SidePanel = 'widgets' | 'claude' | null;
 
 /** Group label colours by section key (due-date and status groups). */
 const GROUP_LABEL_COLORS: Record<string, string> = {
@@ -145,10 +148,13 @@ export const App: React.FC = () => {
       return !open;
     });
   }, []);
-  const [widgetsOpen, setWidgetsOpen] = useState(() => localStorage.getItem(WIDGETS_OPEN_KEY) === '1');
-  const toggleWidgets = () => {
-    localStorage.setItem(WIDGETS_OPEN_KEY, widgetsOpen ? '0' : '1');
-    setWidgetsOpen(!widgetsOpen);
+  // Right-hand docked panel: Widgets or Claude sessions, one at a time
+  const [sidePanel, setSidePanel] = useState<SidePanel>(() => localStorage.getItem(SIDE_PANEL_KEY) as SidePanel);
+  const toggleSidePanel = (panel: Exclude<SidePanel, null>) => {
+    const next = sidePanel === panel ? null : panel;
+    if (next) localStorage.setItem(SIDE_PANEL_KEY, next);
+    else localStorage.removeItem(SIDE_PANEL_KEY);
+    setSidePanel(next);
   };
   // List view: navigation, search, priority filter, grouping and sorting
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
@@ -782,18 +788,36 @@ export const App: React.FC = () => {
 
         <div className="ml-auto flex items-center gap-1">
           <PomodoroTimer />
-          <button
-            type="button"
-            onClick={toggleWidgets}
-            aria-label="Widgets"
-            aria-pressed={widgetsOpen}
-            title={widgetsOpen ? 'Hide widgets' : 'Show widgets'}
-            className={`p-2 rounded-lg hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer ${
-              widgetsOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
+          {(
+            [
+              ['widgets', 'Widgets', <LayoutGrid className="w-4 h-4" />],
+              ['claude', 'Claude sessions', <ClaudeIcon className="w-4 h-4" />],
+            ] as const
+          ).map(([panel, label, icon]) => (
+            <button
+              key={panel}
+              type="button"
+              onClick={() => toggleSidePanel(panel)}
+              aria-label={
+                panel === 'claude' && claudeAttentionCount > 0 ? `${label}, ${claudeAttentionCount} need attention` : label
+              }
+              aria-pressed={sidePanel === panel}
+              title={`${sidePanel === panel ? 'Hide' : 'Show'} ${label}`}
+              className={`relative p-2 rounded-lg hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer ${
+                sidePanel === panel ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'
+              }`}
+            >
+              {icon}
+              {panel === 'claude' && claudeAttentionCount > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute top-0.5 right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-amber-400 text-zinc-900 text-[9px] font-bold leading-3.5 text-center"
+                >
+                  {claudeAttentionCount}
+                </span>
+              )}
+            </button>
+          ))}
           {(
             [
               ['Fetch from Azure DevOps', CloudDownload, () => setAdoImportOpen(true)],
@@ -1057,7 +1081,15 @@ export const App: React.FC = () => {
           </div>
         </main>
 
-        {widgetsOpen && <WidgetsPanel {...widgetProps} onClose={toggleWidgets} />}
+        {sidePanel === 'widgets' && <WidgetsPanel {...widgetProps} onClose={() => toggleSidePanel('widgets')} />}
+        {sidePanel === 'claude' && (
+          <ClaudeSessionsSidePanel
+            sessions={claudeSessions}
+            tasks={tasks}
+            onClose={() => toggleSidePanel('claude')}
+            {...claudeSessionActions}
+          />
+        )}
       </div>
 
       <datalist id="tag-suggestions">

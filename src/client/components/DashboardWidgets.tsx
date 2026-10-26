@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, X, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, ChevronRight } from 'lucide-react';
 import { Task, Project, QuickLink, WidgetConfig } from '../../shared/types.ts';
 import {
   completionsByDay,
@@ -13,7 +13,7 @@ import {
 import { fetchBackups, createBackup } from '../api.ts';
 import { AdoSummaryPanel, EmptyNote, StaleList, TaskWidgetActions } from './TaskWidgets.tsx';
 import { useAdoSync } from './AdoImport.tsx';
-import { Dot } from './ui.tsx';
+import { Dot, DockedPanel } from './ui.tsx';
 
 export type HomeDrawerTab = 'trends' | 'projects' | 'stale' | 'ado' | 'scratchpad' | 'links';
 
@@ -153,12 +153,7 @@ const WidgetBody: React.FC<HomeDrawerProps & { id: HomeDrawerTab }> = ({ id, ...
   }
 };
 
-const WIDGETS_WIDTH_KEY = 'dashboard_widgets_width';
 const WIDGETS_COLLAPSED_KEY = 'dashboard_widgets_collapsed';
-const WIDGETS_MIN_WIDTH = 300;
-// Leave the main view at least 400px
-const clampWidgetsWidth = (w: number) =>
-  Math.round(Math.max(WIDGETS_MIN_WIDTH, Math.min(w, window.innerWidth - 400)));
 
 /**
  * Right-hand Widgets panel, docked beside the main view. Widgets flow in a grid that fits as
@@ -167,7 +162,6 @@ const clampWidgetsWidth = (w: number) =>
  */
 export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> = ({ onClose, ...props }) => {
   const widgets = useWidgetList(props);
-  const [width, setWidth] = useState(() => Number(localStorage.getItem(WIDGETS_WIDTH_KEY)) || 380);
   const [collapsed, setCollapsed] = useState<HomeDrawerTab[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(WIDGETS_COLLAPSED_KEY) ?? '[]');
@@ -176,7 +170,6 @@ export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> =
     }
   });
 
-  const saveWidth = (w: number) => localStorage.setItem(WIDGETS_WIDTH_KEY, String(w));
   const toggle = (id: HomeDrawerTab) => {
     const next = collapsed.includes(id) ? collapsed.filter((c) => c !== id) : [...collapsed, id];
     setCollapsed(next);
@@ -184,54 +177,7 @@ export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> =
   };
 
   return (
-    <aside
-      aria-label="Widgets"
-      style={{ width }}
-      className="relative shrink-0 max-w-full h-full flex flex-col border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
-    >
-      {/* Resize handle: drag, or focus and use Left/Right arrows */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize widgets panel"
-        aria-valuenow={width}
-        aria-valuemin={WIDGETS_MIN_WIDTH}
-        tabIndex={0}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-            setWidth(clampWidgetsWidth(window.innerWidth - e.clientX));
-          }
-        }}
-        onPointerUp={() => saveWidth(width)}
-        onKeyDown={(e) => {
-          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-          e.preventDefault();
-          const next = clampWidgetsWidth(width + (e.key === 'ArrowLeft' ? 32 : -32));
-          setWidth(next);
-          saveWidth(next);
-        }}
-        className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize touch-none focus:outline-none group/resize"
-      >
-        <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-indigo-500/60 group-focus-visible/resize:bg-indigo-500 group-active/resize:bg-indigo-500 transition-colors" />
-      </div>
-
-      <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Widgets</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close widgets"
-          title="Close widgets"
-          className="p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
+    <DockedPanel title="Widgets" widthKey="dashboard_widgets_width" onClose={onClose}>
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         {widgets.length === 0 ? (
           <EmptyNote>All widgets are turned off in Settings.</EmptyNote>
@@ -265,7 +211,7 @@ export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> =
           </div>
         )}
       </div>
-    </aside>
+    </DockedPanel>
   );
 };
 
