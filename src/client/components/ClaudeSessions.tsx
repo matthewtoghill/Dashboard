@@ -5,7 +5,8 @@ import {
   Check,
   ChevronRight,
   Copy,
-  ExternalLink,
+  AppWindow,
+  SquareTerminal,
   Link2,
   ListPlus,
   Unlink,
@@ -70,15 +71,17 @@ export function resumeCommand(session: ClaudeSession): string {
  * Link that opens the session: the desktop app's own deep link for its sessions, otherwise the
  * claude-resume:// handler from scripts/register-claude-resume.ps1 (a terminal running --resume).
  */
-export function sessionLink(session: ClaudeSession): { url: string; label: string } {
+export function sessionLink(session: ClaudeSession): { url: string; label: string; icon: typeof AppWindow } {
   return session.entrypoint === 'claude-desktop' && session.hostSessionId
     ? {
         url: `claude://code/continue?session=${encodeURIComponent(session.hostSessionId)}`,
         label: 'Open in Claude desktop',
+        icon: AppWindow,
       }
     : {
         url: `claude-resume://${encodeURIComponent(session.sessionId)}`,
         label: 'Open in terminal (needs scripts/register-claude-resume.ps1)',
+        icon: SquareTerminal,
       };
 }
 
@@ -135,7 +138,7 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
       aria-label={link.label}
       className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
     >
-      <ExternalLink className="w-3.5 h-3.5" />
+      <link.icon className="w-3.5 h-3.5" />
       {withLabel && <span>{link.label.replace(/ \(.*\)$/, '')}</span>}
     </a>
   );
@@ -144,14 +147,21 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
 const inputClass =
   'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
 
-/** Dialog for choosing the session's task among open tasks, or creating a new one to link. */
-const TaskLinkDialog: React.FC<{
-  session: ClaudeSession | null;
+/**
+ * Dialog for choosing a task among open tasks to link something to, or (with `create`) creating a
+ * new one to link. Used for Claude sessions and Azure DevOps items.
+ */
+export const TaskLinkDialog: React.FC<{
+  open: boolean;
+  heading: string;
   tasks: Task[];
+  /** The task linked now, shown with an Unlink button. */
+  linkedTaskId?: string | null;
   onClose: () => void;
-  onLink: (sessionId: string, taskId: string | null) => void;
-  onCreateTask: (session: ClaudeSession, title: string) => void;
-}> = ({ session, tasks, onClose, onLink, onCreateTask }) => {
+  onLink: (taskId: string | null) => void;
+  /** Offers "Create & link", starting from `title`. */
+  create?: { title: string; onCreate: (title: string) => void };
+}> = ({ open, heading, tasks, linkedTaskId = null, onClose, onLink, create }) => {
   const ref = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState('');
   const [newTitle, setNewTitle] = useState('');
@@ -159,21 +169,21 @@ const TaskLinkDialog: React.FC<{
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (session && !dialog.open) {
+    if (open && !dialog.open) {
       setQuery('');
-      setNewTitle(taskFromSession(session).title);
+      setNewTitle(create?.title ?? '');
       dialog.showModal();
     }
-    if (!session && dialog.open) dialog.close();
-  }, [session]);
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
 
-  const linkedTask = session && tasks.find((t) => t.id === session.taskId);
+  const linkedTask = tasks.find((t) => t.id === linkedTaskId);
   const q = query.trim().toLowerCase();
   const choices = tasks.filter(
     (t) => (t.status === 'todo' || t.status === 'in_progress') && t.title.toLowerCase().includes(q)
   );
   const link = (taskId: string | null) => {
-    if (session) onLink(session.sessionId, taskId);
+    onLink(taskId);
     onClose();
   };
 
@@ -186,11 +196,11 @@ const TaskLinkDialog: React.FC<{
       aria-labelledby="task-link-dialog-title"
       className="m-auto w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
     >
-      {session && (
+      {open && (
         <div className="flex flex-col max-h-[80vh] text-sm">
           <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
             <h2 id="task-link-dialog-title" className="text-base font-semibold truncate">
-              Link task to session
+              {heading}
             </h2>
             <button type="button" onClick={onClose} aria-label="Close" className={iconButtonClass}>
               <X className="w-4 h-4" />
@@ -235,11 +245,11 @@ const TaskLinkDialog: React.FC<{
                         type="button"
                         onClick={() => link(t.id)}
                         className={`w-full flex items-center gap-2 px-2 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer ${
-                          t.id === session.taskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
+                          t.id === linkedTaskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
                         }`}
                       >
                         <span className="flex-1 truncate">{t.title}</span>
-                        {t.id === session.taskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                        {t.id === linkedTaskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
                       </button>
                     </li>
                   ))}
@@ -247,35 +257,37 @@ const TaskLinkDialog: React.FC<{
               )}
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newTitle.trim()) return;
-                onCreateTask(session, newTitle.trim());
-                onClose();
-              }}
-              className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800"
-            >
-              <label htmlFor="task-link-new-title" className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                Or create a new task
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="task-link-new-title"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className={inputClass}
-                />
-                <button
-                  type="submit"
-                  disabled={!newTitle.trim()}
-                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
-                >
-                  <ListPlus className="w-3.5 h-3.5" />
-                  Create & link
-                </button>
-              </div>
-            </form>
+            {create && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newTitle.trim()) return;
+                  create.onCreate(newTitle.trim());
+                  onClose();
+                }}
+                className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800"
+              >
+                <label htmlFor="task-link-new-title" className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Or create a new task
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="task-link-new-title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className={inputClass}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newTitle.trim()}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
+                  >
+                    <ListPlus className="w-3.5 h-3.5" />
+                    Create & link
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -329,11 +341,13 @@ const TaskLinkControls: React.FC<
           would leave the open modal invisible and the page inert */}
       {createPortal(
         <TaskLinkDialog
-          session={dialogOpen ? session : null}
+          open={dialogOpen}
+          heading="Link task to session"
           tasks={tasks}
+          linkedTaskId={session.taskId}
           onClose={() => setDialogOpen(false)}
-          onLink={onLink}
-          onCreateTask={onCreateTask}
+          onLink={(taskId) => onLink(session.sessionId, taskId)}
+          create={{ title: taskFromSession(session).title, onCreate: (title) => onCreateTask(session, title) }}
         />,
         document.body
       )}
@@ -429,7 +443,7 @@ export const ClaudeSessionsRail: React.FC<
   const live = liveSessions(sessions);
   return (
     <section id={CLAUDE_RAIL_ID} aria-labelledby={`${CLAUDE_RAIL_ID}-title`} className="scroll-mt-6">
-      <SectionHeader id={`${CLAUDE_RAIL_ID}-title`} title="Claude sessions" meta={`${live.length} live`} />
+      <SectionHeader id={`${CLAUDE_RAIL_ID}-title`} title="Claude Sessions" meta={`${live.length} live`} />
       {live.length === 0 ? (
         <p className="px-1 py-3 text-[13px] text-zinc-500">
           {sessions.length > 0 ? (
@@ -564,7 +578,7 @@ export const ClaudeAttentionBanner: React.FC<{ sessions: ClaudeSession[]; tasks:
           title={link.label}
           className="inline-flex items-center gap-1.5 px-3 py-[7px] rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-900 text-xs font-semibold transition-colors duration-150"
         >
-          <ExternalLink className="w-[13px] h-[13px]" />
+          <link.icon className="w-[13px] h-[13px]" />
           Open in Claude
         </a>
         <button
@@ -871,7 +885,7 @@ export const ClaudeSessionsSidePanel: React.FC<
   );
 
   return (
-    <DockedPanel title="Claude sessions" widthKey="dashboard_claude_panel_width" onClose={onClose}>
+    <DockedPanel title="Claude Sessions" icon={<ClaudeIcon className="w-4 h-4 text-orange-500 dark:text-orange-400" />} widthKey="dashboard_claude_panel_width" onClose={onClose}>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
         {sessions.length === 0 ? (
           <p className="px-1 py-3 text-[13px] text-zinc-500">

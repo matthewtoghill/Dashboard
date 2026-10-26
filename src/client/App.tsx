@@ -610,8 +610,14 @@ export const App: React.FC = () => {
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
   const currentProject =
     activeNav.type === 'project' ? projects.find((p) => p.id === activeNav.id) : undefined;
-  const showAdoImported = (count: number) =>
-    showToast(count === 1 ? 'Imported 1 task from Azure DevOps' : `Imported ${count} tasks from Azure DevOps`);
+  const showAdoImported = (count: number, linked: boolean) =>
+    showToast(
+      linked
+        ? `Linked ${count === 1 ? '1 Azure DevOps item' : `${count} Azure DevOps items`} to the task`
+        : count === 1
+          ? 'Imported 1 task from Azure DevOps'
+          : `Imported ${count} tasks from Azure DevOps`
+    );
   const { rowFocusProps, startEditing } = useTaskListKeyboard({
     tasks,
     visibleOrder,
@@ -1177,6 +1183,7 @@ export const App: React.FC = () => {
         open={adoImportOpen}
         onClose={() => setAdoImportOpen(false)}
         projects={projects}
+        tasks={tasks}
         onImported={showAdoImported}
       />
 

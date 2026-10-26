@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, ChevronRight, LayoutGrid } from 'lucide-react';
 import { Task, Project, QuickLink, WidgetConfig } from '../../shared/types.ts';
 import {
   completionsByDay,
@@ -177,7 +177,7 @@ export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> =
   };
 
   return (
-    <DockedPanel title="Widgets" widthKey="dashboard_widgets_width" onClose={onClose}>
+    <DockedPanel title="Widgets" icon={<LayoutGrid className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />} widthKey="dashboard_widgets_width" onClose={onClose}>
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         {widgets.length === 0 ? (
           <EmptyNote>All widgets are turned off in Settings.</EmptyNote>

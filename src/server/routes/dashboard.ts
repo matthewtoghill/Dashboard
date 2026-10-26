@@ -16,6 +16,7 @@ import {
   subtasks,
   claudeSessions,
   adoProjectLinks,
+  taskAdoLinks,
   taskEvents,
   DbQuickLink,
 } from '../db/schema.ts';
@@ -24,6 +25,7 @@ import {
   UpdateScratchpadInputSchema,
   WidgetConfigSchema,
   BackupPayloadSchema,
+  TaskAdoLinkSchema,
   QuickLink,
   WidgetConfig,
   TaskStatus,
@@ -245,7 +247,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 6,
+      version: 7,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -324,9 +326,6 @@ export async function registerDashboardRoutes(
               statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
               recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
               recurrenceParentId: t.recurrenceParentId,
-              externalSource: t.externalSource,
-              externalId: t.externalId,
-              externalUrl: t.externalUrl,
             })
             .onConflictDoNothing()
             .run();
@@ -343,6 +342,20 @@ export async function registerDashboardRoutes(
                 sortOrder: sub.sortOrder,
               })
               .run();
+          }
+
+          const legacyLink = TaskAdoLinkSchema.safeParse({
+            externalId: t.externalId,
+            url: t.externalUrl,
+            title: t.title,
+            type: t.externalId?.startsWith('pr/') ? 'Pull Request' : '',
+            state: '',
+            linkedAt: t.createdAt,
+          });
+          const links = t.adoLinks.length ? t.adoLinks : legacyLink.success ? [legacyLink.data] : [];
+          for (const link of links) {
+            // An item already linked to another task stays there
+            tx.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
           }
         }
 

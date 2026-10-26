@@ -468,18 +468,19 @@ export function staleTasks(
 export interface AdoSummary {
   openWorkItems: number;
   openPullRequests: number;
-  /** createdAt of the newest imported task, or null when nothing was imported. */
+  /** When the newest Azure DevOps link was made, or null when there are none. */
   lastImportAt: number | null;
 }
 
 export function adoSummary(tasks: Task[]): AdoSummary {
   const summary: AdoSummary = { openWorkItems: 0, openPullRequests: 0, lastImportAt: null };
   for (const t of tasks) {
-    if (t.externalSource !== 'ado') continue;
-    summary.lastImportAt = Math.max(summary.lastImportAt ?? 0, t.createdAt);
-    if (!isOpen(t)) continue;
-    if (t.externalId?.startsWith('pr/')) summary.openPullRequests++;
-    else summary.openWorkItems++;
+    for (const link of t.adoLinks) {
+      summary.lastImportAt = Math.max(summary.lastImportAt ?? 0, link.linkedAt);
+      if (!isOpen(t)) continue;
+      if (link.externalId.startsWith('pr/')) summary.openPullRequests++;
+      else summary.openWorkItems++;
+    }
   }
   return summary;
 }

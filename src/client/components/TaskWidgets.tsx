@@ -81,7 +81,7 @@ export const UpNextSection: React.FC<{ tasks: Task[]; actions: TaskWidgetActions
 
   return (
     <section aria-labelledby="home-up-next" className="min-w-0">
-      <SectionHeader id="home-up-next" title="Up next" meta="Overdue and next 7 days" />
+      <SectionHeader id="home-up-next" title="Up Next" meta="Overdue and next 7 days" />
       {groups.length === 0 ? (
         <EmptyNote>Nothing due in the next 7 days.</EmptyNote>
       ) : (
@@ -125,7 +125,7 @@ export const InProgressRail: React.FC<{ tasks: Task[]; actions: TaskWidgetAction
 
   return (
     <section aria-labelledby="home-in-progress">
-      <SectionHeader id="home-in-progress" title="In progress" meta={inProgress.length} />
+      <SectionHeader id="home-in-progress" title="In Progress" meta={inProgress.length} />
       {inProgress.length === 0 ? (
         <EmptyNote>Nothing in progress.</EmptyNote>
       ) : (

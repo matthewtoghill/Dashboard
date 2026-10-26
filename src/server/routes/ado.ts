@@ -3,7 +3,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
-import { adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, tasks } from '../db/schema.ts';
+import { adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, taskAdoLinks, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
 import { recordTaskEvents } from '../taskEvents.ts';
 import {
@@ -333,7 +333,7 @@ export async function registerAdoRoutes(
     }
   );
 
-  /** Open work assigned to me, plus imported tasks whose source has closed. */
+  /** Open work assigned to me, plus linked tasks whose items have all closed. */
   const fetchItems = async (): Promise<AdoFetchResult> => {
     const org = await resolveOrg();
     const scope = ['--org', org, '--detect', 'false', '--output', 'json'];
@@ -407,58 +407,54 @@ export async function registerAdoRoutes(
       }
     }
 
-    const imported = db
+    const linked = db
       .select({
-        id: tasks.id,
+        externalId: taskAdoLinks.externalId,
+        taskId: tasks.id,
         title: tasks.title,
         status: tasks.status,
         projectId: tasks.projectId,
-        externalId: tasks.externalId,
-        externalUrl: tasks.externalUrl,
       })
-      .from(tasks)
-      .where(eq(tasks.externalSource, 'ado'))
+      .from(taskAdoLinks)
+      .innerJoin(tasks, eq(taskAdoLinks.taskId, tasks.id))
       .all();
-    const taskByExternalId = new Map(imported.map((t) => [t.externalId, t.id]));
 
-    // Unfinished imported tasks that dropped off the open list: look up their source's state
-    const unfinished = imported.filter(
-      (t) =>
-        (t.status === 'todo' || t.status === 'in_progress') &&
-        t.externalId &&
-        !found.has(t.externalId) &&
-        !(t.projectId && offProjectIds.has(t.projectId))
+    // Items of unfinished linked tasks that dropped off the open list: look up their state
+    const watched = linked.filter(
+      (l) =>
+        (l.status === 'todo' || l.status === 'in_progress') && !(l.projectId && offProjectIds.has(l.projectId))
     );
-    const closedState = new Map<string, string>();
-    const workItemIds = unfinished.flatMap((t) => /^workitem\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
-    const prIds = unfinished.flatMap((t) => /^pr\/(\d+)$/.exec(t.externalId!)?.[1] ?? []);
+    const toCheck = watched.filter((l) => !found.has(l.externalId));
+    const seen = new Map<string, { title: string; type?: string; state: string; closed: boolean }>();
+    const workItemIds = toCheck.flatMap((l) => /^workitem\/(\d+)$/.exec(l.externalId)?.[1] ?? []);
+    const prIds = toCheck.flatMap((l) => /^pr\/(\d+)$/.exec(l.externalId)?.[1] ?? []);
     await Promise.all([
       workItemIds.length > 0 &&
         az([
           'boards', 'query', ...scope, '--wiql',
-          'SELECT [System.Id], [System.State], [System.TeamProject] FROM WorkItems ' +
-            `WHERE [System.Id] IN (${workItemIds.join(', ')})`,
+          'SELECT [System.Id], [System.Title], [System.WorkItemType], [System.State], [System.TeamProject] ' +
+            `FROM WorkItems WHERE [System.Id] IN (${workItemIds.join(', ')})`,
         ])
           .then((out) => {
             // An ignored state (e.g. Ready for QA) means the work is off my plate, as closed does
             for (const wi of parseJson<AzWorkItem[]>(out) ?? []) {
-              const state = wi.fields['System.State'] ?? '';
-              const project = wi.fields['System.TeamProject'] ?? '';
-              if (CLOSED_STATES.includes(state) || ignoredFor(project).includes(state.toLowerCase())) {
-                closedState.set(`workitem/${wi.id}`, state);
-              }
+              const item = workItemToItem(org, wi);
+              const closed =
+                CLOSED_STATES.includes(item.state) || ignoredFor(item.adoProject).includes(item.state.toLowerCase());
+              seen.set(item.externalId, { title: item.title, type: item.type, state: item.state, closed });
             }
           })
           .catch((err) => {
             if (!(err instanceof AzError)) throw err;
-            warnings.push(`Checking imported work items: ${err.message}`);
+            warnings.push(`Checking linked work items: ${err.message}`);
           }),
       ...prIds.map((id) =>
         az(['repos', 'pr', 'show', ...scope, '--id', id])
           .then((out) => {
             const pr = parseJson<AzPullRequest>(out);
-            if (pr.status === 'completed') closedState.set(`pr/${id}`, 'Completed');
-            if (pr.status === 'abandoned') closedState.set(`pr/${id}`, 'Abandoned');
+            const closed = pr.status === 'completed' || pr.status === 'abandoned';
+            const state = closed ? (pr.status === 'completed' ? 'Completed' : 'Abandoned') : pr.isDraft ? 'Draft' : pr.status;
+            seen.set(`pr/${id}`, { title: pr.title, state, closed });
           })
           .catch((err) => {
             if (!(err instanceof AzError)) throw err;
@@ -467,14 +463,37 @@ export async function registerAdoRoutes(
       ),
     ]);
 
+    // Keep the linked items' snapshots current with what this check saw
+    db.transaction((tx) => {
+      for (const { externalId } of linked) {
+        const fresh = found.get(externalId) ?? seen.get(externalId);
+        if (!fresh) continue;
+        tx.update(taskAdoLinks)
+          .set({ title: fresh.title || undefined, state: fresh.state, type: fresh.type || undefined })
+          .where(eq(taskAdoLinks.externalId, externalId))
+          .run();
+      }
+    });
+
+    // A task counts as closed once every item linked to it is
+    const linksByTask = new Map<string, typeof watched>();
+    for (const l of watched) linksByTask.set(l.taskId, [...(linksByTask.get(l.taskId) ?? []), l]);
+    const closed = [...linksByTask.values()].flatMap((links) =>
+      links.every((l) => seen.get(l.externalId)?.closed)
+        ? [
+            {
+              taskId: links[0].taskId,
+              title: links[0].title,
+              state: [...new Set(links.map((l) => seen.get(l.externalId)!.state))].join(', '),
+            },
+          ]
+        : []
+    );
+
+    const taskByExternalId = new Map(linked.map((l) => [l.externalId, l.taskId]));
     return {
       items: [...found.values()].map((item) => ({ ...item, taskId: taskByExternalId.get(item.externalId) ?? null })),
-      closed: unfinished.flatMap((t) => {
-        const state = closedState.get(t.externalId!);
-        return state
-          ? [{ taskId: t.id, title: t.title, externalId: t.externalId!, url: t.externalUrl, state }]
-          : [];
-      }),
+      closed,
       warnings,
     };
   };
@@ -499,14 +518,14 @@ export async function registerAdoRoutes(
   /** The stored result, with imports and completions made since the check applied. */
   const syncResult = (): AdoSyncResult => {
     const state = readSyncState(db);
-    const imported = db
-      .select({ id: tasks.id, title: tasks.title, status: tasks.status, externalId: tasks.externalId })
-      .from(tasks)
-      .where(eq(tasks.externalSource, 'ado'))
-      .all();
-    const byExternalId = new Map(imported.map((t) => [t.externalId, t.id]));
+    const byExternalId = new Map(db.select().from(taskAdoLinks).all().map((l) => [l.externalId, l.taskId]));
     const unfinished = new Map(
-      imported.filter((t) => t.status === 'todo' || t.status === 'in_progress').map((t) => [t.id, t])
+      db
+        .select({ id: tasks.id, title: tasks.title })
+        .from(tasks)
+        .where(inArray(tasks.status, ['todo', 'in_progress']))
+        .all()
+        .map((t) => [t.id, t])
     );
     return {
       items: (state.result?.items ?? []).map((item) => ({ ...item, taskId: byExternalId.get(item.externalId) ?? null })),
@@ -553,38 +572,65 @@ export async function registerAdoRoutes(
     });
   }
 
-  // POST /api/ado/import — creates a task per item; items already imported are skipped
+  // POST /api/ado/import — creates a task per item, or with taskId links the items to that task.
+  // Items already linked to a task are skipped.
   app.post('/api/ado/import', async (request, reply) => {
     const parsed = AdoImportInputSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid import payload', details: parsed.error.flatten() });
     }
+    const { items, taskId } = parsed.data;
+    if (taskId && !db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).get()) {
+      return reply.status(404).send({ error: 'Task not found' });
+    }
     const links = listAdoProjectLinks(db);
     const now = Date.now();
     let importedCount = 0;
     db.transaction((tx) => {
-      parsed.data.items.forEach((item, i) => {
-        const id = crypto.randomUUID();
-        const result = tx
-          .insert(tasks)
+      items.forEach((item, i) => {
+        if (tx.select().from(taskAdoLinks).where(eq(taskAdoLinks.externalId, item.externalId)).get()) return;
+        const id = taskId ?? crypto.randomUUID();
+        if (!taskId) {
+          tx.insert(tasks)
+            .values({
+              id,
+              title: item.role === 'reviewer' ? `Review: ${item.title}` : item.title,
+              status: 'todo',
+              projectId: linkFor(links, item.adoProject)?.projectId ?? null,
+              sortOrder: i - now, // above existing tasks, in the order given
+              createdAt: now,
+              updatedAt: now,
+            })
+            .run();
+          recordTaskEvents(db, id, [{ kind: 'created' }], 'ado', now);
+        }
+        tx.insert(taskAdoLinks)
           .values({
-            id,
-            title: item.role === 'reviewer' ? `Review: ${item.title}` : item.title,
-            status: 'todo',
-            projectId: linkFor(links, item.adoProject)?.projectId ?? null,
-            sortOrder: i - now, // above existing tasks, in the order given
-            createdAt: now,
-            updatedAt: now,
-            externalSource: 'ado',
             externalId: item.externalId,
-            externalUrl: item.url,
+            taskId: id,
+            url: item.url,
+            title: item.title,
+            type: item.type,
+            state: item.state,
+            linkedAt: now + i, // keeps the given order
           })
-          .onConflictDoNothing()
           .run();
-        if (result.changes > 0) recordTaskEvents(db, id, [{ kind: 'created' }], 'ado', now);
-        importedCount += result.changes;
+        importedCount++;
       });
+      if (taskId && importedCount > 0) tx.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId)).run();
     });
     return { importedCount };
+  });
+
+  // DELETE /api/ado/links/:kind/:id — unlinks an item from its task; the task is kept
+  app.delete<{ Params: { kind: string; id: string } }>('/api/ado/links/:kind/:id', async (request, reply) => {
+    const externalId = `${request.params.kind}/${request.params.id}`;
+    const link = db.select().from(taskAdoLinks).where(eq(taskAdoLinks.externalId, externalId)).get();
+    if (!link) return reply.status(404).send({ error: 'Link not found' });
+    db.transaction((tx) => {
+      tx.delete(taskAdoLinks).where(eq(taskAdoLinks.externalId, externalId)).run();
+      tx.update(tasks).set({ updatedAt: Date.now() }).where(eq(tasks.id, link.taskId)).run();
+    });
+    return reply.status(204).send();
   });
 }

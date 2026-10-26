@@ -10,6 +10,7 @@ import {
   externalLinkLabel,
   externalShortLabel,
   inputClass,
+  LinkToTaskButton,
   TypeLabel,
   useAdoSync,
   useImportAdoItems,
@@ -172,7 +173,7 @@ const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_136px_70px] g
 export const AdoProjectPanel: React.FC<{
   project: Project;
   tasks: Task[];
-  onImported: (count: number) => void;
+  onImported: (count: number, linked: boolean) => void;
 }> = ({ project, tasks, onImported }) => {
   const openKey = `${OPEN_KEY}_${project.id}`;
   const [open, setOpen] = useState(() => (localStorage.getItem(openKey) ?? localStorage.getItem(OPEN_KEY)) !== '0');
@@ -181,9 +182,9 @@ export const AdoProjectPanel: React.FC<{
 
   const { data, refresh } = useAdoSync();
   const { data: links = [] } = useQuery({ queryKey: ['adoProjectLinks'], queryFn: fetchAdoProjectLinks });
-  const importItems = useImportAdoItems((count) => {
+  const importItems = useImportAdoItems((count, linked) => {
     setPicked(null);
-    onImported(count);
+    onImported(count, linked);
   });
 
   const mine = links.filter((l) => l.projectId === project.id);
@@ -268,14 +269,23 @@ export const AdoProjectPanel: React.FC<{
         >
           <RefreshCw className={`w-[13px] h-[13px] ${refresh.isPending ? 'animate-spin' : ''}`} />
         </button>
+        <LinkToTaskButton
+          items={toImport}
+          // This project's tasks first
+          tasks={[...tasks].sort((a, b) => Number(b.projectId === project.id) - Number(a.projectId === project.id))}
+          disabled={importItems.isPending}
+          onLink={(taskId) => importItems.mutate({ items: toImport, taskId })}
+          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:border-zinc-200 dark:disabled:hover:border-zinc-700"
+        />
         <button
           type="button"
           disabled={toImport.length === 0 || importItems.isPending}
-          onClick={() => importItems.mutate(toImport)}
+          onClick={() => importItems.mutate({ items: toImport })}
+          title="Create a task for each selected item"
           className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-indigo-600"
         >
           <Download className="w-3 h-3" />
-          Import {toImport.length}
+          Import {toImport.length} as new
         </button>
       </div>
 
@@ -307,7 +317,7 @@ export const AdoProjectPanel: React.FC<{
 
           {shown.length === 0 ? (
             <p className="px-3.5 py-2.5 text-xs text-zinc-500">
-              {items.length === 0 ? 'Nothing open is assigned to you in these projects.' : 'Everything here is imported.'}
+              {items.length === 0 ? 'Nothing open is assigned to you in these projects.' : 'Everything here is linked to a task.'}
             </p>
           ) : (
             <ul>
@@ -323,7 +333,7 @@ export const AdoProjectPanel: React.FC<{
                       type="button"
                       role="checkbox"
                       aria-checked={checked}
-                      aria-label={`Import ${item.title}`}
+                      aria-label={`Select ${item.title}`}
                       onClick={() => toggle(item.externalId)}
                       className={`w-[15px] h-[15px] rounded border flex items-center justify-center cursor-pointer transition-colors duration-150 ${
                         checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'

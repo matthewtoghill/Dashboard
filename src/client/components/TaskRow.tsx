@@ -127,23 +127,25 @@ export const ClaudeSessionBadge: React.FC<{
   );
 };
 
-/** "PR 482" or "#3127", with the matching icon. */
+/** "PR 482" or "#3127" for the first linked item, with the matching icon, and "+2" for more. */
 export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
-  if (!task.externalId || !task.externalUrl) return null;
-  const [kind, id] = task.externalId.split('/');
+  const [first, ...more] = task.adoLinks;
+  if (!first) return null;
+  const [kind, id] = first.externalId.split('/');
   const Icon = kind === 'pr' ? GitPullRequest : ExternalLink;
   return (
     <a
-      href={task.externalUrl}
+      href={first.url}
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      aria-label={`Open ${externalLinkLabel(task.externalId)}`}
-      title={externalLinkLabel(task.externalId)}
+      aria-label={`Open ${externalLinkLabel(first.externalId)}`}
+      title={[first, ...more].map((l) => externalLinkLabel(l.externalId)).join('\n')}
       className={`${NEUTRAL_BADGE_CLASS} hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-150`}
     >
       <Icon className="w-[11px] h-[11px]" />
       <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
+      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
     </a>
   );
 };

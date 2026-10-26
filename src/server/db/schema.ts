@@ -29,9 +29,6 @@ export const tasks = sqliteTable('tasks', {
   statusBeforeArchive: text('status_before_archive', { enum: ['todo', 'in_progress', 'done'] }),
   recurrence: text('recurrence'), // JSON Recurrence, see shared/recurrence.ts
   recurrenceParentId: text('recurrence_parent_id'),
-  externalSource: text('external_source', { enum: ['ado'] }),
-  externalId: text('external_id'),
-  externalUrl: text('external_url'),
 });
 
 export const subtasks = sqliteTable('subtasks', {
@@ -82,6 +79,18 @@ export const adoProjectLinks = sqliteTable('ado_project_links', {
   ignoredStates: text('ignored_states'), // JSON string array; null = settings default
 });
 
+export const taskAdoLinks = sqliteTable('task_ado_links', {
+  externalId: text('external_id').primaryKey(), // workitem/<id> or pr/<id>
+  taskId: text('task_id')
+    .notNull()
+    .references(() => tasks.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  title: text('title').notNull().default(''),
+  type: text('type').notNull().default(''),
+  state: text('state').notNull().default(''),
+  linkedAt: integer('linked_at').notNull(),
+});
+
 export const taskEvents = sqliteTable('task_events', {
   id: text('id').primaryKey(),
   taskId: text('task_id')
@@ -111,5 +120,7 @@ export type DbKeyValue = typeof keyValueStore.$inferSelect;
 export type DbClaudeSession = typeof claudeSessions.$inferSelect;
 
 export type DbAdoProjectLink = typeof adoProjectLinks.$inferSelect;
+
+export type DbTaskAdoLink = typeof taskAdoLinks.$inferSelect;
 
 export type DbTaskEvent = typeof taskEvents.$inferSelect;

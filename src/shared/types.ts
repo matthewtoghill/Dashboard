@@ -69,6 +69,19 @@ export const UpdateSubtaskInputSchema = z.object({
 });
 export type UpdateSubtaskInput = z.input<typeof UpdateSubtaskInputSchema>;
 
+/** An Azure DevOps item linked to a task, as last seen by a check. */
+export const TaskAdoLinkSchema = z.object({
+  /** `workitem/<id>` or `pr/<id>`; linked to at most one task. */
+  externalId: z.string().regex(/^(workitem|pr)\/\d+$/),
+  url: z.string().url().startsWith('https://'),
+  title: z.string(),
+  /** Work item type, or 'Pull Request'; empty when not seen by a check yet. */
+  type: z.string(),
+  state: z.string(),
+  linkedAt: z.number(),
+});
+export type TaskAdoLink = z.infer<typeof TaskAdoLinkSchema>;
+
 export const TaskSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -87,11 +100,9 @@ export const TaskSchema = z.object({
   recurrence: RecurrenceSchema.nullable().optional().default(null),
   /** The completed task this occurrence was spawned from. */
   recurrenceParentId: z.string().nullable().optional().default(null),
-  /** Where an imported task came from: 'ado' with id `workitem/<id>` or `pr/<id>`. */
-  externalSource: z.enum(['ado']).nullable().optional().default(null),
-  externalId: z.string().min(1).nullable().optional().default(null),
-  externalUrl: z.string().url().startsWith('https://').nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
+  /** Linked Azure DevOps items, oldest link first. */
+  adoLinks: z.array(TaskAdoLinkSchema).optional().default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -351,14 +362,16 @@ export type AdoItem = z.infer<typeof AdoItemSchema>;
 
 export const AdoImportInputSchema = z.object({
   items: z.array(AdoItemSchema).min(1, 'Select at least one item').max(500),
+  /** Link the items to this task instead of creating a task per item. */
+  taskId: z.string().min(1).optional(),
 });
 
 /** GET /api/ado/items. */
 export interface AdoFetchResult {
   /** Open items assigned to me; taskId is set when already imported. */
   items: (AdoItem & { taskId: string | null })[];
-  /** Unfinished imported tasks whose source item is now closed, merged or abandoned. */
-  closed: { taskId: string; title: string; externalId: string; url: string | null; state: string }[];
+  /** Unfinished linked tasks whose items are all closed, merged or abandoned; state lists theirs. */
+  closed: { taskId: string; title: string; state: string }[];
   /** Per-project failures that did not stop the rest of the fetch. */
   warnings: string[];
 }
@@ -388,7 +401,16 @@ export const BackupPayloadSchema = z.object({
   version: z.number().optional().default(1),
   exportedAt: z.number().optional(),
   projects: z.array(ProjectSchema).optional().default([]),
-  tasks: z.array(TaskSchema).optional().default([]),
+  /** Before version 7 a task held at most one ADO link, in externalId/externalUrl. */
+  tasks: z
+    .array(
+      TaskSchema.extend({
+        externalId: z.string().nullable().optional(),
+        externalUrl: z.string().nullable().optional(),
+      })
+    )
+    .optional()
+    .default([]),
   scratchpad: z.string().optional(),
   quickLinks: z.array(QuickLinkSchema).optional().default([]),
   /** Since version 2. */

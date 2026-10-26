@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bug,
@@ -6,25 +7,38 @@ import {
   Crown,
   ExternalLink,
   GitPullRequest,
+  Link2,
   Plus,
   RefreshCw,
   SquareCheck,
   SquareMenu,
   Trash2,
   Trophy,
+  Unlink,
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { AdoItem, AdoProjectLink, AdoSyncResult, Project, Settings, UpdateSettingsInput } from '../../shared/types.ts';
+import {
+  AdoItem,
+  AdoProjectLink,
+  AdoSyncResult,
+  Project,
+  Settings,
+  Task,
+  TaskAdoLink,
+  UpdateSettingsInput,
+} from '../../shared/types.ts';
 import {
   fetchAdoItems,
   fetchAdoProjectLinks,
   fetchAdoWorkItemTypes,
   importAdoItems,
   saveAdoProjectLinks,
+  unlinkAdoItem,
   updateTask,
 } from '../api.ts';
 import { formatRelativeTime } from '../utils/taskUtils.ts';
+import { TaskLinkDialog } from './ClaudeSessions.tsx';
 
 /** "Azure DevOps work item 123" / "Azure DevOps pull request 45" for an external id. */
 export function externalLinkLabel(externalId: string): string {
@@ -38,8 +52,10 @@ export function externalShortLabel(externalId: string): string {
   return kind === 'pr' ? `PR #${id}` : `#${id}`;
 }
 
+type TypedItem = Pick<AdoItem, 'externalId' | 'type'> & { role?: AdoItem['role'] };
+
 /** Colour, icon and short label for an Azure DevOps item's type. */
-function typeStyle(item: AdoItem): { label: string; icon: LucideIcon; className: string } {
+function typeStyle(item: TypedItem): { label: string; icon: LucideIcon; className: string } {
   if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-400' };
   if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-400' };
   if (item.externalId.startsWith('pr/')) return { label: 'PR', icon: GitPullRequest, className: 'text-blue-700 dark:text-blue-500' };
@@ -47,19 +63,19 @@ function typeStyle(item: AdoItem): { label: string; icon: LucideIcon; className:
   if (item.type === 'Feature') return { label: 'Feature', icon: Trophy, className: 'text-purple-700 dark:text-purple-400' };
   if (item.type === 'Task') return { label: 'Task', icon: SquareCheck, className: 'text-yellow-600 dark:text-yellow-300' };
   return {
-    label: item.type === 'Product Backlog Item' ? 'PBI' : item.type,
+    label: item.type === 'Product Backlog Item' ? 'PBI' : item.type || 'Item',
     icon: SquareMenu,
     className: 'text-sky-700 dark:text-sky-400',
   };
 }
 
 /** An Azure DevOps item's type as a coloured icon and short label. */
-export const TypeLabel: React.FC<{ item: AdoItem; className?: string }> = ({ item, className = '' }) => {
+export const TypeLabel: React.FC<{ item: TypedItem; className?: string }> = ({ item, className = '' }) => {
   const { label, icon: Icon, className: colour } = typeStyle(item);
   return (
     <span
       className={`inline-flex items-center gap-1.5 text-xs truncate ${colour} ${className}`}
-      title={item.role === 'reviewer' ? 'PR (review)' : item.type}
+      title={item.role === 'reviewer' ? 'PR (review)' : item.type || undefined}
     >
       <Icon className="w-3 h-3 shrink-0" />
       {label}
@@ -103,18 +119,115 @@ export function useSaveAdoLinks() {
   });
 }
 
-/** Imports items as tasks, then shows them as imported. */
-export function useImportAdoItems(onImported: (count: number) => void) {
+/** Imports items as tasks (or with taskId links them to that task), then shows them as imported. */
+export function useImportAdoItems(onImported: (count: number, linked: boolean) => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: importAdoItems,
-    onSuccess: ({ importedCount }) => {
+    mutationFn: ({ items, taskId }: { items: AdoItem[]; taskId?: string }) => importAdoItems(items, taskId),
+    onSuccess: ({ importedCount }, { taskId }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['adoItems'] });
-      onImported(importedCount);
+      onImported(importedCount, !!taskId);
     },
   });
 }
+
+/** "Link to task": picks an open task and links the given items to it. */
+export const LinkToTaskButton: React.FC<{
+  items: AdoItem[];
+  tasks: Task[];
+  disabled: boolean;
+  onLink: (taskId: string) => void;
+  className?: string;
+}> = ({ items, tasks, disabled, onLink, className = buttonClass }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        disabled={disabled || items.length === 0}
+        onClick={() => setOpen(true)}
+        title="Link the selected items to an existing task"
+        className={className}
+      >
+        <Link2 className="w-3 h-3" />
+        Link {items.length || ''} to task
+      </button>
+      {createPortal(
+        <TaskLinkDialog
+          open={open}
+          heading={
+            items.length === 1 ? `Link ${externalShortLabel(items[0].externalId)} to a task` : `Link ${items.length} items to a task`
+          }
+          tasks={tasks}
+          onClose={() => setOpen(false)}
+          onLink={(taskId) => taskId && onLink(taskId)}
+        />,
+        document.body
+      )}
+    </>
+  );
+};
+
+/** The task drawer's linked Azure DevOps items, each with Unlink and Open buttons. */
+export const LinkedAdoItems: React.FC<{ links: TaskAdoLink[] }> = ({ links }) => {
+  const queryClient = useQueryClient();
+  const unlink = useMutation({
+    mutationFn: unlinkAdoItem,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['adoItems'] });
+    },
+  });
+  return (
+    <ul className="space-y-1.5">
+      {links.map((link) => (
+        <li
+          key={link.externalId}
+          className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40"
+        >
+          <TypeLabel item={link} className="shrink-0 w-20" />
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            title={externalLinkLabel(link.externalId)}
+            className="min-w-0 flex-1 group"
+          >
+            <span className="block truncate text-sm text-zinc-800 dark:text-zinc-100 group-hover:underline">
+              {link.title || externalLinkLabel(link.externalId)}
+            </span>
+            <span className="block truncate text-[11px] text-zinc-500 dark:text-zinc-400">
+              {externalShortLabel(link.externalId)}
+              {link.state && ` \u00b7 ${link.state}`}
+            </span>
+          </a>
+          <button
+            type="button"
+            aria-label={`Unlink ${externalLinkLabel(link.externalId)}`}
+            title="Unlink from this task"
+            disabled={unlink.isPending}
+            onClick={() => unlink.mutate(link.externalId)}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
+          >
+            <Unlink className="w-3.5 h-3.5" />
+          </button>
+          <a
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`Open ${externalLinkLabel(link.externalId)}`}
+            title={externalLinkLabel(link.externalId)}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </li>
+      ))}
+      {unlink.isError && <p className="text-xs text-red-600 dark:text-red-400">{unlink.error.message}</p>}
+    </ul>
+  );
+};
 
 /** "Checked 5 min ago", plus why the last check failed if it did. */
 export const AdoSyncStatus: React.FC<{ data: AdoSyncResult | undefined; refreshing: boolean }> = ({
@@ -544,8 +657,9 @@ export const AdoImportDialog: React.FC<{
   open: boolean;
   onClose: () => void;
   projects: Project[];
-  onImported: (count: number) => void;
-}> = ({ open, onClose, projects, onImported }) => {
+  tasks: Task[];
+  onImported: (count: number, linked: boolean) => void;
+}> = ({ open, onClose, projects, tasks, onImported }) => {
   const ref = useRef<HTMLDialogElement>(null);
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -569,8 +683,8 @@ export const AdoImportDialog: React.FC<{
     if (open) queryClient.invalidateQueries({ queryKey: ['adoItems'] });
   }, [open, queryClient]);
 
-  const importMutation = useImportAdoItems((count) => {
-    onImported(count);
+  const importMutation = useImportAdoItems((count, linked) => {
+    onImported(count, linked);
     onClose();
   });
 
@@ -703,7 +817,7 @@ export const AdoImportDialog: React.FC<{
                       <li key={item.externalId} className="flex items-center gap-2 py-1.5">
                         <input
                           type="checkbox"
-                          aria-label={`Import ${item.title}`}
+                          aria-label={`Select ${item.title}`}
                           checked={!!item.taskId || selected.has(item.externalId)}
                           disabled={!!item.taskId}
                           onChange={(e) => toggle([item.externalId], e.target.checked)}
@@ -713,7 +827,7 @@ export const AdoImportDialog: React.FC<{
                           {item.title}
                         </span>
                         <span className="shrink-0 text-xs text-zinc-400">
-                          {item.taskId ? 'Imported' : item.state}
+                          {item.taskId ? 'Linked' : item.state}
                         </span>
                         <a
                           href={item.url}
@@ -746,13 +860,22 @@ export const AdoImportDialog: React.FC<{
               >
                 {selected.size < newItems.length ? 'Select all' : 'Select none'}
               </button>
+              <LinkToTaskButton
+                items={newItems.filter((i) => selected.has(i.externalId))}
+                tasks={tasks}
+                disabled={importMutation.isPending}
+                onLink={(taskId) =>
+                  importMutation.mutate({ items: newItems.filter((i) => selected.has(i.externalId)), taskId })
+                }
+              />
               <button
                 type="button"
                 disabled={selected.size === 0 || importMutation.isPending}
-                onClick={() => importMutation.mutate(newItems.filter((i) => selected.has(i.externalId)))}
+                onClick={() => importMutation.mutate({ items: newItems.filter((i) => selected.has(i.externalId)) })}
+                title="Create a task for each selected item"
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-default"
               >
-                Import {selected.size || ''}
+                Import {selected.size || ''} as new
               </button>
             </div>
           </div>

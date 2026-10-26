@@ -37,9 +37,7 @@ function task(overrides: Partial<Task>): Task {
     statusBeforeArchive: null,
     recurrence: null,
     recurrenceParentId: null,
-    externalSource: null,
-    externalId: null,
-    externalUrl: null,
+    adoLinks: [],
     subtasks: [],
     ...overrides,
   };

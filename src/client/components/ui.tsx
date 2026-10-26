@@ -55,10 +55,12 @@ const clampPanelWidth = (w: number) => Math.round(Math.max(PANEL_MIN_WIDTH, Math
  */
 export const DockedPanel: React.FC<{
   title: string;
+  /** Rendered before the title; give it its own colour class. */
+  icon?: React.ReactNode;
   widthKey: string;
   onClose: () => void;
   children: React.ReactNode;
-}> = ({ title, widthKey, onClose, children }) => {
+}> = ({ title, icon, widthKey, onClose, children }) => {
   const [width, setWidth] = useState(() => Number(localStorage.getItem(widthKey)) || 380);
   const saveWidth = (w: number) => localStorage.setItem(widthKey, String(w));
 
@@ -99,7 +101,10 @@ export const DockedPanel: React.FC<{
       </div>
 
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-        <h2 className="min-w-0 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
+        <h2 className="min-w-0 flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {icon}
+          {title}
+        </h2>
         <button
           type="button"
           onClick={onClose}

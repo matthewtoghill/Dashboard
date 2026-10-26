@@ -16,7 +16,7 @@ function formatLongDate(date: Date): string {
 
 function greeting(date: Date): string {
   const hour = date.getHours();
-  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  return hour < 12 ? 'Good Morning' : hour < 18 ? 'Good Afternoon' : 'Good Evening';
 }
 
 /** Progress ring, done today, streak and overdue, inline beside the greeting. */
