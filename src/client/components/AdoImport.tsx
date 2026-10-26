@@ -74,10 +74,10 @@ export const TypeLabel: React.FC<{ item: TypedItem; className?: string }> = ({ i
   const { label, icon: Icon, className: colour } = typeStyle(item);
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs truncate ${colour} ${className}`}
+      className={`inline-flex items-center gap-1.5 text-sm truncate ${colour} ${className}`}
       title={item.role === 'reviewer' ? 'PR (review)' : item.type || undefined}
     >
-      <Icon className="w-3 h-3 shrink-0" />
+      <Icon className="w-3.5 h-3.5 shrink-0" />
       {label}
     </span>
   );
