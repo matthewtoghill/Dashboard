@@ -451,7 +451,7 @@ export const ClaudeSessionsRail: React.FC<
           ) : (
             <>
               No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
-              Tracking" in PLAN.md).
+              Tracking" in the README).
             </>
           )}
         </p>
@@ -890,7 +890,7 @@ export const ClaudeSessionsSidePanel: React.FC<
         {sessions.length === 0 ? (
           <p className="px-1 py-3 text-[13px] text-zinc-500">
             No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
-            Tracking" in PLAN.md).
+            Tracking" in the README).
           </p>
         ) : (
           <>

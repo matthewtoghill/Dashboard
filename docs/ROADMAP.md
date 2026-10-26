@@ -46,7 +46,7 @@ See Claude sessions from the Dashboard and tie them to tasks.
 
 ### Decisions
 
-- State comes from hooks only (no transcript polling). Setup and the event-to-state mapping are in `PLAN.md` under "Claude Session Tracking".
+- State comes from hooks only (no transcript polling). Setup and the event-to-state mapping are in the README under "Claude session tracking".
 - Click-through copies `cd "<folder>" && claude --resume <session id>`, because no documented deep link opens a specific Code session. Revisit if one is published.
 - Unlinked sessions are pruned a week after their last event; linked sessions are kept as task history. Deleting a task unlinks its sessions.
 - "Needs attention" shows as a badge on Dashboard Home, with no browser notification.

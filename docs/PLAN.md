@@ -146,50 +146,6 @@ Stored locally in `data/dashboard.db`:
 
 ---
 
-## Backups & Restore
+## Backups, Restore and Claude Session Tracking
 
-The server keeps automatic snapshots of the database in `data/backups/` (override with `BACKUP_DIR`; it keeps the newest 14, override with `BACKUP_KEEP`). A snapshot is taken once a day, before every JSON import, and before a schema upgrade; the Overview page shows the last one and has a **Back up now** button.
-
-To restore a snapshot:
-1. Stop the server.
-2. Copy the chosen `data/backups/dashboard-<timestamp>.db` over `data/dashboard.db`, and delete `data/dashboard.db-wal` and `data/dashboard.db-shm` if they exist.
-3. Start the server.
-
-## Claude Session Tracking
-
-The Overview page lists Claude Code sessions with their state (Running, Idle, Needs attention, Ended). From a row you can link the session to a task, create a new task from it (titled after the session, linked, and opened in the task drawer), open it, copy its resume command, or clear it. Clicking a session's title opens a side panel with its last prompt, last tool, why it needs attention, client, folder and times, plus the same actions. The task drawer shows a task's linked sessions. Dashboard Home in the sidebar shows how many sessions need attention.
-
-Clearing hides a session from the Overview until it starts again, gets a new prompt, or needs attention. Cleared sessions still show in their task's drawer, and the panel can restore them.
-
-Opening a session:
-- **Claude desktop sessions** open with `claude://code/continue?session=<desktop id>`. The desktop id (`local_...`) is read from Claude Code's session registry (`~/.claude/sessions/<pid>.json`, an undocumented file), so this needs the `X-Claude-Pid` header in the hooks below.
-- **Other sessions** (terminal, IDE, Agent SDK) open with a `claude-resume://<session id>` link, which starts Windows Terminal in the session's folder running `claude --resume <id>`. Register the handler once per user with `powershell -ExecutionPolicy Bypass -File scriptsegister-claude-resume.ps1` (add `-Unregister` to remove it). The handler looks the folder up from the Dashboard API (`DASHBOARD_PORT`, default 3444) and only opens sessions the Dashboard knows about, because any web page can fire the link.
-- The copy button puts `cd "<folder>" && claude --resume <session id>` on the clipboard, which works from any terminal.
-
-Sessions are reported by Claude Code hooks, which pipe each event's JSON to `POST /api/claude/events`, with the client (`CLAUDE_CODE_ENTRYPOINT`) and process id (`CLAUDE_PID`) as headers. Add this to `~/.claude/settings.json`, merging it with any `hooks` you already have (change the port if you run the server on a different one):
-
-```json
-{
-  "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "PreToolUse": [{ "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "Notification": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' -H \"X-Claude-Entrypoint: $CLAUDE_CODE_ENTRYPOINT\" -H \"X-Claude-Pid: $CLAUDE_PID\" --data-binary @- http://127.0.0.1:3444/api/claude/events || true" }] }]
-  }
-}
-```
-
-How events map to states:
-
-| Event | State |
-| :--- | :--- |
-| `SessionStart`, `Stop` | Idle |
-| `UserPromptSubmit`, `PostToolUse` | Running |
-| `PermissionRequest`, `PreToolUse` for `AskUserQuestion`, `Notification` (except `idle_prompt` and `auth_success`) | Needs attention |
-| `SessionEnd` | Ended |
-
-The session title is the first line of its first prompt. Sessions with no linked task are deleted a week after their last event; linked sessions are kept as task history and included in JSON export and import. Deleting a task unlinks its sessions.
+Setup and usage for backups, restore and Claude session tracking (hooks, resume links) are in the [README](../README.md#backups-and-restore).
