@@ -15,6 +15,11 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 7 | Automatic Azure DevOps sync check | **Done** (branch `roadmap/ado-sync`) |
 | 8 | Weekly review view | Proposed |
 | 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
+| 10 | Waiting-on state | Proposed |
+| 11 | Daily plan | Proposed |
+| 12 | Task status notes | Proposed |
+| 13 | Dismissed Azure DevOps items | Proposed |
+| 14 | Source links | Proposed |
 
 ## 1. Claude Session Integration
 
@@ -259,12 +264,16 @@ A guided pass over tasks that have gone stale, so the list stays trustworthy.
 - **Review set:** overdue tasks, `in_progress` tasks not updated in N days, `todo` tasks not updated in N days, and undated `todo` tasks.
 - **One at a time:** shows one task with its details and a progress count ("4 of 17"), with keys for the common actions: reschedule, mark in progress, complete, archive, open in the drawer, and keep (skip with no change).
 - **Entry points:** a smart nav entry ("Review") in the sidebar and command palette, with a count badge.
+- **Waiting tasks (feature 10):** tasks waiting longer than the chase threshold join the review set, with a "Draft chase message" action that copies a short message to the clipboard. Nothing is sent.
+- **In-progress limit:** a soft cap on `in_progress` tasks (about 6). The review reports when the count is over it and offers to move the oldest back to `todo` or to waiting.
+- **Daily plan size (feature 11):** the review shows tasks completed per day over the last 14 days and their median, and suggests that as the daily plan size.
 
 ### Design Notes
 
 - The review set is a pure filter in `src/client/utils/taskView.ts`, tested alongside the existing view helpers. The data needed (`status`, `dueDate`, `updatedAt`) already exists.
 - Subtask edits already bump the task's `updatedAt`, so a task with recent subtask progress does not count as stale.
-- "Keep" must stop a task reappearing straight away. Either bump `updatedAt` on keep, or record a `reviewedAt` per task.
+- "Keep" must stop a task reappearing straight away. Either bump `updatedAt` on keep, or record a `reviewedAt` per task. A third option, once status notes (feature 12) exist: "keep" asks for a one-line note, and a note counts as touching the task.
+- Completions per day come from `completedAt` (or `status` events in `task_events`), so the daily plan size needs no new data.
 - Reschedule reuses the natural-language date parser from quick-add.
 - The staleness threshold (N days) is a General setting, 14 days by default.
 
@@ -300,3 +309,116 @@ Replace the browser's context menu with Dashboard actions on tasks and projects.
 - "Pick a date", "Add tag" and project "Rename" are inline inputs inside a submenu.
 - Overview task widget rows get the task menu too. Claude session rows are out of scope.
 - On calendar and widget entries, "Edit title" opens the task drawer, since they have no inline editor.
+
+## 10. Waiting-On State
+
+Track tasks that are blocked on someone else. Today a blocked task is just `todo` or `in_progress`, so there is no record of who it waits on or for how long, and nothing prompts a follow-up.
+
+### Scope
+
+- **Waiting status:** mark a task as waiting on a person (free text, for example "Jordan") from the drawer, the row menu and the right-click menu. The date it started waiting is recorded automatically and can be edited.
+- **Row display:** waiting tasks show "@Jordan · 9d" in place of the due date column.
+- **Chase signal:** after N days (7 by default, a General setting) the row shows a "Chase?" badge. Waiting tasks are left out of the stale list, since the delay is not mine.
+- **Smart view:** a "Waiting" entry in the sidebar and command palette, oldest first, with a count.
+- **Leaving waiting:** setting another status clears the person and date.
+
+### Design Notes
+
+- Add `waiting` to `TaskStatusSchema`, with nullable `waitingOn` and `waitingSince` columns. The status change is logged in `task_events` like any other.
+- Quick-add could accept a `@person` token to create a task that is already waiting. Check it doesn't clash with existing tokens first.
+- Include the new fields in JSON export and import.
+
+### Open Questions
+
+- A new status, or a flag on top of `todo` and `in_progress`, so a started task keeps its "in progress" state while blocked?
+- Should the person be free text, or a list that autocompletes from earlier entries?
+
+## 11. Daily Plan
+
+Pick what to work on today, separately from due dates. The Today view lists tasks due today, which is not the same as the set of tasks I have committed to.
+
+### Scope
+
+- **Plan for today:** add any task to today's plan from the row, the right-click menu or a key. Home shows the plan as its agenda.
+- **Main thing:** mark one planned task as the main thing for the day. It sits at the top of the plan and on Home.
+- **Carry over:** unfinished planned tasks stay in the plan the next day, marked as carried over.
+- **Three-day check:** a task carried over for 3 working days shows a prompt to split it into subtasks, reschedule it, or drop it from the plan.
+- **Plan suggestions:** an empty plan offers tasks that are in progress, overdue or due today, and tasks at the top of the manual order, each added with one click.
+- **Plan size:** a soft cap, shown as "5 of 6". The suggested size comes from the weekly review (feature 8).
+
+### Design Notes
+
+- New nullable columns `plannedFor` (a date) and `plannedSince` (the first day of the current planning run, for the carry-over count), plus a single main-thing task id per day in `key_value_store`.
+- Carry-over is computed when read (`plannedFor` before today and not done), so no job has to run at midnight.
+- Planning and unplanning are logged in `task_events` as a new `planned` kind, which later trends and the standup can use.
+- Working days skip weekends, using the existing helpers in `src/shared/dates.ts`.
+
+### Open Questions
+
+- Should the existing Today view become the plan, or should the plan be a separate view alongside it?
+- Should tasks due today join the plan automatically, or only be suggested?
+- Should the main thing carry over, or be chosen again each morning?
+
+## 12. Task Status Notes
+
+A short, dated progress log on each task ("Receipts collected, form half done"). The description holds what the task is; status notes record where it stands.
+
+### Scope
+
+- **Add a note:** a one-line input in the drawer, and a "Status" action on the row and right-click menu.
+- **Row display:** the latest note shows under the task title, muted, with its date.
+- **Drawer:** notes appear in the History section with the other events, newest first. They are never edited or deleted, only added to.
+- **Staleness:** adding a note counts as touching the task for the stale list and the weekly review.
+
+### Design Notes
+
+- Store notes as a new `note` kind in `task_events`, with the text in `to`. This needs no new table, and notes are included in export the same way as other events.
+- Adding a note bumps `updatedAt`, so the existing stale filter treats it as a touch with no other change.
+- The latest note per task can be read with one grouped query when tasks load, rather than fetching History for every row.
+
+### Open Questions
+
+- Allow editing or deleting a note shortly after adding it, for typos?
+- Should notes be added to the description as well, so they appear in JSON exports read by hand?
+
+## 13. Dismissed Azure DevOps Items
+
+Stop deleted or unwanted Azure DevOps items from coming back as new. "New" currently means not imported, so deleting an imported task, or never wanting an item at all, leaves it in the New count after every check.
+
+### Scope
+
+- **Dismiss:** a Dismiss action on each item in the import dialog and the project panel. Dismissed items leave the New count and the list.
+- **Deleting an imported task:** offers to dismiss its source item at the same time.
+- **Review dismissed:** a "Show dismissed" toggle in the import dialog, with Restore.
+
+### Design Notes
+
+- New table `ado_dismissed` (`external_id`, `dismissed_at`), keyed the same way as `tasks.external_id` (`workitem/<id>` or `pr/<id>`).
+- Filter dismissed items where the sync result is read in `src/server/routes/ado.ts`, so the Overview card, the dialog and the project panel all agree.
+- Include the table in JSON export and import.
+
+### Open Questions
+
+- Should a dismissed pull request come back if it gets new commits or a new review request?
+- Prune dismissed ids once the source item is closed?
+
+## 14. Source Links
+
+Record where a task came from for sources other than Azure DevOps, such as a Slack message, a Teams thread or an email.
+
+### Scope
+
+- **Source on create:** pasting a link into quick-add, or into a Source field in the drawer, stores it as the task's source.
+- **Source chip:** the row and drawer show a small chip with the source kind (Slack, Teams, Email, Link) that opens the link.
+- **Right-click menu:** "Open source" sits next to the existing "Open in Azure DevOps" item.
+
+### Design Notes
+
+- Extend `externalSource` beyond `'ado'` with `'link'` and reuse `externalUrl`. The kind is inferred from the host (`slack.com`, `teams.microsoft.com`, `outlook.office.com`), so nothing extra is stored. `externalId` stays null for links, so the unique index on source and id is unaffected.
+- Only `https://` URLs are accepted, as for Azure DevOps.
+- This also gives a place for tasks created by Claude (feature 2) to point back to their session or message.
+
+### Open Questions
+
+- Should a pasted link be taken out of the title, or left in it?
+- One source per task, or several?
