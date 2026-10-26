@@ -18,9 +18,7 @@ const base: Task = {
   statusBeforeArchive: null,
   recurrence: null,
   recurrenceParentId: null,
-  externalSource: null,
-  externalId: null,
-  externalUrl: null,
+  adoLinks: [],
   subtasks: [],
 };
 
@@ -62,7 +60,10 @@ describe('taskMenuItems', () => {
 
   it('shows Azure DevOps only when linked, and skips moving to the same due date', () => {
     expect(labels(base)).not.toContain('Open in Azure DevOps');
-    expect(labels({ ...base, externalUrl: 'https://dev.azure.com/x' })).toContain('Open in Azure DevOps');
+    const link = { externalId: 'workitem/1', url: 'https://dev.azure.com/x', title: 'X', type: 'Task', state: 'New', linkedAt: 1 };
+    expect(labels({ ...base, adoLinks: [link] })).toContain('Open in Azure DevOps');
+    const both = taskMenuItems({ ...base, adoLinks: [link, { ...link, externalId: 'pr/2', title: 'Y' }] }, false, actions());
+    expect(both.find((i) => i.label === 'Open in Azure DevOps')!.submenu!.map((i) => i.label)).toEqual(['X', 'Y']);
 
     const a = actions();
     const due = taskMenuItems(base, false, a).find((i) => i.label === 'Due date')!.submenu!;

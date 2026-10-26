@@ -1,7 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Copy, ExternalLink, Link2, ListPlus, Unlink, X, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  Bot,
+  Check,
+  ChevronRight,
+  Copy,
+  AppWindow,
+  SquareTerminal,
+  Link2,
+  ListPlus,
+  Unlink,
+  X,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+} from 'lucide-react';
 import { ClaudeSession, ClaudeSessionState, Task } from '../../shared/types.ts';
-import { formatTimestamp } from '../utils/taskUtils.ts';
+import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
+import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
 export const STATE_STYLES: Record<ClaudeSessionState, { label: string; className: string }> = {
   needs_attention: {
@@ -20,17 +36,6 @@ export const STATE_STYLES: Record<ClaudeSessionState, { label: string; className
     label: 'Ended',
     className: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
   },
-};
-
-export const SESSION_ROW_BADGE_STYLES: Record<ClaudeSessionState, string> = {
-  needs_attention:
-    'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/50',
-  running:
-    'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50',
-  idle:
-    'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/50',
-  ended:
-    'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200/70 dark:border-zinc-700/70 hover:text-indigo-600 dark:hover:text-indigo-400',
 };
 
 // Needs attention first, then by latest activity (the server already sorts by activity)
@@ -66,15 +71,17 @@ export function resumeCommand(session: ClaudeSession): string {
  * Link that opens the session: the desktop app's own deep link for its sessions, otherwise the
  * claude-resume:// handler from scripts/register-claude-resume.ps1 (a terminal running --resume).
  */
-export function sessionLink(session: ClaudeSession): { url: string; label: string } {
+export function sessionLink(session: ClaudeSession): { url: string; label: string; icon: typeof AppWindow } {
   return session.entrypoint === 'claude-desktop' && session.hostSessionId
     ? {
         url: `claude://code/continue?session=${encodeURIComponent(session.hostSessionId)}`,
         label: 'Open in Claude desktop',
+        icon: AppWindow,
       }
     : {
         url: `claude-resume://${encodeURIComponent(session.sessionId)}`,
         label: 'Open in terminal (needs scripts/register-claude-resume.ps1)',
+        icon: SquareTerminal,
       };
 }
 
@@ -131,7 +138,7 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
       aria-label={link.label}
       className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
     >
-      <ExternalLink className="w-3.5 h-3.5" />
+      <link.icon className="w-3.5 h-3.5" />
       {withLabel && <span>{link.label.replace(/ \(.*\)$/, '')}</span>}
     </a>
   );
@@ -140,14 +147,21 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
 const inputClass =
   'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
 
-/** Dialog for choosing the session's task among open tasks, or creating a new one to link. */
-const TaskLinkDialog: React.FC<{
-  session: ClaudeSession | null;
+/**
+ * Dialog for choosing a task among open tasks to link something to, or (with `create`) creating a
+ * new one to link. Used for Claude sessions and Azure DevOps items.
+ */
+export const TaskLinkDialog: React.FC<{
+  open: boolean;
+  heading: string;
   tasks: Task[];
+  /** The task linked now, shown with an Unlink button. */
+  linkedTaskId?: string | null;
   onClose: () => void;
-  onLink: (sessionId: string, taskId: string | null) => void;
-  onCreateTask: (session: ClaudeSession, title: string) => void;
-}> = ({ session, tasks, onClose, onLink, onCreateTask }) => {
+  onLink: (taskId: string | null) => void;
+  /** Offers "Create & link", starting from `title`. */
+  create?: { title: string; onCreate: (title: string) => void };
+}> = ({ open, heading, tasks, linkedTaskId = null, onClose, onLink, create }) => {
   const ref = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState('');
   const [newTitle, setNewTitle] = useState('');
@@ -155,21 +169,21 @@ const TaskLinkDialog: React.FC<{
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (session && !dialog.open) {
+    if (open && !dialog.open) {
       setQuery('');
-      setNewTitle(taskFromSession(session).title);
+      setNewTitle(create?.title ?? '');
       dialog.showModal();
     }
-    if (!session && dialog.open) dialog.close();
-  }, [session]);
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
 
-  const linkedTask = session && tasks.find((t) => t.id === session.taskId);
+  const linkedTask = tasks.find((t) => t.id === linkedTaskId);
   const q = query.trim().toLowerCase();
   const choices = tasks.filter(
     (t) => (t.status === 'todo' || t.status === 'in_progress') && t.title.toLowerCase().includes(q)
   );
   const link = (taskId: string | null) => {
-    if (session) onLink(session.sessionId, taskId);
+    onLink(taskId);
     onClose();
   };
 
@@ -182,11 +196,11 @@ const TaskLinkDialog: React.FC<{
       aria-labelledby="task-link-dialog-title"
       className="m-auto w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
     >
-      {session && (
+      {open && (
         <div className="flex flex-col max-h-[80vh] text-sm">
           <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
             <h2 id="task-link-dialog-title" className="text-base font-semibold truncate">
-              Link task to session
+              {heading}
             </h2>
             <button type="button" onClick={onClose} aria-label="Close" className={iconButtonClass}>
               <X className="w-4 h-4" />
@@ -231,11 +245,11 @@ const TaskLinkDialog: React.FC<{
                         type="button"
                         onClick={() => link(t.id)}
                         className={`w-full flex items-center gap-2 px-2 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer ${
-                          t.id === session.taskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
+                          t.id === linkedTaskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
                         }`}
                       >
                         <span className="flex-1 truncate">{t.title}</span>
-                        {t.id === session.taskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                        {t.id === linkedTaskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
                       </button>
                     </li>
                   ))}
@@ -243,35 +257,37 @@ const TaskLinkDialog: React.FC<{
               )}
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newTitle.trim()) return;
-                onCreateTask(session, newTitle.trim());
-                onClose();
-              }}
-              className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800"
-            >
-              <label htmlFor="task-link-new-title" className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                Or create a new task
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="task-link-new-title"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className={inputClass}
-                />
-                <button
-                  type="submit"
-                  disabled={!newTitle.trim()}
-                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
-                >
-                  <ListPlus className="w-3.5 h-3.5" />
-                  Create & link
-                </button>
-              </div>
-            </form>
+            {create && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newTitle.trim()) return;
+                  create.onCreate(newTitle.trim());
+                  onClose();
+                }}
+                className="space-y-2 pt-4 border-t border-zinc-200 dark:border-zinc-800"
+              >
+                <label htmlFor="task-link-new-title" className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Or create a new task
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="task-link-new-title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className={inputClass}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newTitle.trim()}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
+                  >
+                    <ListPlus className="w-3.5 h-3.5" />
+                    Create & link
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -281,13 +297,16 @@ const TaskLinkDialog: React.FC<{
 
 /** Linked task title (opens the task), an unlink X, and the button that opens TaskLinkDialog. */
 const TaskLinkControls: React.FC<
-  { session: ClaudeSession; tasks: Task[] } & Omit<ClaudeSessionActions, 'onOpen' | 'onToggleCleared'>
-> = ({ session, tasks, onLink, onCreateTask, onOpenTask }) => {
+  { session: ClaudeSession; tasks: Task[]; /** Icon only, no linked-task chip. */ compact?: boolean } & Omit<
+    ClaudeSessionActions,
+    'onOpen' | 'onToggleCleared'
+  >
+> = ({ session, tasks, onLink, onCreateTask, onOpenTask, compact }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const linkedTask = tasks.find((t) => t.id === session.taskId);
   return (
     <>
-      {linkedTask && (
+      {linkedTask && !compact && (
         <span className="inline-flex items-center min-w-0 max-w-[14rem] rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
           <button
             type="button"
@@ -316,15 +335,22 @@ const TaskLinkControls: React.FC<
         className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
       >
         <Link2 className="w-3.5 h-3.5" />
-        {!linkedTask && <span>Link task</span>}
+        {!linkedTask && !compact && <span>Link task</span>}
       </button>
-      <TaskLinkDialog
-        session={dialogOpen ? session : null}
-        tasks={tasks}
-        onClose={() => setDialogOpen(false)}
-        onLink={onLink}
-        onCreateTask={onCreateTask}
-      />
+      {/* Portalled: the Home rail hides these controls with display: none when not hovered, which
+          would leave the open modal invisible and the page inert */}
+      {createPortal(
+        <TaskLinkDialog
+          open={dialogOpen}
+          heading="Link task to session"
+          tasks={tasks}
+          linkedTaskId={session.taskId}
+          onClose={() => setDialogOpen(false)}
+          onLink={(taskId) => onLink(session.sessionId, taskId)}
+          create={{ title: taskFromSession(session).title, onCreate: (title) => onCreateTask(session, title) }}
+        />,
+        document.body
+      )}
     </>
   );
 };
@@ -345,7 +371,7 @@ export interface ClaudeSessionActions {
 export const ClaudeSessionItem: React.FC<
   { session: ClaudeSession; tasks?: Task[] } & ClaudeSessionActions
 > = ({ session, tasks, onOpen, onOpenTask, onLink, onCreateTask, onToggleCleared }) => (
-  <li className="flex items-center gap-2 py-2">
+  <li className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border ${CARD_STYLES[session.state].card}`}>
     <StateBadge state={session.state} />
     <button
       type="button"
@@ -395,37 +421,189 @@ export const ClaudeSessionItem: React.FC<
   </li>
 );
 
-/** Overview card listing tracked Claude Code sessions, except cleared ones. */
-export const ClaudeSessionsCard: React.FC<
+const RAIL_DOT: Record<ClaudeSessionState, string> = {
+  needs_attention: 'bg-amber-400 ring-[3px] ring-amber-400/20',
+  running: 'bg-indigo-400',
+  idle: 'bg-emerald-400',
+  ended: 'bg-zinc-400 dark:bg-zinc-600',
+};
+
+/** Live (not ended, not cleared) sessions: needs attention first, then running, then idle. */
+export const liveSessions = (sessions: ClaudeSession[]) =>
+  sessions
+    .filter((s) => s.state !== 'ended' && !s.dismissedAt)
+    .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state) || b.lastEventAt - a.lastEventAt);
+
+export const CLAUDE_RAIL_ID = 'home-claude-sessions';
+
+/** Home rail: live sessions with a state dot; link, open, copy and clear appear on hover. */
+export const ClaudeSessionsRail: React.FC<
   { sessions: ClaudeSession[]; tasks: Task[] } & ClaudeSessionActions
-> = ({ sessions, tasks, ...actions }) => {
-  const visible = sessions
-    .filter((s) => !s.dismissedAt)
-    .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+> = ({ sessions, tasks, onOpen, onOpenTask, onLink, onCreateTask, onToggleCleared }) => {
+  const live = liveSessions(sessions);
   return (
-    <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xs flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Bot className="w-4 h-4 text-zinc-500" />
-        <h3 className="text-sm font-semibold">Claude sessions</h3>
-      </div>
-      {visible.length === 0 ? (
-        <p className="py-6 px-4 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+    <section id={CLAUDE_RAIL_ID} aria-labelledby={`${CLAUDE_RAIL_ID}-title`} className="scroll-mt-6">
+      <SectionHeader id={`${CLAUDE_RAIL_ID}-title`} title="Claude Sessions" meta={`${live.length} live`} />
+      {live.length === 0 ? (
+        <p className="px-1 py-3 text-[13px] text-zinc-500">
           {sessions.length > 0 ? (
-            'All sessions cleared. They come back here when they become active again.'
+            'No live sessions.'
           ) : (
             <>
-              No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see
-              "Claude Session Tracking" in PLAN.md) and start a Claude Code session.
+              No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
+              Tracking" in PLAN.md).
             </>
           )}
         </p>
       ) : (
-        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-          {visible.map((s) => (
-            <ClaudeSessionItem key={s.sessionId} session={s} tasks={tasks} {...actions} />
+        <ul className="pt-1.5">
+          {live.map((s) => (
+            <li
+              key={s.sessionId}
+              className={`group flex items-center gap-2.5 py-1.5 ${
+                s.state === 'needs_attention' ? '-mx-1 px-2 rounded-lg bg-amber-50 dark:bg-amber-500/10' : 'px-1'
+              }`}
+            >
+              <span
+                role="img"
+                aria-label={STATE_STYLES[s.state].label}
+                title={STATE_STYLES[s.state].label}
+                className={`shrink-0 w-2 h-2 rounded-full ${RAIL_DOT[s.state]}`}
+              />
+              <button
+                type="button"
+                onClick={() => onOpen(s.sessionId)}
+                title="Show session details"
+                className="flex-1 min-w-0 text-left cursor-pointer"
+              >
+                <span className="block truncate text-[13px] text-zinc-800 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                  {s.title || 'Untitled session'}
+                </span>
+                <span className="block truncate text-[11px] text-zinc-500" title={s.cwd}>
+                  {folderName(s.cwd)} · {sessionStateLine(s)}
+                </span>
+              </button>
+              <span className="shrink-0 hidden group-hover:flex group-focus-within:flex items-center">
+                <TaskLinkControls
+                  session={s}
+                  tasks={tasks}
+                  onOpenTask={onOpenTask}
+                  onLink={onLink}
+                  onCreateTask={onCreateTask}
+                  compact
+                />
+                <OpenSessionLink session={s} />
+                <CopyResumeButton session={s} />
+                <button
+                  type="button"
+                  aria-label="Clear session"
+                  title="Clear from this list (it comes back if the session becomes active)"
+                  onClick={() => onToggleCleared(s)}
+                  className={iconButtonClass}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            </li>
           ))}
         </ul>
       )}
+    </section>
+  );
+};
+
+/** "needs attention", "running · Edit", "idle · 14 minutes ago" */
+function sessionStateLine(s: ClaudeSession): string {
+  if (s.state === 'running') return s.lastTool ? `running · ${s.lastTool}` : 'running';
+  if (s.state === 'idle') return `idle · ${formatRelativeTime(s.lastEventAt)}`;
+  return STATE_STYLES[s.state].label.toLowerCase();
+}
+
+/** Text with `backticked` parts shown as code chips. */
+const InlineCode: React.FC<{ text: string }> = ({ text }) => (
+  <>
+    {text.split(/(`[^`]+`)/).map((part, i) =>
+      part.startsWith('`') && part.endsWith('`') && part.length > 2 ? (
+        <code
+          key={i}
+          className="mx-0.5 px-1.5 py-px rounded font-mono text-[11.5px] bg-amber-500/15 dark:bg-black/35 text-amber-800 dark:text-amber-200"
+        >
+          {part.slice(1, -1)}
+        </code>
+      ) : (
+        part
+      )
+    )}
+  </>
+);
+
+/** Home banner for the newest session waiting on the user; nothing when none is. */
+export const ClaudeAttentionBanner: React.FC<{ sessions: ClaudeSession[]; tasks: Task[] }> = ({ sessions, tasks }) => {
+  const [copied, setCopied] = useState(false);
+  const waiting = sessions
+    .filter((s) => s.state === 'needs_attention' && !s.dismissedAt)
+    .sort((a, b) => b.lastEventAt - a.lastEventAt);
+  const session = waiting[0];
+  if (!session) return null;
+  const task = tasks.find((t) => t.id === session.taskId);
+  const link = sessionLink(session);
+
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center gap-3.5 px-4 py-3.5 rounded-xl bg-amber-500/[.08] border border-amber-500/30"
+    >
+      <span className="shrink-0 w-[34px] h-[34px] rounded-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+        <Bot className="w-[17px] h-[17px]" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] truncate">
+          <span className="font-semibold uppercase tracking-[0.04em] text-amber-700 dark:text-amber-300">
+            Claude needs you
+          </span>
+          <span className="ml-2 text-zinc-500 dark:text-zinc-400" title={session.cwd}>
+            {folderName(session.cwd)} · {formatRelativeTime(session.lastEventAt)}
+          </span>
+        </p>
+        <p className="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+          {task?.title ?? (session.title || 'Untitled session')}
+        </p>
+        <p className="mt-0.5 text-xs text-zinc-700 dark:text-zinc-300 truncate">
+          {session.attentionMessage ? <InlineCode text={session.attentionMessage} /> : 'Waiting for your input'}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <a
+          href={link.url}
+          title={link.label}
+          className="inline-flex items-center gap-1.5 px-3 py-[7px] rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-900 text-xs font-semibold transition-colors duration-150"
+        >
+          <link.icon className="w-[13px] h-[13px]" />
+          Open in Claude
+        </a>
+        <button
+          type="button"
+          title={resumeCommand(session)}
+          onClick={async () => {
+            await navigator.clipboard.writeText(resumeCommand(session));
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-[7px] rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 cursor-pointer"
+        >
+          {copied ? <Check className="w-[13px] h-[13px] text-emerald-500" /> : <Copy className="w-[13px] h-[13px]" />}
+          {copied ? 'Copied' : 'Resume'}
+        </button>
+        {waiting.length > 1 && (
+          <button
+            type="button"
+            onClick={() => document.getElementById(CLAUDE_RAIL_ID)?.scrollIntoView({ behavior: 'smooth' })}
+            className="text-xs text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
+          >
+            +{waiting.length - 1} more
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -521,12 +699,12 @@ export const ClaudeSessionPanel: React.FC<
               {!session.dismissedAt ? (
                 <>
                   <EyeOff className="w-3.5 h-3.5" />
-                  <span>Clear from Overview</span>
+                  <span>Clear from Home</span>
                 </>
               ) : (
                 <>
                   <Eye className="w-3.5 h-3.5" />
-                  <span>Show on Overview</span>
+                  <span>Show on Home</span>
                 </>
               )}
             </button>
@@ -567,5 +745,182 @@ export const ClaudeSessionPanel: React.FC<
         </div>
       </aside>
     </div>
+  );
+};
+
+/** Claude's starburst mark, drawn in currentColor. */
+export const ClaudeIcon: React.FC<{ className?: string }> = ({ className }) => (
+  // Claude Bot
+  // <svg xmlns="http://www.w3.org/2000/svg" height="20" width="20" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden className={className}>
+  //   <path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" />
+  // </svg>
+  
+  // Claude Starburst
+  <svg xmlns="http://www.w3.org/2000/svg" height="24" width="24" viewBox="0 0 640 640" aria-hidden className={className}>
+    <path fill="currentColor" d="M164.4 404.5L265.1 348L266.8 343.1L265.1 340.4L260.2 340.4L243.4 339.4L185.9 337.8L136 335.7L87.7 333.1L75.5 330.5L64.1 315.5L65.3 308L75.5 301.1L90.2 302.4C109.1 303.7 136.1 305.5 171.2 308L206.4 310.1L258.6 315.5L266.9 315.5L268.1 312.1L265.3 310L263.1 307.9L212.8 273.8L158.4 237.8L129.9 217.1L114.5 206.6L106.7 196.8L103.3 175.3L117.3 159.9L136.1 161.2L140.9 162.5L159.9 177.2L200.6 208.7L253.7 247.8L261.5 254.3L264.6 252.1L265 250.5L261.5 244.7L232.6 192.5L201.8 139.4L188.1 117.4L184.5 104.2C183.2 98.8 182.3 94.2 182.3 88.7L198.2 67.1L207 64.3L228.2 67.1L237.1 74.9L250.3 105.1L271.7 152.6L304.9 217.2L314.6 236.4L319.8 254.2L321.7 259.6L325.1 259.6L325.1 256.5L327.8 220.1L332.8 175.4L337.7 117.9L339.4 101.7L347.4 82.3L363.3 71.8L375.7 77.7L385.9 92.4L384.5 101.9L378.4 141.4L366.5 203.3L358.7 244.8L363.2 244.8L368.4 239.6L389.4 211.8L424.6 167.7L440.1 150.2L458.2 130.9L469.8 121.7L491.8 121.7L508 145.8L500.7 170.7L478 199.4L459.2 223.8L432.2 260.1L415.4 289.1L417 291.4L421 291L481.9 278L514.8 272.1L554.1 265.4L571.9 273.7L573.8 282.1L566.8 299.3L524.8 309.7L475.6 319.5L402.3 336.8L401.4 337.5L402.4 338.8L435.4 341.9L449.5 342.7L484.1 342.7L548.5 347.5L565.3 358.6L575.4 372.2L573.7 382.6L547.8 395.8C532.3 392.1 493.4 382.9 431.2 368.1L403.2 361.1L399.3 361.1L399.3 363.4L422.6 386.2L465.3 424.8L518.8 474.6L521.5 486.9L514.6 496.6L507.3 495.6L460.3 460.2L442.2 444.3L401.1 409.7L398.4 409.7L398.4 413.3L407.9 427.2L457.9 502.4L460.5 525.4L456.9 532.9L443.9 537.4L429.7 534.8L400.4 493.7L370.2 447.4L345.8 405.9L342.8 407.6L328.4 562.4L321.7 570.3L306.2 576.2L293.2 566.4L286.3 550.5L293.2 519L301.5 477.9L308.2 445.2L314.3 404.6L317.9 391.1L317.7 390.2L314.7 390.6L284.1 432.6L237.6 495.5L200.8 534.9L192 538.4L176.7 530.5L178.1 516.4L186.6 503.8L237.5 439L268.2 398.8L288 375.6L287.9 372.2L286.7 372.2L151.4 460L127.3 463.1L116.9 453.4L118.2 437.5L123.1 432.3L163.8 404.3L163.7 404.4L163.7 404.5z"/>
+  </svg>
+);
+
+/** Card look per state: border and background, dot, and state label colour. */
+const CARD_STYLES: Record<ClaudeSessionState, { card: string; dot: string; label: string }> = {
+  needs_attention: {
+    card: 'border-amber-400/70 dark:border-amber-500/50 bg-amber-100/70 dark:bg-amber-500/[.12] shadow-sm shadow-amber-500/10',
+    dot: 'bg-amber-400 ring-[3px] ring-amber-400/25 animate-pulse',
+    label: 'text-amber-700 dark:text-amber-300',
+  },
+  running: {
+    card: 'border-indigo-300/70 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10',
+    dot: 'bg-indigo-400 animate-pulse',
+    label: 'text-indigo-600 dark:text-indigo-300',
+  },
+  idle: {
+    card: 'border-emerald-200/80 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/[.07]',
+    dot: 'bg-emerald-400',
+    label: 'text-emerald-700 dark:text-emerald-400',
+  },
+  ended: {
+    card: 'border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-800/40 opacity-75 hover:opacity-100 focus-within:opacity-100',
+    dot: 'bg-zinc-300 dark:bg-zinc-600',
+    label: 'text-zinc-500 dark:text-zinc-400',
+  },
+};
+
+/** One session in the side panel: state, time, title, folder, attention message or last prompt, actions. */
+const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSessionActions> = ({
+  session: s,
+  tasks,
+  onOpen,
+  onToggleCleared,
+  ...linkActions
+}) => {
+  const style = CARD_STYLES[s.state];
+  const attention = s.state === 'needs_attention';
+  const detail = attention ? s.attentionMessage || 'Waiting for your input' : s.lastPrompt;
+  return (
+    <li className={`rounded-xl border p-3 space-y-2 transition-opacity duration-150 ${style.card}`}>
+      <div className="flex items-center gap-2 text-[11px]">
+        <span aria-hidden className={`shrink-0 w-2 h-2 rounded-full ${style.dot}`} />
+        <span className={`font-semibold uppercase tracking-[0.04em] truncate ${style.label}`}>
+          {s.state === 'running' && s.lastTool ? `Running · ${s.lastTool}` : STATE_STYLES[s.state].label}
+        </span>
+        <span className="ml-auto shrink-0 text-zinc-500 dark:text-zinc-400" title={formatTimestamp(s.lastEventAt)}>
+          {formatRelativeTime(s.lastEventAt)}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpen(s.sessionId)}
+        title="Show session details"
+        className="block w-full text-left cursor-pointer group"
+      >
+        <span className="block text-sm font-medium text-zinc-900 dark:text-zinc-100 line-clamp-2 break-words group-hover:underline">
+          {s.title || 'Untitled session'}
+        </span>
+        <span className="block truncate text-[11px] text-zinc-500 dark:text-zinc-400" title={s.cwd}>
+          {folderName(s.cwd)}
+          {CLIENT_LABELS[s.entrypoint] && ` · ${CLIENT_LABELS[s.entrypoint]}`}
+        </span>
+      </button>
+
+      {detail && (
+        <p
+          className={`text-xs line-clamp-2 break-words ${
+            attention ? 'text-amber-900 dark:text-amber-200' : 'text-zinc-600 dark:text-zinc-400'
+          }`}
+        >
+          {attention ? <InlineCode text={detail} /> : detail}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-zinc-200/70 dark:border-zinc-800/70">
+        <TaskLinkControls session={s} tasks={tasks} {...linkActions} />
+        <span className="ml-auto flex items-center">
+          <OpenSessionLink session={s} />
+          <CopyResumeButton session={s} />
+          <button
+            type="button"
+            aria-label={s.dismissedAt ? 'Restore session' : 'Clear session'}
+            title={s.dismissedAt ? 'Restore' : 'Clear (it comes back if the session becomes active)'}
+            onClick={() => onToggleCleared(s)}
+            className={iconButtonClass}
+          >
+            {s.dismissedAt ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </button>
+        </span>
+      </div>
+    </li>
+  );
+};
+
+/** Sessions needing the user first, then the rest by latest activity; cleared ones kept apart. */
+export function groupSessionsForPanel(sessions: ClaudeSession[]) {
+  const byActivity = [...sessions].sort((a, b) => b.lastEventAt - a.lastEventAt);
+  const shown = byActivity.filter((s) => !s.dismissedAt);
+  return {
+    attention: shown.filter((s) => s.state === 'needs_attention'),
+    rest: shown.filter((s) => s.state !== 'needs_attention'),
+    cleared: byActivity.filter((s) => s.dismissedAt),
+  };
+}
+
+/** Docked right-hand panel with every Claude session, live or ended, as a card. */
+export const ClaudeSessionsSidePanel: React.FC<
+  { sessions: ClaudeSession[]; tasks: Task[]; onClose: () => void } & ClaudeSessionActions
+> = ({ sessions, tasks, onClose, ...actions }) => {
+  const { attention, rest, cleared } = groupSessionsForPanel(sessions);
+  const count = (state: ClaudeSessionState) => rest.filter((s) => s.state === state).length;
+  const summary = [
+    attention.length && `${attention.length} need you`,
+    count('running') && `${count('running')} running`,
+    count('idle') && `${count('idle')} idle`,
+    count('ended') && `${count('ended')} ended`,
+  ].filter(Boolean);
+  const cards = (list: ClaudeSession[]) => (
+    <ul className="space-y-2">
+      {list.map((s) => (
+        <SessionCard key={s.sessionId} session={s} tasks={tasks} {...actions} />
+      ))}
+    </ul>
+  );
+
+  return (
+    <DockedPanel title="Claude Sessions" icon={<ClaudeIcon className="w-4 h-4 text-orange-500 dark:text-orange-400" />} widthKey="dashboard_claude_panel_width" onClose={onClose}>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
+        {sessions.length === 0 ? (
+          <p className="px-1 py-3 text-[13px] text-zinc-500">
+            No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
+            Tracking" in PLAN.md).
+          </p>
+        ) : (
+          <>
+            {summary.length > 0 && <p className="px-1 text-xs text-zinc-500">{summary.join(' · ')}</p>}
+            {attention.length > 0 && (
+              <section aria-label="Needs your input" className="space-y-2">
+                <h3 className={`px-1 ${LABEL_CLASS} text-amber-700 dark:text-amber-300`}>Needs your input</h3>
+                {cards(attention)}
+              </section>
+            )}
+            {rest.length > 0 && (
+              <section aria-label="Recent activity" className="space-y-2">
+                {attention.length > 0 && <h3 className={`px-1 ${LABEL_CLASS} text-zinc-500`}>Recent activity</h3>}
+                {cards(rest)}
+              </section>
+            )}
+            {cleared.length > 0 && (
+              <details className="group/cleared space-y-2">
+                <summary
+                  className={`flex items-center gap-1.5 px-1 list-none cursor-pointer ${LABEL_CLASS} text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300`}
+                >
+                  <ChevronRight className="w-3 h-3 transition-transform duration-150 group-open/cleared:rotate-90" />
+                  Cleared · {cleared.length}
+                </summary>
+                {cards(cleared)}
+              </details>
+            )}
+          </>
+        )}
+      </div>
+    </DockedPanel>
   );
 };

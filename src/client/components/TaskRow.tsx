@@ -4,19 +4,15 @@ import {
   Trash2,
   Pencil,
   X,
-  Flag,
-  Calendar,
-  Folder,
-  Tag,
   Plus,
-  CheckSquare,
+  SquareCheck,
   AlignLeft,
-  PanelRightOpen,
   Archive,
   ArchiveRestore,
   Repeat,
   Bot,
   ExternalLink,
+  GitPullRequest,
 } from 'lucide-react';
 import {
   Task,
@@ -27,43 +23,32 @@ import {
 } from '../../shared/types.ts';
 import { describeRecurrence } from '../../shared/recurrence.ts';
 import { checklistProgress } from '../utils/markdown.ts';
-import {
-  PRIORITY_CONFIG,
-  formatShortDate,
-  getDueDateInfo,
-  cleanTag,
-} from '../utils/taskUtils.ts';
-import { externalLinkLabel, externalShortLabel } from './AdoImport.tsx';
+import { PRIORITY_CONFIG, formatShortDate, getDueDateInfo, cleanTag } from '../utils/taskUtils.ts';
+import { externalLinkLabel } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
-import {
-  SESSION_ROW_BADGE_STYLES,
-  STATE_STYLES,
-  primaryClaudeSession,
-} from './ClaudeSessions.tsx';
+import { STATE_STYLES, primaryClaudeSession } from './ClaudeSessions.tsx';
+import { BADGE_CLASS, Dot, LABEL_CLASS, NEUTRAL_BADGE_CLASS } from './ui.tsx';
 
-/** Half-filled circle indicating an in-progress task. */
-const InProgressIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
-  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
-    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.75" />
-    <path d="M8 2a6 6 0 0 0 0 12V2Z" fill="currentColor" />
-  </svg>
-);
+/**
+ * Column grid shared by TaskRow and TaskListHeader: Task · Tags · Project · Due · Priority.
+ * Project views drop the Project column. Narrow windows drop Tags (<1200px), then Project (<1000px).
+ */
+export const taskGridClass = (showProject: boolean) =>
+  showProject
+    ? 'grid grid-cols-[minmax(0,1fr)_140px_130px_130px_84px] max-[1200px]:grid-cols-[minmax(0,1fr)_130px_130px_84px] max-[1000px]:grid-cols-[minmax(0,1fr)_130px_84px]'
+    : 'grid grid-cols-[minmax(0,1fr)_140px_130px_84px] max-[1200px]:grid-cols-[minmax(0,1fr)_130px_84px]';
 
-/** Shared by TaskRow and TaskListHeader so columns line up. Wide containers only; narrow ones wrap. */
-const TASK_GRID_CLASS =
-  '@4xl:grid @4xl:grid-cols-[minmax(0,1fr)_10rem_9rem_8.5rem_6.5rem_7rem]';
-
-/** Column labels for a task list; `children` fills the title column (e.g. the group name). */
-export const TaskListHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+/** Column labels for a task list. */
+export const TaskListHeader: React.FC<{ showProject?: boolean }> = ({ showProject = true }) => (
   <div
-    className={`flex items-center gap-x-3 ${TASK_GRID_CLASS} px-[15px] text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400`}
+    aria-hidden
+    className={`${taskGridClass(showProject)} gap-3 px-2 pt-1.5 ${LABEL_CLASS} text-zinc-400 dark:text-zinc-600`}
   >
-    {children}
-    {['Tags', 'Project', 'Due', 'Priority'].map((label) => (
-      <span key={label} className="hidden @4xl:block text-[11px] text-zinc-400 dark:text-zinc-500">
-        {label}
-      </span>
-    ))}
+    <span>Task</span>
+    <span className="max-[1200px]:hidden">Tags</span>
+    {showProject && <span className="max-[1000px]:hidden">Project</span>}
+    <span>Due</span>
+    <span>Priority</span>
   </div>
 );
 
@@ -98,21 +83,21 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
           ? 'In Progress (click to mark Completed)'
           : 'To Do (click to mark In Progress)'
       }
-      className={`flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-colors cursor-pointer disabled:cursor-default disabled:opacity-60 ${
+      className={`shrink-0 w-[18px] h-[18px] rounded-md border flex items-center justify-center transition-colors duration-150 cursor-pointer disabled:cursor-default disabled:opacity-60 ${
         isDone
           ? 'bg-indigo-600 border-indigo-600 text-white'
           : isInProgress
-          ? 'bg-amber-500/15 dark:bg-amber-400/15 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
-          : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400 bg-transparent'
+          ? 'border-(--in-progress) bg-(--in-progress)/15 hover:bg-(--in-progress)/25'
+          : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400'
       }`}
     >
-      {isDone && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
-      {isInProgress && <span className="w-2 h-2 rounded-xs bg-amber-500 dark:bg-amber-400" />}
+      {isDone && <Check className="w-[12px] h-[12px] stroke-[3]" />}
+      {isInProgress && <span className="w-[8px] h-[8px] rounded-sm bg-(--in-progress)" />}
     </button>
   );
 };
 
-/** Bot badge in the colour of the most urgent linked session; nothing without sessions. */
+/** Bot badge: amber when the most urgent linked session needs attention, else indigo. */
 export const ClaudeSessionBadge: React.FC<{
   sessions: ClaudeSession[];
   onOpenSession?: (sessionId: string) => void;
@@ -128,19 +113,48 @@ export const ClaudeSessionBadge: React.FC<{
       onClick={() => onOpenSession?.(primarySession.sessionId)}
       aria-label={`${label}${sessions.length > 1 ? ` (${sessions.length} sessions)` : ''}`}
       title={`${label}${sessions.length > 1 ? ` (+${sessions.length - 1} more)` : ''}`}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${SESSION_ROW_BADGE_STYLES[primarySession.state]}`}
+      className={`${BADGE_CLASS} cursor-pointer transition-colors duration-150 ${
+        primarySession.state === 'needs_attention'
+          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+          : primarySession.state === 'ended'
+          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+          : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/25'
+      }`}
     >
-      <Bot className="w-2.5 h-2.5" />
+      <Bot className="w-[11px] h-[11px]" />
       {sessions.length > 1 && <span>{sessions.length}</span>}
     </button>
   );
 };
 
-const MAX_VISIBLE_TAGS = 2;
+/** "PR 482" or "#3127" for the first linked item, with the matching icon, and "+2" for more. */
+export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
+  const [first, ...more] = task.adoLinks;
+  if (!first) return null;
+  const [kind, id] = first.externalId.split('/');
+  const Icon = kind === 'pr' ? GitPullRequest : ExternalLink;
+  return (
+    <a
+      href={first.url}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`Open ${externalLinkLabel(first.externalId)}`}
+      title={[first, ...more].map((l) => externalLinkLabel(l.externalId)).join('\n')}
+      className={`${NEUTRAL_BADGE_CLASS} hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-150`}
+    >
+      <Icon className="w-[11px] h-[11px]" />
+      <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
+      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+    </a>
+  );
+};
 
 interface TaskRowProps {
   task: Task;
   projects: Project[];
+  /** False in project views, which have no Project column. */
+  showProject?: boolean;
   claudeSessions?: ClaudeSession[];
   onOpenSession?: (sessionId: string) => void;
   isSelected?: boolean;
@@ -160,9 +174,15 @@ interface TaskRowProps {
   onFocusRow: (taskId: string) => void;
 }
 
+const actionButtonClass =
+  'p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 cursor-pointer';
+const cellSelectClass =
+  'max-w-full truncate bg-transparent appearance-none text-xs cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60';
+
 export const TaskRow: React.FC<TaskRowProps> = ({
   task,
   projects,
+  showProject = true,
   claudeSessions = [],
   onOpenSession,
   isSelected = false,
@@ -239,21 +259,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     setIsAddingTag(false);
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    onUpdate(task.id, { tags: task.tags.filter((t) => t !== tagToRemove) });
-  };
-
   const priorityInfo = PRIORITY_CONFIG[task.priority];
   const baseDueInfo = getDueDateInfo(task.dueDate);
   // A completed task is no longer due: show the original date, muted and struck through.
-  const dueInfo = isDone && task.dueDate !== null
-    ? {
-        ...baseDueInfo,
-        label: formatShortDate(task.dueDate!),
-        badgeClass:
-          'text-zinc-400 dark:text-zinc-500 line-through bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700',
-      }
-    : baseDueInfo;
+  const dueInfo =
+    isDone && task.dueDate !== null
+      ? {
+          ...baseDueInfo,
+          label: formatShortDate(task.dueDate),
+          badgeClass: 'text-zinc-400 dark:text-zinc-500 line-through bg-zinc-100 dark:bg-zinc-800',
+        }
+      : baseDueInfo;
   const project = projects.find((p) => p.id === task.projectId);
 
   const subtasks = task.subtasks ?? [];
@@ -270,176 +286,161 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       role="group"
       aria-label={`${task.title}${isInProgress ? ', in progress' : ''}${isDone ? ', completed' : ''}${isArchived ? ', archived' : ''}`}
       onFocus={() => onFocusRow(task.id)}
-      className={`group outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/70 flex flex-wrap items-center gap-x-3 gap-y-2 ${TASK_GRID_CLASS} px-3.5 py-2.5 rounded-lg border transition-all duration-150 ${
+      className={`group ${taskGridClass(showProject)} items-center gap-3 p-2 border-t border-zinc-200/70 dark:border-zinc-800/50 outline-none focus-visible:bg-indigo-500/10 transition-colors duration-150 ${
         isSelected
-          ? `border-indigo-500 dark:border-indigo-500 ring-1 ring-indigo-500/20 bg-indigo-50/25 dark:bg-indigo-950/25 ${
-              isInProgress ? 'border-l-3 border-l-amber-500 dark:border-l-amber-400' : ''
-            }`
-          : isDone
-          ? 'bg-zinc-100/60 dark:bg-zinc-900/40 border-zinc-200/60 dark:border-zinc-800/50 text-zinc-400 dark:text-zinc-500'
+          ? 'bg-indigo-500/10'
           : isInProgress
-          ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/60 border-l-3 border-l-amber-500 dark:border-l-amber-400 hover:border-amber-300 dark:hover:border-amber-700 shadow-2xs'
-          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 shadow-2xs'
-      }`}
+          ? 'bg-(--in-progress)/[.04] hover:bg-(--in-progress)/[.08]'
+          : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
+      } ${isInProgress ? 'shadow-[inset_2px_0_0_var(--in-progress)]' : ''}`}
     >
-      {/* Title column: Checkbox + Title + Subtask/Note/Repeat/Session/ADO indicators */}
-      <div className="flex items-center gap-3 basis-full @4xl:basis-auto min-w-0">
+      {/* Task: checkbox, title, badges; row actions appear at the end on hover */}
+      <div className="flex items-center gap-2.5 min-w-0">
         {dragHandle}
         <TaskStatusCheckbox task={task} onToggle={onToggle} />
 
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              onBlur={handleSaveTitle}
-              onKeyDown={handleTitleKeyDown}
-              aria-label="Edit task title"
-              className="w-full bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm px-2 py-0.5 rounded border border-indigo-500 focus:outline-none"
-            />
-          ) : (
-            <div className="flex items-center gap-1.5 [&>*:not([data-task-title])]:flex-shrink-0">
-              {isInProgress && (
-                <span
-                  role="img"
-                  aria-label="In progress"
-                  title="In Progress"
-                  className="inline-flex items-center text-amber-600 dark:text-amber-400"
-                >
-                  <InProgressIcon className="w-3.5 h-3.5" />
-                </span>
-              )}
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            onBlur={handleSaveTitle}
+            onKeyDown={handleTitleKeyDown}
+            aria-label="Edit task title"
+            className="flex-1 min-w-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm px-2 py-0.5 rounded border border-indigo-500 focus:outline-none"
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => onSelect?.(task)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+              }}
+              className={`min-w-0 text-left text-sm truncate cursor-pointer transition-colors duration-150 ${
+                isDone
+                  ? 'line-through text-zinc-400 dark:text-zinc-500'
+                  : 'text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              title={`${task.title}\n\nClick to open details, double-click to edit title`}
+            >
+              {task.title}
+            </button>
 
+            {subtasks.length > 0 && (
               <button
                 type="button"
-                data-task-title
                 onClick={() => onSelect?.(task)}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  setIsEditing(true);
-                }}
-                className={`min-w-0 text-left text-sm truncate cursor-pointer hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ${
-                  isDone
-                    ? 'line-through text-zinc-400 dark:text-zinc-500'
-                    : 'text-zinc-800 dark:text-zinc-100 font-medium'
-                }`}
-                title={`${task.title}\n\nClick to open details, double-click to edit title`}
+                aria-label={`Subtasks ${completedSubtasks} of ${subtasks.length}`}
+                className={`${NEUTRAL_BADGE_CLASS} cursor-pointer`}
               >
-                {task.title}
-              </button>
-
-              {/* Subtasks Progress Badge */}
-              {subtasks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onSelect?.(task)}
-                  aria-label={`Subtasks ${completedSubtasks} of ${subtasks.length}`}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border cursor-pointer ${
-                    completedSubtasks === subtasks.length
-                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200/70 dark:border-zinc-700/70'
-                  }`}
-                >
-                  <CheckSquare className="w-2.5 h-2.5" />
-                  <span>
-                    {completedSubtasks}/{subtasks.length}
-                  </span>
-                </button>
-              )}
-
-              {/* Notes Indicator */}
-              {hasNotes && (
-                <button
-                  type="button"
-                  onClick={() => onSelect?.(task)}
-                  aria-label={
-                    notesChecklist
-                      ? `View notes for "${task.title}", checklist ${notesChecklist.done} of ${notesChecklist.total} done`
-                      : `View notes for "${task.title}"`
-                  }
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-indigo-600 cursor-pointer"
-                  title={notesChecklist ? 'Notes checklist progress' : 'Has markdown notes'}
-                >
-                  <AlignLeft className="w-2.5 h-2.5" />
-                  {notesChecklist && (
-                    <span>
-                      {notesChecklist.done}/{notesChecklist.total}
-                    </span>
-                  )}
-                </button>
-              )}
-
-              {/* Repeat Indicator */}
-              {task.recurrence && (
-                <span
-                  role="img"
-                  aria-label={`Repeats: ${describeRecurrence(task.recurrence)}`}
-                  title={describeRecurrence(task.recurrence)}
-                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-                >
-                  <Repeat className="w-2.5 h-2.5" />
+                <SquareCheck className="w-[11px] h-[11px]" />
+                <span>
+                  {completedSubtasks}/{subtasks.length}
                 </span>
-              )}
+              </button>
+            )}
 
-              {/* Linked Claude Session Indicator */}
-              <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
+            {hasNotes && (
+              <button
+                type="button"
+                onClick={() => onSelect?.(task)}
+                aria-label={
+                  notesChecklist
+                    ? `View notes for "${task.title}", checklist ${notesChecklist.done} of ${notesChecklist.total} done`
+                    : `View notes for "${task.title}"`
+                }
+                title={notesChecklist ? 'Notes checklist progress' : 'Has markdown notes'}
+                className={`${BADGE_CLASS} bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 cursor-pointer`}
+              >
+                <AlignLeft className="w-[11px] h-[11px]" />
+                {notesChecklist && (
+                  <span>
+                    {notesChecklist.done}/{notesChecklist.total}
+                  </span>
+                )}
+              </button>
+            )}
 
-              {/* Linked Azure DevOps Indicator */}
-              {task.externalId && task.externalUrl && (
-                <a
-                  href={task.externalUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Open ${externalLinkLabel(task.externalId)}`}
-                  title={externalLinkLabel(task.externalId)}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium border bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border-zinc-200/70 dark:border-zinc-700/70 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
-                >
-                  <ExternalLink className="w-2.5 h-2.5" />
-                  <span>{externalShortLabel(task.externalId)}</span>
-                </a>
-              )}
-            </div>
+            {task.recurrence && (
+              <span
+                role="img"
+                aria-label={`Repeats: ${describeRecurrence(task.recurrence)}`}
+                title={describeRecurrence(task.recurrence)}
+                className={`${BADGE_CLASS} bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400`}
+              >
+                <Repeat className="w-[11px] h-[11px]" />
+              </span>
+            )}
+
+            <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
+            <AdoBadge task={task} />
+          </>
+        )}
+
+        <div className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+          {isEditing ? (
+            <button
+              type="button"
+              onClick={() => {
+                setDraftTitle(task.title);
+                setIsEditing(false);
+              }}
+              aria-label="Cancel editing"
+              className={actionButtonClass}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              aria-label={`Edit "${task.title}"`}
+              title="Rename title"
+              className={actionButtonClass}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
           )}
+          {isArchived ? (
+            <button
+              type="button"
+              onClick={() => onRestore(task)}
+              aria-label={`Restore "${task.title}"`}
+              title="Restore from archive"
+              className={actionButtonClass}
+            >
+              <ArchiveRestore className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onArchive(task)}
+              aria-label={`Archive "${task.title}"`}
+              title="Archive task"
+              className={actionButtonClass}
+            >
+              <Archive className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(task.id)}
+            aria-label={`Delete "${task.title}"`}
+            title="Delete task"
+            className={`${actionButtonClass} hover:text-red-600! dark:hover:text-red-400!`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Tags column */}
-      <div className="flex items-center gap-1 min-w-0">
-        {/* Tag Pills */}
-        {task.tags.slice(0, MAX_VISIBLE_TAGS).map((tag) => (
-          <span
-            key={tag}
-            title={tag}
-            className="min-w-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200/70 dark:border-zinc-700/70"
-          >
-            <Tag className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
-            <span className="truncate">{tag}</span>
-            <button
-              type="button"
-              onClick={() => handleRemoveTag(tag)}
-              aria-label={`Remove tag ${tag}`}
-              className="flex-shrink-0 hover:text-red-500 cursor-pointer"
-            >
-              <X className="w-2.5 h-2.5" />
-            </button>
-          </span>
-        ))}
-
-        {task.tags.length > MAX_VISIBLE_TAGS && (
-          <span
-            title={task.tags.slice(MAX_VISIBLE_TAGS).join(', ')}
-            className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
-          >
-            +{task.tags.length - MAX_VISIBLE_TAGS}
-          </span>
-        )}
-
-        {/* Add Tag inline button / input */}
+      {/* Tags: plain text; removing tags happens in the task drawer */}
+      <div className="flex items-center gap-1 min-w-0 max-[1200px]:hidden">
         {isAddingTag ? (
-          <form onSubmit={handleAddTag} className="flex-shrink-0 inline-flex items-center">
+          <form onSubmit={handleAddTag} className="min-w-0">
             <input
               ref={tagInputRef}
               type="text"
@@ -455,48 +456,38 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               placeholder="tag..."
               list="tag-suggestions"
               aria-label="New tag name"
-              className="w-20 text-[11px] px-1.5 py-0.5 rounded border border-indigo-500 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+              className="w-full text-xs px-1.5 py-0.5 rounded border border-indigo-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none"
             />
           </form>
         ) : (
-          <button
-            type="button"
-            onClick={() => setIsAddingTag(true)}
-            aria-label={`Add tag to "${task.title}"`}
-            className="flex-shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-opacity cursor-pointer"
-            title="Add tag"
-          >
-            <Plus className="w-2.5 h-2.5" />
-            <span>Tag</span>
-          </button>
+          <>
+            {task.tags.length > 0 && (
+              <span className="min-w-0 truncate text-xs text-zinc-500 dark:text-zinc-400" title={task.tags.join(', ')}>
+                {task.tags.join(' · ')}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsAddingTag(true)}
+              aria-label={`Add tag to "${task.title}"`}
+              title="Add tag"
+              className="shrink-0 p-0.5 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity duration-150 cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </>
         )}
       </div>
 
-      {/* Project Selector Badge (empty placeholder keeps columns aligned with no projects) */}
-      {projects.length === 0 ? (
-        <span />
-      ) : (
-        <div className="relative inline-flex items-center min-w-0">
-          {project && (
-            <span
-              className="w-2 h-2 rounded-full absolute left-2 pointer-events-none"
-              style={{ backgroundColor: project.color }}
-            />
-          )}
-          {!project && (
-            <Folder className="w-3 h-3 text-zinc-400 absolute left-2 pointer-events-none" />
-          )}
+      {/* Project: dot + name over a native select */}
+      {showProject && (
+        <div className="relative flex items-center gap-2 min-w-0 max-[1000px]:hidden">
+          <Dot color={project?.color} />
           <select
             aria-label={`Project for "${task.title}"`}
             value={task.projectId ?? ''}
-            onChange={(e) =>
-              onUpdate(task.id, { projectId: e.target.value ? e.target.value : null })
-            }
-            className={`max-w-full truncate text-xs rounded-md border py-1 pl-6 pr-2 appearance-none cursor-pointer transition-colors focus:outline-none focus:border-indigo-500 ${
-              project
-                ? 'bg-zinc-50 dark:bg-zinc-800/90 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 font-medium'
-                : 'bg-transparent border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 opacity-0 group-hover:opacity-100 focus:opacity-100'
-            }`}
+            onChange={(e) => onUpdate(task.id, { projectId: e.target.value ? e.target.value : null })}
+            className={`${cellSelectClass} ${project ? 'text-zinc-700 dark:text-zinc-300' : 'text-zinc-400 dark:text-zinc-600'}`}
           >
             <option value="">No project</option>
             {projects.map((p) => (
@@ -508,112 +499,42 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       )}
 
-      {/* Due Date Selector */}
+      {/* Due pill opens the date picker */}
       <DatePopover
         value={task.dueDate}
         onChange={(dueDate) => onUpdate(task.id, { dueDate })}
         open={showDateMenu}
         onOpenChange={setShowDateMenu}
-        className="relative min-w-0"
+        className="relative min-w-0 justify-self-start"
         align="right"
         trigger={
           <button
             type="button"
             onClick={() => setShowDateMenu((v) => !v)}
             aria-label={`Due date for "${task.title}"`}
-            title={dueInfo.label}
-            className={`max-w-full inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border transition-colors cursor-pointer ${
-              dueInfo.state === 'none'
-                ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 ' + dueInfo.badgeClass
-                : dueInfo.badgeClass
-            }`}
+            title={dueInfo.state === 'overdue' && !isDone ? `Overdue · ${dueInfo.label}` : dueInfo.label}
+            className={`max-w-full truncate text-xs px-[7px] py-0.5 rounded-[5px] cursor-pointer transition-colors duration-150 ${dueInfo.badgeClass}`}
           >
-            <Calendar className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{dueInfo.label}</span>
+            {dueInfo.label}
           </button>
         }
       />
 
-      {/* Priority Selector */}
-      <div className="relative inline-flex items-center">
-        <Flag className="w-3 h-3 absolute left-2 pointer-events-none opacity-75" />
+      {/* Priority: dot + label over a native select */}
+      <div className="relative flex items-center gap-1.5 min-w-0">
+        <span aria-hidden className={`shrink-0 w-1.5 h-1.5 rounded-full ${priorityInfo.dotClass}`} />
         <select
           aria-label={`Priority for "${task.title}"`}
           value={task.priority}
-          onChange={(e) =>
-            onUpdate(task.id, { priority: Number(e.target.value) as TaskPriority })
-          }
-          className={`text-xs rounded-md border py-1 pl-6 pr-2 appearance-none cursor-pointer transition-colors focus:outline-none ${
-            task.priority === 0
-              ? 'opacity-0 group-hover:opacity-100 focus:opacity-100 bg-transparent border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-              : `${priorityInfo.badgeClass} font-medium`
-          }`}
+          onChange={(e) => onUpdate(task.id, { priority: Number(e.target.value) as TaskPriority })}
+          className={`${cellSelectClass} ${priorityInfo.textClass}`}
         >
-          <option value={0}>No Priority</option>
-          <option value={1}>Low</option>
-          <option value={2}>Medium</option>
-          <option value={3}>High</option>
-          <option value={4}>Urgent</option>
+          {([0, 1, 2, 3, 4] as const).map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_CONFIG[p].shortLabel === 'Med' ? 'Medium' : PRIORITY_CONFIG[p].shortLabel}
+            </option>
+          ))}
         </select>
-      </div>
-
-      {/* Inspect / Edit / Delete Buttons */}
-      <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        {isEditing ? (
-          <button
-            type="button"
-            onClick={() => {
-              setDraftTitle(task.title);
-              setIsEditing(false);
-            }}
-            aria-label="Cancel editing"
-            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            aria-label={`Edit "${task.title}"`}
-            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title="Rename title"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        {isArchived ? (
-          <button
-            type="button"
-            onClick={() => onRestore(task)}
-            aria-label={`Restore "${task.title}"`}
-            className="p-1.5 rounded-md text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title="Restore from archive"
-          >
-            <ArchiveRestore className="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onArchive(task)}
-            aria-label={`Archive "${task.title}"`}
-            className="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-            title="Archive task"
-          >
-            <Archive className="w-3.5 h-3.5" />
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onDelete(task.id)}
-          aria-label={`Delete "${task.title}"`}
-          className="p-1.5 rounded-md text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
-          title="Delete task"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
       </div>
     </div>
   );

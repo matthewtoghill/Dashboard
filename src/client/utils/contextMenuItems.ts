@@ -130,13 +130,17 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
     { label: 'Copy title', icon: Copy, separatorBefore: true, onSelect: () => a.onCopyTitle(task) }
   );
 
-  if (task.externalUrl) {
-    const url = task.externalUrl;
-    items.push({
-      label: 'Open in Azure DevOps',
-      icon: ExternalLink,
-      onSelect: () => window.open(url, '_blank', 'noreferrer'),
-    });
+  if (task.adoLinks.length > 0) {
+    const open = (url: string) => () => window.open(url, '_blank', 'noreferrer');
+    items.push(
+      task.adoLinks.length === 1
+        ? { label: 'Open in Azure DevOps', icon: ExternalLink, onSelect: open(task.adoLinks[0].url) }
+        : {
+            label: 'Open in Azure DevOps',
+            icon: ExternalLink,
+            submenu: task.adoLinks.map((l) => ({ label: l.title || l.externalId, onSelect: open(l.url) })),
+          }
+    );
   }
 
   items.push(

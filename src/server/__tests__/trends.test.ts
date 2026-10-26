@@ -28,9 +28,7 @@ const task = (overrides: Partial<Task>): Task => ({
   statusBeforeArchive: null,
   recurrence: null,
   recurrenceParentId: null,
-  externalSource: null,
-  externalId: null,
-  externalUrl: null,
+  adoLinks: [],
   subtasks: [],
   ...overrides,
 });
@@ -176,16 +174,17 @@ describe('staleTasks', () => {
 
 describe('adoSummary', () => {
   it('counts open imported work items and pull requests, and the newest import time', () => {
-    const ado = (overrides: Partial<Task>) => task({ externalSource: 'ado', ...overrides });
+    const link = (externalId: string, linkedAt: number) =>
+      ({ externalId, url: 'https://dev.azure.com/x', title: 'x', type: '', state: '', linkedAt });
     expect(
       adoSummary([
-        ado({ externalId: 'workitem/1', createdAt: 100 }),
-        ado({ externalId: 'workitem/2', status: 'in_progress', createdAt: 300 }),
-        ado({ externalId: 'pr/3', createdAt: 200 }),
-        ado({ externalId: 'workitem/4', status: 'done', createdAt: 500 }),
+        task({ adoLinks: [link('workitem/1', 100), link('pr/5', 150)] }),
+        task({ adoLinks: [link('workitem/2', 300)], status: 'in_progress' }),
+        task({ adoLinks: [link('pr/3', 200)] }),
+        task({ adoLinks: [link('workitem/4', 500)], status: 'done' }),
         task({ createdAt: 900 }),
       ])
-    ).toEqual({ openWorkItems: 2, openPullRequests: 1, lastImportAt: 500 });
+    ).toEqual({ openWorkItems: 2, openPullRequests: 2, lastImportAt: 500 });
   });
 
   it('has no import time without imported tasks', () => {

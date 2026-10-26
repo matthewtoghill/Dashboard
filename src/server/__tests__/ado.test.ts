@@ -209,12 +209,12 @@ describe('Azure DevOps import', () => {
     });
 
     const tasks = await listTasks();
-    expect(tasks.map((t) => [t.title, t.projectId, t.externalId])).toEqual([
-      ['Item 1', projectId, 'workitem/1'],
-      ['Item 3', null, 'workitem/3'],
-      ['Review: PR 11', projectId, 'pr/11'],
+    expect(tasks.map((t) => [t.title, t.projectId, t.adoLinks.map((l) => l.externalId)])).toEqual([
+      ['Item 1', projectId, ['workitem/1']],
+      ['Item 3', null, ['workitem/3']],
+      ['Review: PR 11', projectId, ['pr/11']],
     ]);
-    expect(tasks[0]).toMatchObject({ externalSource: 'ado', externalUrl: `${ORG}_workitems/edit/1` });
+    expect(tasks[0].adoLinks[0]).toMatchObject({ url: `${ORG}_workitems/edit/1`, title: 'Item 1', type: 'Task', state: 'Active' });
 
     const refetched = (await fetchItems()).body;
     expect(refetched.items.find((i) => i.externalId === 'workitem/1')!.taskId).toBe(tasks[0].id);
@@ -222,18 +222,49 @@ describe('Azure DevOps import', () => {
 
     // Work item 1 closed and PR 11 merged: both drop off the open lists
     responses['boards query'] = [workItem(3, 'Bug', 'Beta')];
-    responses['--wiql SELECT [System.Id], [System.State]'] = [workItem(1, 'Task', 'Alpha', 'Done')];
+    responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Done')];
     responses['--project Alpha --status active --reviewer me'] = [];
     responses['repos pr show'] = pr(11, 'Alpha', [], 'completed');
     const closed = (await fetchItems()).body.closed;
-    expect(closed.map((c) => [c.externalId, c.state]).sort()).toEqual([
-      ['pr/11', 'Completed'],
-      ['workitem/1', 'Done'],
+    expect(closed.map((c) => [c.title, c.state]).sort()).toEqual([
+      ['Item 1', 'Done'],
+      ['Review: PR 11', 'Completed'],
     ]);
 
     // Completed tasks are no longer flagged
     await app.inject({ method: 'PATCH', url: `/api/tasks/${tasks[0].id}`, payload: { status: 'done' } });
-    expect((await fetchItems()).body.closed.map((c) => c.externalId)).toEqual(['pr/11']);
+    expect((await fetchItems()).body.closed.map((c) => c.title)).toEqual(['Review: PR 11']);
+    // The check refreshed the closed item's snapshot
+    expect((await listTasks()).find((t) => t.id === tasks[0].id)!.adoLinks[0].state).toBe('Done');
+  });
+
+  it('links several items to an existing task, flags it closed once all are, and unlinks', async () => {
+    const { body } = await fetchItems();
+    const task = (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 'Mine' } })).json().task as Task;
+    const link = (items: unknown[], taskId: string) =>
+      app.inject({ method: 'POST', url: '/api/ado/import', payload: { items, taskId } });
+
+    expect((await link(body.items, 'missing')).statusCode).toBe(404);
+    expect((await link(body.items, task.id)).json()).toEqual({ importedCount: 2 });
+    let tasks = await listTasks();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].adoLinks.map((l) => l.externalId)).toEqual(['workitem/1', 'workitem/3']);
+    // Already linked: skipped
+    expect((await link(body.items, task.id)).json()).toEqual({ importedCount: 0 });
+    expect((await fetchItems(true)).body.items.map((i) => i.taskId)).toEqual([task.id, task.id]);
+
+    // One of two closed: not flagged yet
+    responses['boards query'] = [workItem(3, 'Bug', 'Beta')];
+    responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Done')];
+    expect((await fetchItems()).body.closed).toEqual([]);
+    responses['boards query'] = [];
+    responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Done'), workItem(3, 'Bug', 'Beta', 'Closed')];
+    expect((await fetchItems()).body.closed).toEqual([{ taskId: task.id, title: 'Mine', state: 'Done, Closed' }]);
+
+    expect((await app.inject({ method: 'DELETE', url: '/api/ado/links/workitem/3' })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'DELETE', url: '/api/ado/links/workitem/3' })).statusCode).toBe(404);
+    tasks = await listTasks();
+    expect(tasks[0].adoLinks.map((l) => l.externalId)).toEqual(['workitem/1']);
   });
 
   it('rejects non-https links and round-trips imported tasks and mappings through export', async () => {
@@ -248,19 +279,38 @@ describe('Azure DevOps import', () => {
       payload: { items: [{ ...bad, url: `${ORG}_workitems/edit/9` }] },
     });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(6);
+    expect(exported.version).toBe(7);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });
     await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
     const task = (await fresh.inject({ method: 'GET', url: '/api/tasks' })).json().tasks[0];
-    expect(task).toMatchObject({ externalSource: 'ado', externalId: 'workitem/9' });
+    expect(task.adoLinks).toEqual([expect.objectContaining({ externalId: 'workitem/9', type: 'Task' })]);
     expect((await fresh.inject({ method: 'GET', url: '/api/ado/projects' })).json().links).toEqual([
       { adoProject: 'Alpha', projectId, workItemTypes: ['Bug'], ignoredStates: null },
     ]);
-    // Re-importing a task with the same source item under a new id is skipped
+    // A task under a new id comes in, but its item stays linked to the first task
     exported.tasks[0].id = 'other-id';
-    expect((await fresh.inject({ method: 'POST', url: '/api/import', payload: exported })).json().importedTasks).toBe(0);
+    expect((await fresh.inject({ method: 'POST', url: '/api/import', payload: exported })).json().importedTasks).toBe(1);
+    const copy = (await fresh.inject({ method: 'GET', url: '/api/tasks' })).json().tasks.find((t: Task) => t.id === 'other-id');
+    expect(copy.adoLinks).toEqual([]);
     await fresh.close();
+  });
+
+  it('imports the single link of a backup from before version 7', async () => {
+    const legacy = {
+      version: 6,
+      tasks: [
+        {
+          id: 't1', title: 'Old', description: '', status: 'todo', priority: 0, projectId: null, tags: [],
+          dueDate: null, sortOrder: 0, completedAt: null, createdAt: 5, updatedAt: 5,
+          externalSource: 'ado', externalId: 'pr/7', externalUrl: `${ORG}Alpha/_git/r/pullrequest/7`,
+        },
+      ],
+    };
+    expect((await app.inject({ method: 'POST', url: '/api/import', payload: legacy })).statusCode).toBe(200);
+    expect((await listTasks())[0].adoLinks).toEqual([
+      { externalId: 'pr/7', url: `${ORG}Alpha/_git/r/pullrequest/7`, title: 'Old', type: 'Pull Request', state: '', linkedAt: 5 },
+    ]);
   });
 
   it('serves the stored result, with current task links, and keeps it when a check fails', async () => {
@@ -305,9 +355,9 @@ describe('Azure DevOps import', () => {
 
     await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [body.items[0]] } });
     responses['boards query'] = [workItem(2, 'Task', 'Alpha', 'Active')];
-    responses['--wiql SELECT [System.Id], [System.State]'] = [workItem(1, 'Task', 'Alpha', 'Ready for QA')];
+    responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Ready for QA')];
     ({ body } = await fetchItems());
-    expect(body.closed.map((c) => [c.externalId, c.state])).toEqual([['workitem/1', 'Ready for QA']]);
+    expect(body.closed.map((c) => [c.title, c.state])).toEqual([['Item 1', 'Ready for QA']]);
   });
 
   it('skips ADO projects linked to a Dashboard project with Azure DevOps off', async () => {
@@ -320,14 +370,14 @@ describe('Azure DevOps import', () => {
     expect(patch.json().project.adoEnabled).toBe(false);
     calls.length = 0;
     responses['boards query'] = [workItem(3, 'Bug', 'Beta')];
-    responses['--wiql SELECT [System.Id], [System.State]'] = [workItem(1, 'Task', 'Alpha', 'Done')];
+    responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Done')];
     ({ body } = await fetchItems());
     expect(body.items.map((i) => i.externalId)).toEqual(['workitem/3']);
     expect(body.closed).toEqual([]);
     expect(calls.some((c) => c[0] === 'repos')).toBe(false);
 
     await app.inject({ method: 'PATCH', url: `/api/projects/${projectId}`, payload: { adoEnabled: true } });
-    expect((await fetchItems()).body.closed.map((c) => c.externalId)).toEqual(['workitem/1']);
+    expect((await fetchItems()).body.closed.map((c) => c.title)).toEqual(['Item 1']);
   });
 
   it('only fetches projects mapped to a Dashboard project when asked', async () => {

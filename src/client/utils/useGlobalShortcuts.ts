@@ -11,6 +11,7 @@ interface GlobalShortcutOptions {
   undoToast?: () => void;
   focusQuickAdd: () => void;
   focusSearch: () => void;
+  toggleSidebar: () => void;
 }
 
 export const isTextInput = (target: EventTarget | null) =>
@@ -18,7 +19,7 @@ export const isTextInput = (target: EventTarget | null) =>
   (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable);
 
 /**
- * App-wide keys: N/C for quick-add, / for search, Ctrl+K for the command palette, Ctrl+Z to undo
+ * App-wide keys: N/C for quick-add, / for search, [ for the sidebar, Ctrl+K for the command palette, Ctrl+Z to undo
  * the toast's action and Escape to close the palette or task drawer.
  * Re-subscribed every render so the handler always sees current state.
  */
@@ -33,6 +34,7 @@ export function useGlobalShortcuts(options: GlobalShortcutOptions) {
       undoToast,
       focusQuickAdd,
       focusSearch,
+      toggleSidebar,
     } = options;
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -81,6 +83,9 @@ export function useGlobalShortcuts(options: GlobalShortcutOptions) {
       } else if (e.key === '/') {
         e.preventDefault();
         focusSearch();
+      } else if (e.key === '[') {
+        e.preventDefault();
+        toggleSidebar();
       }
     };
 

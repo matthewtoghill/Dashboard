@@ -37,9 +37,7 @@ function task(overrides: Partial<Task>): Task {
     statusBeforeArchive: null,
     recurrence: null,
     recurrenceParentId: null,
-    externalSource: null,
-    externalId: null,
-    externalUrl: null,
+    adoLinks: [],
     subtasks: [],
     ...overrides,
   };
@@ -114,15 +112,27 @@ describe('taskView', () => {
       'Completed:done',
     ]);
 
-    // Due-date groups use the real clock, so build dates relative to it
+    // Due-date groups default to the real clock, so build dates relative to it
     const realToday = task({ id: 'rt', dueDate: getTodayIso() });
     const realTomorrow = task({ id: 'rm', dueDate: getTomorrowIso() });
     expect(labels('dueDate', [undated, realTomorrow, realToday, overdue])).toEqual([
       'Overdue:overdue',
       'Today:rt',
       'Tomorrow:rm',
-      'No Due Date:undated',
+      'No date:undated',
     ]);
+
+    // This week runs to 7 days out; later than that is its own bucket
+    const byDue = (list: Task[]) =>
+      groupTasks(list, 'dueDate', projects, TODAY).map((s) => `${s.key}:${ids(s.tasks).join(',')}`);
+    expect(
+      byDue([
+        task({ id: 'd8', dueDate: '2026-10-30' }),
+        task({ id: 'd7', dueDate: '2026-10-29' }),
+        task({ id: 'd2', dueDate: '2026-10-25' }),
+        task({ id: 'd1', dueDate: '2026-10-23' }),
+      ])
+    ).toEqual(['due-tomorrow:d1', 'due-week:d7,d2', 'due-later:d8']);
   });
 
   it('builds the rendered list and the visible order', () => {

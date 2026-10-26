@@ -5,9 +5,19 @@
 /* Native controls (select popups, date pickers, scrollbars) follow the app theme. */
 :root {
   color-scheme: light;
+  /* In-progress accent; overridden from the inProgressColor setting. */
+  --in-progress: #fbbf24;
 }
 :root.dark {
   color-scheme: dark;
+}
+
+/* Density setting: every Tailwind spacing/size utility is a multiple of --spacing (default 0.25rem). */
+:root[data-density='compact'] {
+  --spacing: 0.2rem;
+}
+:root[data-density='spacious'] {
+  --spacing: 0.3rem;
 }
 
 /* Browsers without customizable selects: at least theme the native option list. */

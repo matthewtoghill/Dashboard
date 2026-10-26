@@ -390,14 +390,20 @@ export async function fetchAdoItems(refresh = false): Promise<AdoSyncResult> {
   return (await res.json()) as AdoSyncResult;
 }
 
-export async function importAdoItems(items: AdoItem[]): Promise<{ importedCount: number }> {
+/** Creates a task per item, or with `taskId` links the items to that task. */
+export async function importAdoItems(items: AdoItem[], taskId?: string): Promise<{ importedCount: number }> {
   const res = await fetch('/api/ado/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, taskId }),
   });
-  if (!res.ok) return failWith(res, 'Failed to import items');
+  if (!res.ok) return failWith(res, taskId ? 'Failed to link items' : 'Failed to import items');
   return (await res.json()) as { importedCount: number };
+}
+
+export async function unlinkAdoItem(externalId: string): Promise<void> {
+  const res = await fetch(`/api/ado/links/${externalId}`, { method: 'DELETE' });
+  if (!res.ok) return failWith(res, 'Failed to unlink item');
 }
 
 export async function fetchAdoProjectLinks(): Promise<AdoProjectLink[]> {

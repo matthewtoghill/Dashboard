@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { eq, desc, asc, and, ne, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
-import { tasks, subtasks, DbTask, DbSubtask } from '../db/schema.ts';
+import { tasks, subtasks, taskAdoLinks, DbTask, DbSubtask, DbTaskAdoLink } from '../db/schema.ts';
 import {
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
@@ -11,6 +11,7 @@ import {
   BulkTaskIdsSchema,
   Task,
   Subtask,
+  TaskAdoLink,
   TaskPriority,
   TaskStatus,
 } from '../../shared/types.ts';
@@ -112,7 +113,18 @@ function withdrawNextOccurrence(
   return { removedOccurrenceId: child.id };
 }
 
-export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
+function serializeAdoLink(row: DbTaskAdoLink): TaskAdoLink {
+  return {
+    externalId: row.externalId,
+    url: row.url,
+    title: row.title,
+    type: row.type,
+    state: row.state,
+    linkedAt: row.linkedAt,
+  };
+}
+
+export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = [], adoLinks: TaskAdoLink[] = []): Task {
   let parsedTags: string[] = [];
   try {
     const raw = JSON.parse(row.tags);
@@ -139,10 +151,8 @@ export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = []): Task {
     statusBeforeArchive: row.statusBeforeArchive ?? null,
     recurrence: parseRecurrence(row.recurrence),
     recurrenceParentId: row.recurrenceParentId ?? null,
-    externalSource: row.externalSource ?? null,
-    externalId: row.externalId ?? null,
-    externalUrl: row.externalUrl ?? null,
     subtasks: taskSubtasks,
+    adoLinks,
   };
 }
 
@@ -161,7 +171,12 @@ export function listTasks(db: AppDatabase): Task[] {
     subtasksByTask.set(sub.taskId, list);
   }
 
-  return rows.map((row) => serializeTask(row, subtasksByTask.get(row.id) ?? []));
+  const linksByTask = new Map<string, TaskAdoLink[]>();
+  for (const link of db.select().from(taskAdoLinks).orderBy(asc(taskAdoLinks.linkedAt)).all()) {
+    linksByTask.set(link.taskId, [...(linksByTask.get(link.taskId) ?? []), serializeAdoLink(link)]);
+  }
+
+  return rows.map((row) => serializeTask(row, subtasksByTask.get(row.id) ?? [], linksByTask.get(row.id) ?? []));
 }
 
 export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) {
@@ -174,7 +189,13 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       .where(eq(subtasks.taskId, taskId))
       .orderBy(asc(subtasks.sortOrder))
       .all();
-    return serializeTask(row, subRows.map(serializeSubtask));
+    const links = db
+      .select()
+      .from(taskAdoLinks)
+      .where(eq(taskAdoLinks.taskId, taskId))
+      .orderBy(asc(taskAdoLinks.linkedAt))
+      .all();
+    return serializeTask(row, subRows.map(serializeSubtask), links.map(serializeAdoLink));
   };
 
   // GET /api/tasks

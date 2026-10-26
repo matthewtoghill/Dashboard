@@ -25,7 +25,7 @@ export const ReorderableTaskList: React.FC<ReorderableTaskListProps> = ({
 
   if (!enabled) {
     return (
-      <div className="space-y-1.5">
+      <div>
         {tasks.map((task) => (
           <React.Fragment key={task.id}>{renderRow(task, null)}</React.Fragment>
         ))}
@@ -62,7 +62,7 @@ export const ReorderableTaskList: React.FC<ReorderableTaskListProps> = ({
   };
 
   return (
-    <div className="space-y-1.5" onDragLeave={(e) => {
+    <div onDragLeave={(e) => {
       if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropIndex(null);
     }}>
       {tasks.map((task, index) => {

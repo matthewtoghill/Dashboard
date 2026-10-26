@@ -39,6 +39,8 @@ describe('settings', () => {
         adoSyncMinutes: 30,
         weekStartDay: 1,
         staleTaskDays: 14,
+        inProgressColor: '#fbbf24',
+        density: 'comfortable',
       },
       envOverrides: { backupKeep: null, backupDir: null },
     });
@@ -49,6 +51,8 @@ describe('settings', () => {
     expect((await put({ backupKeep: 0 })).statusCode).toBe(400);
     expect((await put({ weekStartDay: 2 })).statusCode).toBe(400);
     expect((await put({ backupDir: 'relative/path' })).statusCode).toBe(400);
+    expect((await put({ inProgressColor: 'red' })).statusCode).toBe(400);
+    expect((await put({ density: 'huge' })).statusCode).toBe(400);
     expect((await put({ unknown: true })).statusCode).toBe(400);
   });
 

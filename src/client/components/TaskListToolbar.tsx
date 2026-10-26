@@ -1,53 +1,58 @@
 import React from 'react';
 import {
-  Archive,
   ArchiveRestore,
+  ArrowRight,
   ArrowUpDown,
   CalendarDays,
   CalendarRange,
+  ChevronDown,
   Flag,
   Layers,
   List,
   Trash2,
   type LucideIcon,
-  Settings,
+  Settings2,
 } from 'lucide-react';
-import { Project, TaskPriority } from '../../shared/types.ts';
+import { TaskPriority } from '../../shared/types.ts';
 import { GroupByOption, SortByOption, ViewState } from '../utils/taskView.ts';
+import { Divider, Dot } from './ui.tsx';
 
-/** Icon, label and native select in a pill, as used by the list toolbar. */
-const ToolbarSelect: React.FC<{
+/** Quiet dropdown: icon, the native select showing its value, and a chevron. */
+const GhostSelect: React.FC<{
   icon: LucideIcon;
-  label: string;
   ariaLabel: string;
   value: string | number;
   onChange: (value: string) => void;
   children: React.ReactNode;
-}> = ({ icon: Icon, label, ariaLabel, value, onChange, children }) => (
-  <div className="inline-flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-2.5 py-1 text-xs">
-    <Icon className="w-3.5 h-3.5 text-zinc-400" />
-    <span className="text-zinc-400 hidden sm:inline">{label}:</span>
+}> = ({ icon: Icon, ariaLabel, value, onChange, children }) => (
+  <div className="relative inline-flex items-center gap-1.5 px-[9px] py-1 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150">
+    <Icon className="w-[13px] h-[13px] shrink-0" />
     <select
       aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-transparent font-medium text-zinc-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
+      className="appearance-none bg-transparent pr-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 rounded cursor-pointer"
     >
       {children}
     </select>
+    <ChevronDown className="w-[11px] h-[11px] absolute right-[9px] pointer-events-none" />
   </div>
 );
 
-/** View title and count, bulk archive/restore actions, and the filter, layout, group and sort controls. */
+export const toolbarButtonClass =
+  'inline-flex items-center gap-1.5 px-[9px] py-1 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors duration-150 cursor-pointer';
+
+/** Title with its meta line, bulk archive actions, and the layout, group, sort and filter controls. */
 export const TaskListToolbar: React.FC<{
   view: ViewState;
   updateView: (patch: Partial<ViewState>) => void;
   title: string;
-  projects: Project[];
+  /** "19 tasks · 5 projects", "7 open" */
+  meta: string;
+  /** Set in project views: the colour dot before the title. */
+  projectColor?: string;
   isCalendar: boolean;
   activeCount: number;
-  completedCount: number;
-  onArchiveCompleted: () => void;
   onRestoreAll: () => void;
   onDeleteAll: () => void;
   savedViewControls: React.ReactNode;
@@ -57,109 +62,61 @@ export const TaskListToolbar: React.FC<{
   view,
   updateView,
   title,
-  projects,
+  meta,
+  projectColor,
   isCalendar,
   activeCount,
-  completedCount,
-  onArchiveCompleted,
   onRestoreAll,
   onDeleteAll,
   savedViewControls,
   onOpenProjectSettings,
 }) => {
   const { nav: activeNav, priority: priorityFilter, groupBy, sortBy } = view;
-  const isCompletedView = activeNav.type === 'smart' && activeNav.id === 'completed';
   const isArchiveView = activeNav.type === 'smart' && activeNav.id === 'archived';
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-zinc-200/70 dark:border-zinc-800/70">
-      <div className="flex items-center gap-2.5">
-        {activeNav.type === 'project' && (
-          <span
-            className="w-3 h-3 rounded-full"
-            style={{
-              backgroundColor:
-                projects.find((p) => p.id === activeNav.id)?.color ?? '#6366f1',
-            }}
-          />
-        )}
-        <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-          {isCompletedView ? completedCount : activeCount}
-        </span>
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex items-baseline gap-2.5 min-w-0">
+        {projectColor && <Dot color={projectColor} size={12} className="self-center" />}
+        <h2 className="text-[22px] font-semibold tracking-[-0.015em] truncate">{title}</h2>
+        <span className="text-[13px] text-zinc-500 whitespace-nowrap">{meta}</span>
         {onOpenProjectSettings && (
           <button
             type="button"
             onClick={onOpenProjectSettings}
             aria-label="Project settings"
             title="Project settings"
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 cursor-pointer"
+            className="self-center p-1 rounded-md text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 cursor-pointer"
           >
-            <Settings className="w-4 h-4" />
+            <Settings2 className="w-[15px] h-[15px]" />
           </button>
         )}
       </div>
 
-      {/* Grouping, Sorting, Priority Filter Toolbar */}
-      <div className="flex items-center flex-wrap gap-2">
-        {isCompletedView && completedCount > 0 && (
-          <button
-            type="button"
-            onClick={onArchiveCompleted}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer"
-          >
-            <Archive className="w-3.5 h-3.5" />
-            <span>Archive {completedCount} completed</span>
-          </button>
-        )}
-
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
         {isArchiveView && activeCount > 0 && (
           <>
-            <button
-              type="button"
-              onClick={onRestoreAll}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer"
-            >
-              <ArchiveRestore className="w-3.5 h-3.5" />
+            <button type="button" onClick={onRestoreAll} className={toolbarButtonClass}>
+              <ArchiveRestore className="w-[13px] h-[13px]" />
               <span>Restore {activeCount}</span>
             </button>
             <button
               type="button"
               onClick={onDeleteAll}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 hover:bg-red-100 cursor-pointer"
+              className={`${toolbarButtonClass} text-red-600! dark:text-red-400! hover:bg-red-500/10!`}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-[13px] h-[13px]" />
               <span>Delete {activeCount} permanently</span>
             </button>
           </>
         )}
-
-        {savedViewControls}
-
-        {/* Filter by Priority */}
-        <ToolbarSelect
-          icon={Flag}
-          label="Priority"
-          ariaLabel="Filter by priority"
-          value={priorityFilter}
-          onChange={(value) =>
-            updateView({ priority: value === 'all' ? 'all' : (Number(value) as TaskPriority) })
-          }
-        >
-          <option value="all">All</option>
-          <option value={4}>Urgent</option>
-          <option value={3}>High</option>
-          <option value={2}>Medium</option>
-          <option value={1}>Low</option>
-          <option value={0}>None</option>
-        </ToolbarSelect>
 
         {/* List or calendar layout */}
         {!isArchiveView && (
           <div
             role="group"
             aria-label="Layout"
-            className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
+            className="inline-flex p-0.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800"
           >
             {(
               [
@@ -173,58 +130,122 @@ export const TaskListToolbar: React.FC<{
                 type="button"
                 onClick={() => updateView({ layout: value })}
                 aria-pressed={view.layout === value}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer ${
+                className={`inline-flex items-center gap-[5px] px-2 py-[3px] rounded-md transition-colors duration-150 cursor-pointer ${
                   view.layout === value
-                    ? 'bg-indigo-600/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
-                    : 'text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
+                    ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                    : 'hover:text-zinc-800 dark:hover:text-zinc-200'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{label}</span>
+                <Icon className="w-[13px] h-[13px]" />
+                <span>{label}</span>
               </button>
             ))}
           </div>
         )}
 
         {!isCalendar && (
-        <>
-        {/* Group By */}
-        <ToolbarSelect
-          icon={Layers}
-          label="Group"
-          ariaLabel="Group tasks by"
-          value={groupBy}
-          onChange={(value) => updateView({ groupBy: value as GroupByOption })}
-        >
-          <option value="none">None</option>
-          <option value="priority">Priority</option>
-          <option value="project">Project</option>
-          <option value="dueDate">Due Date</option>
-          <option value="status">Status</option>
-        </ToolbarSelect>
+          <>
+            <GhostSelect
+              icon={Layers}
+              ariaLabel="Group tasks by"
+              value={groupBy}
+              onChange={(value) => updateView({ groupBy: value as GroupByOption })}
+            >
+              <option value="none">No grouping</option>
+              <option value="dueDate">Due date</option>
+              <option value="status">Status</option>
+              <option value="priority">Priority</option>
+              <option value="project">Project</option>
+            </GhostSelect>
 
-        {sortBy === 'manual' && groupBy !== 'none' && (
-          <span className="text-[11px] text-zinc-400">
-            Set Group to None to drag-reorder
-          </span>
+            {sortBy === 'manual' && groupBy !== 'none' && (
+              <span className="text-[11px] text-zinc-400">Set grouping to none to drag-reorder</span>
+            )}
+
+            <GhostSelect
+              icon={ArrowUpDown}
+              ariaLabel="Sort tasks by"
+              value={sortBy}
+              onChange={(value) => updateView({ sortBy: value as SortByOption })}
+            >
+              <option value="created">Newest</option>
+              <option value="dueDate">Due date</option>
+              <option value="priority">Priority</option>
+              <option value="manual">Manual</option>
+            </GhostSelect>
+          </>
         )}
 
-        {/* Sort By */}
-        <ToolbarSelect
-          icon={ArrowUpDown}
-          label="Sort"
-          ariaLabel="Sort tasks by"
-          value={sortBy}
-          onChange={(value) => updateView({ sortBy: value as SortByOption })}
+        <GhostSelect
+          icon={Flag}
+          ariaLabel="Filter by priority"
+          value={priorityFilter}
+          onChange={(value) => updateView({ priority: value === 'all' ? 'all' : (Number(value) as TaskPriority) })}
         >
-          <option value="created">Newest</option>
-          <option value="priority">Priority</option>
-          <option value="dueDate">Due Date</option>
-          <option value="manual">Manual</option>
-        </ToolbarSelect>
-        </>
-        )}
+          <option value="all">Any priority</option>
+          <option value={4}>Urgent</option>
+          <option value={3}>High</option>
+          <option value={2}>Medium</option>
+          <option value={1}>Low</option>
+          <option value={0}>None</option>
+        </GhostSelect>
+
+        <Divider height={16} />
+        {savedViewControls}
       </div>
     </div>
   );
 };
+
+/** Project view: progress bar in the project colour, overdue count, and a link to a waiting Claude session. */
+export const ProjectProgressStrip: React.FC<{
+  color: string;
+  done: number;
+  total: number;
+  overdue: number;
+  onOpenWaitingSession?: () => void;
+}> = ({ color, done, total, overdue, onOpenWaitingSession }) => (
+  <div className="flex flex-wrap items-center gap-[18px] text-xs text-zinc-500 dark:text-zinc-400">
+    <span className="flex items-center gap-2.5">
+      <span
+        role="progressbar"
+        aria-label="Project progress"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+        className="w-40 h-[5px] rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden"
+      >
+        <span
+          className="block h-full rounded-full"
+          style={{ width: `${total ? (done / total) * 100 : 0}%`, backgroundColor: color }}
+        />
+      </span>
+      <span>
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {done} of {total}
+        </span>{' '}
+        done
+      </span>
+    </span>
+    {overdue > 0 && (
+      <>
+        <Divider />
+        <span className="text-red-600 dark:text-red-400">{overdue} overdue</span>
+      </>
+    )}
+    {onOpenWaitingSession && (
+      <>
+        <Divider />
+        <button
+          type="button"
+          onClick={onOpenWaitingSession}
+          className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:underline cursor-pointer"
+        >
+          <span aria-hidden className="w-[7px] h-[7px] rounded-full bg-amber-400" />
+          Claude is waiting on you
+          <ArrowRight className="w-3 h-3" />
+        </button>
+      </>
+    )}
+  </div>
+);

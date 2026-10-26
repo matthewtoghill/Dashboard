@@ -35,6 +35,34 @@ describe('schema migrations', () => {
     sqlite.close();
   });
 
+  it('moves a task\'s Azure DevOps link into task_ado_links', () => {
+    const old = new Database(dbPath);
+    runMigrations(old, MIGRATIONS.slice(0, 9));
+    old
+      .prepare(
+        'INSERT INTO tasks (id, title, created_at, updated_at, external_source, external_id, external_url) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run('t1', 'Linked', 3, 3, 'ado', 'workitem/1', 'https://dev.azure.com/o/_workitems/edit/1');
+    old.prepare('INSERT INTO tasks (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)').run('t2', 'Plain', 4, 4);
+    old.close();
+
+    const { sqlite } = createDatabase(dbPath);
+    expect(sqlite.prepare('SELECT * FROM task_ado_links').all()).toEqual([
+      {
+        external_id: 'workitem/1',
+        task_id: 't1',
+        url: 'https://dev.azure.com/o/_workitems/edit/1',
+        title: 'Linked',
+        type: '',
+        state: '',
+        linked_at: 3,
+      },
+    ]);
+    const columns = (sqlite.pragma('table_info(tasks)') as { name: string }[]).map((c) => c.name);
+    expect(columns).not.toContain('external_id');
+    sqlite.close();
+  });
+
   it('applies new migrations in order and rolls back a failing one', () => {
     const sqlite = new Database(dbPath);
     const migrations = [

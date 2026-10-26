@@ -26,7 +26,6 @@ const WIDGET_LABELS: [keyof WidgetConfig, string][] = [
   ['showScratchpad', 'Quick scratchpad'],
   ['showTrends', 'Trends & project progress'],
   ['showQuickLinks', 'Quick links launcher'],
-  ['showHeaderSummary', 'Summary bar in task views'],
   ['showAgenda', 'Up next agenda'],
   ['showInProgress', 'In progress tasks'],
   ['showStale', 'Stale tasks'],
@@ -251,9 +250,35 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </fieldset>
+            <fieldset className="flex items-center gap-4">
+              <legend className="sr-only">Density</legend>
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">Density</span>
+              {(['compact', 'comfortable', 'spacious'] as const).map((value) => (
+                <label key={value} className="inline-flex items-center gap-1.5 cursor-pointer capitalize">
+                  <input
+                    type="radio"
+                    name="density"
+                    checked={settings?.density === value}
+                    onChange={() => save.mutate({ density: value })}
+                    disabled={!settings}
+                  />
+                  {value}
+                </label>
+              ))}
+            </fieldset>
+            <label className="flex items-center gap-4">
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">In progress colour</span>
+              <input
+                type="color"
+                value={settings?.inProgressColor ?? '#fbbf24'}
+                onChange={(e) => save.mutate({ inProgressColor: e.target.value })}
+                disabled={!settings}
+                className="h-8 w-12 cursor-pointer rounded-lg bg-transparent"
+              />
+            </label>
           </Section>
 
-          <Section title="Overview widgets">
+          <Section title="Home widgets">
             <div className="grid grid-cols-2 gap-2">
               {WIDGET_LABELS.map(([key, label]) => (
                 <label key={key} className="inline-flex items-center gap-2 cursor-pointer">

@@ -6,7 +6,8 @@ import {
   Task,
   ViewStateSchema,
 } from '../../shared/types.ts';
-import { PRIORITY_CONFIG, STATUS_LABELS, getDueDateInfo, DueDateState } from './taskUtils.ts';
+import { PRIORITY_CONFIG, STATUS_LABELS, getTodayIso } from './taskUtils.ts';
+import { addDays, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 
 export type SmartViewId = z.infer<typeof SmartViewIdSchema>;
 export type ActiveNavigation = z.infer<typeof ActiveNavigationSchema>;
@@ -96,13 +97,25 @@ export function sortTasks(tasks: Task[], sortBy: SortByOption): Task[] {
   });
 }
 
-const DUE_GROUPS: Record<DueDateState, { label: string; order: number }> = {
+/** Due-date buckets, in order. `later` (over 7 days out) is collapsed by default in the list. */
+export const DUE_BUCKETS = {
   overdue: { label: 'Overdue', order: 1 },
   today: { label: 'Today', order: 2 },
   tomorrow: { label: 'Tomorrow', order: 3 },
-  upcoming: { label: 'Upcoming', order: 4 },
-  none: { label: 'No Due Date', order: 5 },
-};
+  week: { label: 'This week', order: 4 },
+  later: { label: 'Later', order: 5 },
+  none: { label: 'No date', order: 6 },
+} as const;
+export type DueBucket = keyof typeof DUE_BUCKETS;
+
+export function dueBucket(dueDate: string | null, today: string): DueBucket {
+  if (!dueDate) return 'none';
+  if (dueDate < today) return 'overdue';
+  if (dueDate === today) return 'today';
+  const day = parseIsoDate(today);
+  if (dueDate === toIsoDate(addDays(day, 1))) return 'tomorrow';
+  return dueDate <= toIsoDate(addDays(day, 7)) ? 'week' : 'later';
+}
 
 const STATUS_ORDER = { in_progress: 1, todo: 2, done: 3, archived: 4 } as const;
 
@@ -110,7 +123,8 @@ const STATUS_ORDER = { in_progress: 1, todo: 2, done: 3, archived: 4 } as const;
 export function groupTasks(
   tasks: Task[],
   groupBy: Exclude<GroupByOption, 'none'>,
-  projects: Project[]
+  projects: Project[],
+  today: string = getTodayIso()
 ): TaskSection[] {
   const map = new Map<string, { label: string; order: number; tasks: Task[] }>();
 
@@ -129,9 +143,9 @@ export function groupTasks(
       label = proj ? proj.name : 'No Project';
       order = proj ? proj.sortOrder : Number.MAX_SAFE_INTEGER;
     } else if (groupBy === 'dueDate') {
-      const { state } = getDueDateInfo(task.dueDate);
-      key = `due-${state}`;
-      ({ label, order } = DUE_GROUPS[state]);
+      const bucket = dueBucket(task.dueDate, today);
+      key = `due-${bucket}`;
+      ({ label, order } = DUE_BUCKETS[bucket]);
     } else {
       key = `status-${task.status}`;
       label = STATUS_LABELS[task.status];
@@ -201,7 +215,7 @@ export function buildTaskList(
             tasks: source,
           },
         ]
-      : groupTasks(source, view.groupBy, projects);
+      : groupTasks(source, view.groupBy, projects, today);
 
   const completedSection =
     !isCompletedView && view.groupBy !== 'status' && completed.length > 0 ? completed : null;
@@ -219,7 +233,7 @@ export function visibleTaskOrder(model: TaskListModel, showCompleted: boolean): 
 }
 
 const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
-  overview: 'Dashboard Overview',
+  overview: 'Home',
   inbox: 'All Active',
   today: 'Today & Overdue',
   upcoming: 'Upcoming',

@@ -132,6 +132,30 @@ export const MIGRATIONS: string[] = [
   `
     ALTER TABLE projects ADD COLUMN ado_enabled INTEGER NOT NULL DEFAULT 1;
   `,
+
+  // 9: A task can link several Azure DevOps items. Each item links to at most one task and keeps a
+  // snapshot of its title, type and state, refreshed by checks. Moves the links off the tasks table.
+  `
+    CREATE TABLE task_ado_links (
+      external_id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT '',
+      state TEXT NOT NULL DEFAULT '',
+      linked_at INTEGER NOT NULL
+    );
+    CREATE INDEX idx_task_ado_links_task ON task_ado_links(task_id);
+    INSERT INTO task_ado_links (external_id, task_id, url, title, type, linked_at)
+      SELECT external_id, id, external_url, title,
+        CASE WHEN external_id LIKE 'pr/%' THEN 'Pull Request' ELSE '' END, created_at
+      FROM tasks
+      WHERE external_source = 'ado' AND external_id IS NOT NULL AND external_url IS NOT NULL;
+    DROP INDEX idx_tasks_external;
+    ALTER TABLE tasks DROP COLUMN external_source;
+    ALTER TABLE tasks DROP COLUMN external_id;
+    ALTER TABLE tasks DROP COLUMN external_url;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */
