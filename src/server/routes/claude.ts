@@ -85,6 +85,36 @@ export function reactivates(event: ClaudeHookEvent, state: ClaudeSessionState | 
   );
 }
 
+const claudeDir = () => process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude');
+
+/**
+ * The title Claude shows for a session, from its transcript (~/.claude/projects/.../<id>.jsonl):
+ * the latest /rename (custom-title) beats the latest auto title (ai-title). Undocumented format,
+ * so any surprise just means no title. Only reads .jsonl files under the projects folder.
+ */
+export function readTranscriptTitle(transcriptPath: string, dir = path.join(claudeDir(), 'projects')): string {
+  const file = path.resolve(transcriptPath);
+  const rel = path.relative(path.resolve(dir), file);
+  if (!file.endsWith('.jsonl') || !rel || rel.startsWith('..') || path.isAbsolute(rel)) return '';
+  let custom = '';
+  let ai = '';
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      if (!line.includes('-title"')) continue;
+      try {
+        const entry = JSON.parse(line);
+        if (entry?.type === 'custom-title' && typeof entry.customTitle === 'string') custom = entry.customTitle;
+        if (entry?.type === 'ai-title' && typeof entry.aiTitle === 'string') ai = entry.aiTitle;
+      } catch {
+        // A line still being written
+      }
+    }
+  } catch {
+    return '';
+  }
+  return clip((custom.trim() || ai.trim()).split('\n')[0], 80);
+}
+
 /**
  * The desktop app's id (local_...) for a session, from Claude Code's live session registry
  * (~/.claude/sessions/<pid>.json). Undocumented format, so any surprise just means no deep link.
@@ -92,7 +122,7 @@ export function reactivates(event: ClaudeHookEvent, state: ClaudeSessionState | 
 export function readHostSessionId(
   pid: string,
   sessionId: string,
-  dir = path.join(process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(), '.claude'), 'sessions')
+  dir = path.join(claudeDir(), 'sessions')
 ): string | null {
   if (!/^\d{1,10}$/.test(pid)) return null;
   try {
@@ -132,6 +162,12 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     const state = stateForEvent(event);
     const title =
       event.hook_event_name === 'UserPromptSubmit' && event.prompt ? titleFromPrompt(event.prompt) : '';
+    // Claude's own title (auto or renamed) replaces the first-prompt one; rechecked after each
+    // turn and on resume rather than on every tool event, as transcripts run to megabytes
+    const claudeTitle =
+      (event.hook_event_name === 'Stop' || event.hook_event_name === 'SessionStart') && event.transcript_path
+        ? readTranscriptTitle(event.transcript_path)
+        : '';
     const header = (name: string) => {
       const value = request.headers[name];
       return typeof value === 'string' ? value.trim() : '';
@@ -159,7 +195,7 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
         .set({
           ...(state ? { state } : {}),
           ...(event.cwd ? { cwd: event.cwd } : {}),
-          ...(!existing.title && title ? { title } : {}),
+          ...(claudeTitle ? { title: claudeTitle } : !existing.title && title ? { title } : {}),
           ...details,
           ...(reactivates(event, state) ? { dismissedAt: null } : {}),
           lastEventAt: now,
@@ -171,7 +207,7 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
         .values({
           sessionId: event.session_id,
           cwd: event.cwd,
-          title,
+          title: claudeTitle || title,
           state: state ?? 'running',
           startedAt: now,
           lastEventAt: now,

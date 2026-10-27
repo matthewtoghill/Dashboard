@@ -7,6 +7,7 @@ import { buildApp } from '../index.ts';
 import {
   detailsForEvent,
   readHostSessionId,
+  readTranscriptTitle,
   stateForEvent,
   titleFromPrompt,
 } from '../routes/claude.ts';
@@ -84,6 +85,29 @@ describe('readHostSessionId', () => {
       expect(readHostSessionId('200', 'abc', dir)).toBeNull();
       expect(readHostSessionId('../100', 'abc', dir)).toBeNull();
       expect(readHostSessionId('999', 'abc', dir)).toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('readTranscriptTitle', () => {
+  it('prefers the latest rename over the auto title, and only reads transcripts under the projects folder', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-projects-'));
+    const write = (name: string, entries: (object | string)[]) => {
+      const file = path.join(dir, name);
+      fs.writeFileSync(file, entries.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))).join('\n'));
+      return file;
+    };
+    const ai = { type: 'ai-title', aiTitle: 'Auto title' };
+    const renamed = (customTitle: string) => ({ type: 'custom-title', customTitle });
+    try {
+      expect(readTranscriptTitle(write('a.jsonl', [ai, { type: 'user' }]), dir)).toBe('Auto title');
+      expect(readTranscriptTitle(write('b.jsonl', [renamed('Old'), ai, renamed('New'), '{"type":"ai-title']), dir)).toBe('New');
+      expect(readTranscriptTitle(write('c.jsonl', [{ type: 'user' }]), dir)).toBe('');
+      expect(readTranscriptTitle(write('d.txt', [ai]), dir)).toBe('');
+      expect(readTranscriptTitle(path.join(dir, 'missing.jsonl'), dir)).toBe('');
+      expect(readTranscriptTitle(path.join(dir, 'a.jsonl'), path.join(dir, 'sub'))).toBe('');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -179,6 +203,25 @@ describe('Claude sessions API', () => {
 
     await post({ ...base, hook_event_name: 'SessionEnd' });
     expect((await list())[0].state).toBe('ended');
+  });
+
+  it("swaps the first-prompt title for Claude's own title after a turn", async () => {
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-config-'));
+    vi.stubEnv('CLAUDE_CONFIG_DIR', configDir);
+    const transcript = path.join(configDir, 'projects', 'repo', 'abc.jsonl');
+    fs.mkdirSync(path.dirname(transcript), { recursive: true });
+    const base = { session_id: 'abc', transcript_path: transcript };
+    try {
+      await post({ ...base, hook_event_name: 'UserPromptSubmit', prompt: 'Fix the build' });
+      fs.writeFileSync(transcript, JSON.stringify({ type: 'ai-title', aiTitle: 'Fix CI build' }));
+      await post({ ...base, hook_event_name: 'PostToolUse' });
+      expect((await list())[0].title).toBe('Fix the build');
+      await post({ ...base, hook_event_name: 'Stop' });
+      expect((await list())[0].title).toBe('Fix CI build');
+    } finally {
+      vi.unstubAllEnvs();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
   });
 
   it('records the client from the hook headers', async () => {

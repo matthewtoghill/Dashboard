@@ -262,6 +262,7 @@ export const ClaudeHookEventSchema = z.object({
   session_id: z.string().min(1),
   hook_event_name: z.string(),
   cwd: z.string().optional().default(''),
+  transcript_path: z.string().optional(),
   prompt: z.string().optional(),
   tool_name: z.string().optional(),
   notification_type: z.string().optional(),
