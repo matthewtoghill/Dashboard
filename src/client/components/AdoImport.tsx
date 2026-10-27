@@ -2,6 +2,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AtSign,
   Bug,
   CloudDownload,
   Crown,
@@ -43,13 +44,14 @@ import { TaskLinkDialog } from './ClaudeSessions.tsx';
 /** "Azure DevOps work item 123" / "Azure DevOps pull request 45" for an external id. */
 export function externalLinkLabel(externalId: string): string {
   const [kind, id] = externalId.split('/');
+  if (kind === 'mention') return `Azure DevOps mention on work item ${id}`;
   return `Azure DevOps ${kind === 'pr' ? 'pull request' : 'work item'} ${id}`;
 }
 
-/** Compact badge text ("#123" or "PR #45") for an Azure DevOps external id. */
+/** Compact badge text ("#123", "PR #45" or "@#123") for an Azure DevOps external id. */
 export function externalShortLabel(externalId: string): string {
   const [kind, id] = externalId.split('/');
-  return kind === 'pr' ? `PR #${id}` : `#${id}`;
+  return kind === 'pr' ? `PR #${id}` : kind === 'mention' ? `@#${id}` : `#${id}`;
 }
 
 type TypedItem = Pick<AdoItem, 'externalId' | 'type'> & { role?: AdoItem['role'] };
@@ -57,6 +59,7 @@ type TypedItem = Pick<AdoItem, 'externalId' | 'type'> & { role?: AdoItem['role']
 /** Colour, icon and short label for an Azure DevOps item's type. */
 function typeStyle(item: TypedItem): { label: string; icon: LucideIcon; className: string } {
   if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-400' };
+  if (item.externalId.startsWith('mention/')) return { label: 'Mention', icon: AtSign, className: 'text-teal-700 dark:text-teal-400' };
   if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-400' };
   if (item.externalId.startsWith('pr/')) return { label: 'PR', icon: GitPullRequest, className: 'text-blue-700 dark:text-blue-500' };
   if (item.type === 'Epic') return { label: 'Epic', icon: Crown, className: 'text-orange-600 dark:text-orange-300' };
@@ -691,6 +694,7 @@ export const AdoImportDialog: React.FC<{
   const groups = useMemo(() => {
     const byProject = new Map<string, (AdoItem & { taskId: string | null })[]>();
     for (const item of data?.items ?? []) {
+      if (item.role === 'mention') continue; // listed on their own
       const list = byProject.get(item.adoProject) ?? [];
       list.push(item);
       byProject.set(item.adoProject, list);
@@ -699,6 +703,7 @@ export const AdoImportDialog: React.FC<{
   }, [data]);
 
   const newItems = (data?.items ?? []).filter((i) => !i.taskId);
+  const mentions = (data?.items ?? []).filter((i) => i.role === 'mention');
   const linkFor = (adoProject: string) =>
     links.find((l) => l.adoProject.toLowerCase() === adoProject.toLowerCase());
   // Changing a destination here saves the mapping in Settings, so later imports use it too
@@ -776,6 +781,61 @@ export const AdoImportDialog: React.FC<{
 
             {data?.checkedAt && data.items.length === 0 && (
               <p className="text-zinc-500">Nothing open is assigned to you.</p>
+            )}
+            {mentions.length > 0 && (
+              <section className="space-y-1.5">
+                <label className="flex items-center gap-2 text-xs text-zinc-400 font-semibold uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    checked={mentions.some((m) => !m.taskId) && mentions.every((m) => m.taskId || selected.has(m.externalId))}
+                    disabled={mentions.every((m) => m.taskId)}
+                    onChange={(e) => toggle(mentions.filter((m) => !m.taskId).map((m) => m.externalId), e.target.checked)}
+                  />
+                  Mentions
+                </label>
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  {mentions.map((item) => (
+                    <li key={item.externalId} className="flex items-start gap-2 py-1.5">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${item.title}`}
+                        checked={!!item.taskId || selected.has(item.externalId)}
+                        disabled={!!item.taskId}
+                        onChange={(e) => toggle([item.externalId], e.target.checked)}
+                        className="mt-1"
+                      />
+                      <div className={`flex-1 min-w-0 ${item.taskId ? 'text-zinc-400' : ''}`}>
+                        <p className="truncate" title={item.title}>
+                          {item.title}
+                        </p>
+                        {item.mention && (
+                          <p className="text-xs text-zinc-500 line-clamp-2" title={item.mention.snippet}>
+                            <span className="font-medium">{item.mention.by}</span>
+                            {item.mention.at && ` \u00b7 ${formatRelativeTime(Date.parse(item.mention.at))}`}
+                            {item.mention.repliesAfter > 0 &&
+                              ` \u00b7 ${item.mention.repliesAfter} ${item.mention.repliesAfter === 1 ? 'reply' : 'replies'} since`}
+                            {' \u00b7 '}
+                            {item.mention.snippet}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {item.taskId ? 'Linked' : `${item.adoProject} \u00b7 ${item.state}`}
+                      </span>
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Open ${externalLinkLabel(item.externalId)}`}
+                        title={externalLinkLabel(item.externalId)}
+                        className="p-1 text-zinc-400 hover:text-indigo-600"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             {groups.map(([adoProject, items]) => {
               const selectable = items.filter((i) => !i.taskId).map((i) => i.externalId);

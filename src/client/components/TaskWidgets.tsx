@@ -191,8 +191,9 @@ export const AdoSummaryPanel: React.FC<{ tasks: Task[]; onOpenAdoImport: () => v
   const { data } = useAdoSync();
   const items = data?.items ?? [];
   const stats: [string, number, string][] = [
-    ['New items', items.filter((i) => !i.taskId && i.role !== 'reviewer').length, 'text-sky-700 dark:text-sky-300'],
+    ['New items', items.filter((i) => !i.taskId && i.role !== 'reviewer' && i.role !== 'mention').length, 'text-sky-700 dark:text-sky-300'],
     ['Reviews', items.filter((i) => i.role === 'reviewer').length, 'text-violet-700 dark:text-violet-300'],
+    ['Mentions', items.filter((i) => !i.taskId && i.role === 'mention').length, 'text-teal-700 dark:text-teal-300'],
     ['Closed', data?.closed.length ?? 0, 'text-amber-700 dark:text-amber-300'],
     ['Open work items', openWorkItems, ''],
     ['Open pull requests', openPullRequests, ''],

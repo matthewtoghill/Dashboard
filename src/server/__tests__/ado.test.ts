@@ -8,6 +8,8 @@ import { AdoSyncResult, Task } from '../../shared/types.ts';
 
 const ORG = 'https://dev.azure.com/acme/';
 const ME = 'me@acme.com';
+/** Longer than the other WIQL keys, so the fake az answers the mentions query with it. */
+const MENTIONS = 'WHERE [System.Id] IN (@RecentMentions)';
 
 const workItem = (id: number, type: string, project = 'Alpha', state = 'Active') => ({
   id,
@@ -69,6 +71,7 @@ describe('describeAzFailure', () => {
       state,
       role: null,
       repo: null,
+      mention: null,
       taskId,
     });
     const items = [item(1, 'Bug', 'Active'), item(2, 'Task', 'New'), item(3, 'Bug', 'New', 'task-3')];
@@ -92,6 +95,8 @@ describe('describeAzFailure', () => {
     expect(externalLinkLabel('pr/45')).toBe('Azure DevOps pull request 45');
     expect(externalShortLabel('workitem/123')).toBe('#123');
     expect(externalShortLabel('pr/45')).toBe('PR #45');
+    expect(externalLinkLabel('mention/7')).toBe('Azure DevOps mention on work item 7');
+    expect(externalShortLabel('mention/7')).toBe('@#7');
   });
 });
 
@@ -105,6 +110,7 @@ describe('Azure DevOps import', () => {
     responses = {
       'devops configure --list': `[defaults]\norganization = ${ORG}\nproject = Alpha\n`,
       'account show': `${ME}\n`,
+      [MENTIONS]: [],
       'boards query': [workItem(1, 'Task'), workItem(2, 'Feature'), workItem(3, 'Bug', 'Beta')],
       '--project Alpha --status active --creator me': [pr(10, 'Alpha')],
       '--project Alpha --status active --reviewer me': [
@@ -166,6 +172,44 @@ describe('Azure DevOps import', () => {
     expect(body.items.find((i) => i.externalId === 'pr/10')!.url).toBe(
       `${ORG}Alpha/_git/repo%20one/pullrequest/10`
     );
+  });
+
+  it('fetches recent mentions with their comment and imports them as reply tasks', async () => {
+    responses[MENTIONS] = [workItem(7, 'Product Backlog Item'), workItem(8, 'Bug', 'Beta')];
+    responses['rest --method get'] = 'ME-GUID\n';
+    responses['workItemId=7'] = {
+      comments: [
+        { text: '<div>later</div>', createdBy: { displayName: 'Other' } },
+        {
+          text: '<div>FYI&nbsp;<a href="#" data-vss-mention="version:2.0,me-guid">@Me</a> &amp; co</div>',
+          createdDate: '2026-10-01T00:00:00Z',
+          createdBy: { displayName: 'Sam Smith' },
+        },
+      ],
+    };
+    responses['workItemId=8'] = new AzError('boom');
+
+    let { body } = await fetchItems();
+    const mention = body.items.find((i) => i.externalId === 'mention/7')!;
+    expect(mention).toMatchObject({
+      role: 'mention',
+      url: `${ORG}_workitems/edit/7`,
+      mention: { by: 'Sam Smith', at: '2026-10-01T00:00:00Z', snippet: 'FYI @Me & co', repliesAfter: 1 },
+    });
+    // A failed comment lookup still lists the mention
+    expect(body.items.find((i) => i.externalId === 'mention/8')).toMatchObject({ role: 'mention', mention: null });
+    expect(body.warnings).toEqual([]);
+
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [mention] } });
+    expect((await listTasks()).map((t) => t.title)).toContain('Reply to Sam on PBI 7: Item 7');
+
+    // Imported: its comment isn't fetched again, and dropping off the list doesn't close the task
+    calls.length = 0;
+    ({ body } = await fetchItems());
+    expect(calls.some((c) => c.includes('workItemId=7'))).toBe(false);
+    responses[MENTIONS] = [];
+    ({ body } = await fetchItems());
+    expect(body.closed).toEqual([]);
   });
 
   it('uses the organization from settings when set', async () => {

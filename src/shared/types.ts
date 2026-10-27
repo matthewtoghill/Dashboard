@@ -71,8 +71,8 @@ export type UpdateSubtaskInput = z.input<typeof UpdateSubtaskInputSchema>;
 
 /** An Azure DevOps item linked to a task, as last seen by a check. */
 export const TaskAdoLinkSchema = z.object({
-  /** `workitem/<id>` or `pr/<id>`; linked to at most one task. */
-  externalId: z.string().regex(/^(workitem|pr)\/\d+$/),
+  /** `workitem/<id>`, `pr/<id>` or `mention/<work item id>`; linked to at most one task. */
+  externalId: z.string().regex(/^(workitem|pr|mention)\/\d+$/),
   url: z.string().url().startsWith('https://'),
   title: z.string(),
   /** Work item type, or 'Pull Request'; empty when not seen by a check yet. */
@@ -353,19 +353,34 @@ export const AdoProjectLinkListSchema = z
     'Each Azure DevOps project can only be listed once'
   );
 
+/** The newest comment that @mentions me on a work item. */
+export const AdoMentionSchema = z.object({
+  /** Display name of the comment's author; empty when no comment mentions me (e.g. the description does). */
+  by: z.string(),
+  /** ISO date of the comment. */
+  at: z.string(),
+  /** The comment as plain text, shortened. Shown only; never copied into tasks. */
+  snippet: z.string(),
+  /** Comments posted after it. */
+  repliesAfter: z.number(),
+});
+export type AdoMention = z.infer<typeof AdoMentionSchema>;
+
 export const AdoItemSchema = z.object({
-  /** `workitem/<id>` or `pr/<id>`; unique per organization. */
-  externalId: z.string().regex(/^(workitem|pr)\/\d+$/),
+  /** `workitem/<id>`, `pr/<id>` or `mention/<work item id>`; unique per organization. */
+  externalId: z.string().regex(/^(workitem|pr|mention)\/\d+$/),
   title: z.string().trim().min(1).max(500),
   url: z.string().url().startsWith('https://'),
   adoProject: z.string(),
   /** Work item type, or 'Pull Request'. */
   type: z.string(),
   state: z.string(),
-  /** For pull requests: authored by me, or waiting for my review. */
-  role: z.enum(['author', 'reviewer']).nullable().default(null),
+  /** For pull requests: authored by me, or waiting for my review. 'mention': someone @mentioned me. */
+  role: z.enum(['author', 'reviewer', 'mention']).nullable().default(null),
   /** For pull requests: the repository name. */
   repo: z.string().nullable().default(null),
+  /** For mentions: the comment, when one was found. */
+  mention: AdoMentionSchema.nullable().default(null),
 });
 export type AdoItem = z.infer<typeof AdoItemSchema>;
 
@@ -377,7 +392,7 @@ export const AdoImportInputSchema = z.object({
 
 /** GET /api/ado/items. */
 export interface AdoFetchResult {
-  /** Open items assigned to me; taskId is set when already imported. */
+  /** Open items assigned to me and recent mentions; taskId is set when already imported. */
   items: (AdoItem & { taskId: string | null })[];
   /** Unfinished linked tasks whose items are all closed, merged or abandoned; state lists theirs. */
   closed: { taskId: string; title: string; state: string }[];

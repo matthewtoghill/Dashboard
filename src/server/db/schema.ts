@@ -82,7 +82,7 @@ export const adoProjectLinks = sqliteTable('ado_project_links', {
 });
 
 export const taskAdoLinks = sqliteTable('task_ado_links', {
-  externalId: text('external_id').primaryKey(), // workitem/<id> or pr/<id>
+  externalId: text('external_id').primaryKey(), // workitem/<id>, pr/<id> or mention/<work item id>
   taskId: text('task_id')
     .notNull()
     .references(() => tasks.id, { onDelete: 'cascade' }),

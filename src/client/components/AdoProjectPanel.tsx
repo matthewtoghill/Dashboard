@@ -25,7 +25,8 @@ type SortBy = 'id' | 'title' | 'type' | 'state';
 const OPEN_KEY = 'dashboard_ado_panel_open';
 
 const itemNumber = (item: PanelItem) => Number(item.externalId.split('/')[1]);
-const itemType = (item: PanelItem) => (item.role === 'reviewer' ? 'PR (review)' : item.type);
+const itemType = (item: PanelItem) =>
+  item.role === 'reviewer' ? 'PR (review)' : item.role === 'mention' ? 'Mention' : item.type;
 
 /** Filters, sorts and groups panel items. Pure, so it is tested directly. */
 export function arrangeAdoItems(
@@ -203,8 +204,9 @@ export const AdoProjectPanel: React.FC<{
   const checkedAt = data?.checkedAt ?? null;
   const selected = picked && picked.checkedAt === checkedAt ? picked.ids : new Set<string>();
   const toImport = shown.filter((i) => selected.has(i.externalId));
-  const newCount = shown.filter((i) => i.role !== 'reviewer').length;
-  const reviewCount = shown.length - newCount;
+  const reviewCount = shown.filter((i) => i.role === 'reviewer').length;
+  const mentionCount = shown.filter((i) => i.role === 'mention').length;
+  const newCount = shown.length - reviewCount - mentionCount;
 
   // Linking happens in the project settings dialog
   if (!project.adoEnabled || mine.length === 0) return null;
@@ -251,6 +253,11 @@ export const AdoProjectPanel: React.FC<{
         {reviewCount > 0 && (
           <span className="px-[7px] py-px rounded-full text-[11px] bg-violet-500/15 text-violet-700 dark:text-violet-300">
             {reviewCount} review
+          </span>
+        )}
+        {mentionCount > 0 && (
+          <span className="px-[7px] py-px rounded-full text-[11px] bg-teal-500/15 text-teal-700 dark:text-teal-300">
+            {mentionCount} {mentionCount === 1 ? 'mention' : 'mentions'}
           </span>
         )}
         {closed.length > 0 && (
@@ -354,8 +361,11 @@ export const AdoProjectPanel: React.FC<{
                     <span className="truncate text-zinc-800 dark:text-zinc-200" title={item.title}>
                       {item.title}
                     </span>
-                    <span className="truncate text-xs text-zinc-400" title={item.repo ?? undefined}>
-                      {item.repo}
+                    <span
+                      className="truncate text-xs text-zinc-400"
+                      title={item.mention?.snippet || item.repo || undefined}
+                    >
+                      {item.mention?.by ? `from ${item.mention.by}` : item.repo}
                     </span>
                     <span className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={item.state}>
                       {item.state}

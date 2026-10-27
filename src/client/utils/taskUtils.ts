@@ -490,7 +490,7 @@ export function adoSummary(tasks: Task[]): AdoSummary {
       summary.lastImportAt = Math.max(summary.lastImportAt ?? 0, link.linkedAt);
       if (!isOpen(t)) continue;
       if (link.externalId.startsWith('pr/')) summary.openPullRequests++;
-      else summary.openWorkItems++;
+      else if (link.externalId.startsWith('workitem/')) summary.openWorkItems++;
     }
   }
   return summary;

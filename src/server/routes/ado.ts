@@ -10,6 +10,7 @@ import {
   AdoFetchResult,
   AdoImportInputSchema,
   AdoItem,
+  AdoMention,
   AdoProjectLink,
   AdoProjectLinkListSchema,
   AdoProjectNameSchema,
@@ -25,15 +26,58 @@ const CLOSED_STATES = ['Done', 'Closed', 'Removed'];
 
 const wiqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
+const WORK_ITEM_FIELDS = '[System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject]';
+const inProjects = (projects?: string[]) =>
+  projects ? `AND [System.TeamProject] IN (${projects.map(wiqlString).join(', ')}) ` : '';
+
 /** Open work assigned to me, optionally limited to some projects. */
 export function openWorkItemsWiql(projects?: string[]): string {
   return (
-    'SELECT [System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject] ' +
-    'FROM WorkItems WHERE [System.AssignedTo] = @Me ' +
+    `SELECT ${WORK_ITEM_FIELDS} FROM WorkItems WHERE [System.AssignedTo] = @Me ` +
     `AND [System.State] NOT IN (${CLOSED_STATES.map(wiqlString).join(', ')}) ` +
-    (projects ? `AND [System.TeamProject] IN (${projects.map(wiqlString).join(', ')}) ` : '') +
+    inProjects(projects) +
     'ORDER BY [System.ChangedDate] DESC'
   );
+}
+
+/** Work items where someone @mentioned me lately (Azure DevOps keeps about 30 days). */
+export function recentMentionsWiql(projects?: string[]): string {
+  return (
+    `SELECT ${WORK_ITEM_FIELDS} FROM WorkItems WHERE [System.Id] IN (@RecentMentions) ` +
+    inProjects(projects) +
+    'ORDER BY [System.ChangedDate] DESC'
+  );
+}
+
+/** Azure DevOps' app id, so `az rest` gets a token for it. */
+const ADO_RESOURCE = '499b84ac-1321-427f-aa17-267ca6975798';
+
+interface AzComment {
+  text?: string;
+  createdDate?: string;
+  createdBy?: { displayName?: string };
+}
+
+const ENTITIES: Record<string, string> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+
+/** The newest comment that mentions `meId` (comments come newest first), as plain text. */
+export function findMention(comments: AzComment[], meId: string): AdoMention | null {
+  const hit = comments.findIndex((c) => c.text?.toLowerCase().includes(meId.toLowerCase()));
+  if (hit < 0) return null;
+  const c = comments[hit];
+  const text = (c.text ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (_, e: string) => ENTITIES[e])
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { by: c.createdBy?.displayName ?? '', at: c.createdDate ?? '', snippet: text.slice(0, 220), repliesAfter: hit };
+}
+
+/** "Reply to Sam on PBI 123: Title", the task a mention imports as. */
+export function mentionTaskTitle(item: AdoItem): string {
+  const who = item.mention?.by.split(' ')[0];
+  const type = item.type === 'Product Backlog Item' ? 'PBI' : item.type || 'work item';
+  return `Reply${who ? ` to ${who}` : ''} on ${type} ${item.externalId.split('/')[1]}: ${item.title}`;
 }
 
 /** Turns az's stderr into a message that says what to do about it. */
@@ -97,6 +141,7 @@ export function workItemToItem(org: string, wi: AzWorkItem): AdoItem {
     state: wi.fields['System.State'] ?? '',
     role: null,
     repo: null,
+    mention: null,
   };
 }
 
@@ -111,6 +156,7 @@ export function pullRequestToItem(org: string, pr: AzPullRequest, role: 'author'
     state: pr.isDraft ? 'Draft' : pr.status,
     role,
     repo: pr.repository.name,
+    mention: null,
   };
 }
 
@@ -372,7 +418,54 @@ export async function registerAdoRoutes(
       }
     };
 
-    const [workItems, me, prLists] = await Promise.all([
+    // Mentions already imported keep their task; only new ones need their comment looked up
+    const linkedIds = new Set(db.select({ id: taskAdoLinks.externalId }).from(taskAdoLinks).all().map((r) => r.id));
+    const fetchMentions = async (): Promise<AdoItem[]> => {
+      try {
+        const mentioned = (
+          parseJson<AzWorkItem[]>(
+            await az([
+              'boards', 'query', ...scope, '--wiql',
+              recentMentionsWiql(linkedOnly ? links.map((l) => l.adoProject) : undefined),
+            ])
+          ) ?? []
+        ).map((wi) => ({ ...workItemToItem(org, wi), externalId: `mention/${wi.id}`, role: 'mention' as const }))
+          .filter((item) => !isOff(item.adoProject));
+        const unlinked = mentioned.filter((item) => !linkedIds.has(item.externalId));
+        if (unlinked.length === 0) return mentioned;
+        const meId = (
+          await az([
+            'rest', '--method', 'get', '--resource', ADO_RESOURCE, '--url', `${org}_apis/connectionData`,
+            '--query', 'authenticatedUser.id', '--output', 'tsv',
+          ])
+        ).trim();
+        // ponytail: 6 az processes at a time, ~1s each; slow if mentions run into hundreds
+        for (let i = 0; i < unlinked.length; i += 6) {
+          await Promise.all(
+            unlinked.slice(i, i + 6).map(async (item) => {
+              try {
+                const out = await az([
+                  'devops', 'invoke', ...scope, '--area', 'wit', '--resource', 'comments',
+                  '--api-version', '7.1-preview', '--route-parameters',
+                  `project=${item.adoProject}`, `workItemId=${item.externalId.split('/')[1]}`,
+                ]);
+                item.mention = findMention(parseJson<{ comments?: AzComment[] }>(out)?.comments ?? [], meId);
+              } catch (err) {
+                // Without the comment the mention is still listed
+                if (!(err instanceof AzError)) throw err;
+              }
+            })
+          );
+        }
+        return mentioned;
+      } catch (err) {
+        if (!(err instanceof AzError)) throw err;
+        warnings.push(`Mentions: ${err.message}`);
+        return [];
+      }
+    };
+
+    const [workItems, me, prLists, mentions] = await Promise.all([
       linkedOnly && links.length === 0
         ? []
         : az([
@@ -386,6 +479,7 @@ export async function registerAdoRoutes(
           reviewing: await listPrs(l.adoProject, ['--reviewer', 'me']),
         }))
       ),
+      linkedOnly && links.length === 0 ? [] : fetchMentions(),
     ]);
 
     const found = new Map<string, AdoItem>();
@@ -406,6 +500,7 @@ export async function registerAdoRoutes(
         if (!found.has(id) && awaitsMyVote(pr, me)) found.set(id, pullRequestToItem(org, pr, 'reviewer'));
       }
     }
+    for (const item of mentions) found.set(item.externalId, item);
 
     const linked = db
       .select({
@@ -419,10 +514,13 @@ export async function registerAdoRoutes(
       .innerJoin(tasks, eq(taskAdoLinks.taskId, tasks.id))
       .all();
 
-    // Items of unfinished linked tasks that dropped off the open list: look up their state
+    // Items of unfinished linked tasks that dropped off the open list: look up their state. A mention
+    // is done when I reply, which Azure DevOps can't tell us, so it never closes a task.
     const watched = linked.filter(
       (l) =>
-        (l.status === 'todo' || l.status === 'in_progress' || l.status === 'on_hold') && !(l.projectId && offProjectIds.has(l.projectId))
+        (l.status === 'todo' || l.status === 'in_progress' || l.status === 'on_hold') &&
+        !(l.projectId && offProjectIds.has(l.projectId)) &&
+        !l.externalId.startsWith('mention/')
     );
     const toCheck = watched.filter((l) => !found.has(l.externalId));
     const seen = new Map<string, { title: string; type?: string; state: string; closed: boolean }>();
@@ -594,7 +692,12 @@ export async function registerAdoRoutes(
           tx.insert(tasks)
             .values({
               id,
-              title: item.role === 'reviewer' ? `Review: ${item.title}` : item.title,
+              title:
+                item.role === 'reviewer'
+                  ? `Review: ${item.title}`
+                  : item.role === 'mention'
+                    ? mentionTaskTitle(item)
+                    : item.title,
               status: 'todo',
               projectId: linkFor(links, item.adoProject)?.projectId ?? null,
               sortOrder: i - now, // above existing tasks, in the order given
