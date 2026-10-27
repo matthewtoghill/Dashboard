@@ -196,7 +196,8 @@ export const WidgetConfigSchema = z.object({
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'completed', 'archived']);
+/** 'notes' is the Notes page, not a task list. */
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'completed', 'archived', 'notes']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),
@@ -385,6 +386,38 @@ export interface AdoSyncResult extends AdoFetchResult {
   lastErrorAt: number | null;
 }
 
+// Notes: a markdown notebook, separate from tasks
+const NoteTagsSchema = z
+  .array(z.string().trim().min(1).max(50))
+  .max(30)
+  .transform((tags) => [...new Set(tags)]);
+
+export const NoteSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().max(200),
+  body: z.string().max(200_000),
+  /** Card accent as #rrggbb; null for none. */
+  color: HexColorSchema.nullable(),
+  tags: NoteTagsSchema,
+  pinned: z.boolean(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Note = z.infer<typeof NoteSchema>;
+
+export const UpdateNoteInputSchema = z
+  .object({
+    title: z.string().trim().max(200),
+    body: z.string().max(200_000),
+    color: HexColorSchema.nullable(),
+    tags: NoteTagsSchema,
+    pinned: z.boolean(),
+  })
+  .partial();
+export type UpdateNoteInput = z.input<typeof UpdateNoteInputSchema>;
+export const CreateNoteInputSchema = UpdateNoteInputSchema;
+export type CreateNoteInput = UpdateNoteInput;
+
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),
   widgetConfig: WidgetConfigSchema,
@@ -423,5 +456,7 @@ export const BackupPayloadSchema = z.object({
   adoProjectLinks: z.array(AdoProjectLinkSchema).optional().default([]),
   /** Since version 6. */
   taskEvents: z.array(TaskEventSchema).optional().default([]),
+  /** Since version 8. */
+  notes: z.array(NoteSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

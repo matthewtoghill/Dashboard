@@ -103,6 +103,17 @@ export const taskEvents = sqliteTable('task_events', {
   source: text('source', { enum: TASK_EVENT_SOURCES }).notNull().default('manual'),
 });
 
+export const notes = sqliteTable('notes', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull().default(''),
+  body: text('body').notNull().default(''),
+  color: text('color'),
+  tags: text('tags').notNull().default('[]'), // JSON string array
+  pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
 export type DbProject = typeof projects.$inferSelect;
 export type NewDbProject = typeof projects.$inferInsert;
 
@@ -124,3 +135,5 @@ export type DbAdoProjectLink = typeof adoProjectLinks.$inferSelect;
 export type DbTaskAdoLink = typeof taskAdoLinks.$inferSelect;
 
 export type DbTaskEvent = typeof taskEvents.$inferSelect;
+
+export type DbNote = typeof notes.$inferSelect;

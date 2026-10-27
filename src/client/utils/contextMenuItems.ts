@@ -2,18 +2,22 @@ import {
   Archive,
   ArchiveRestore,
   Calendar,
+  ClipboardCopy,
   Copy,
+  CopyPlus,
   ExternalLink,
   Flag,
   Folder,
   Palette,
   PanelRightOpen,
   Pencil,
+  Pin,
+  PinOff,
   Settings,
   Tag,
   Trash2,
 } from 'lucide-react';
-import { Project, Task, TaskPriority, TaskStatus, UpdateTaskInput } from '../../shared/types.ts';
+import { Note, Project, Task, TaskPriority, TaskStatus, UpdateNoteInput, UpdateTaskInput } from '../../shared/types.ts';
 import type { MenuItem } from '../components/ContextMenu.tsx';
 import {
   PRIORITY_CONFIG,
@@ -182,5 +186,74 @@ export function projectMenuItems(
       })),
     },
     { label: 'Delete project', icon: Trash2, danger: true, separatorBefore: true, onSelect: () => onDelete(project.id) },
+  ];
+}
+
+export interface NoteMenuActions {
+  /** Tags used on any note, offered as tick boxes. */
+  allTags: string[];
+  /** id of the <datalist> of note tags. */
+  tagListId: string;
+  onOpen: (id: string) => void;
+  onUpdate: (id: string, patch: UpdateNoteInput) => void;
+  onCopy: (note: Note, rich: boolean) => void;
+  onDuplicate: (note: Note) => void;
+  onDelete: (note: Note) => void;
+}
+
+/** Right-click menu for a note card or row. */
+export function noteMenuItems(note: Note, a: NoteMenuActions): MenuItem[] {
+  const update = (patch: UpdateNoteInput) => a.onUpdate(note.id, patch);
+  const toggleTag = (tag: string) =>
+    update({ tags: note.tags.includes(tag) ? note.tags.filter((t) => t !== tag) : [...note.tags, tag] });
+  return [
+    { label: 'Open note', icon: PanelRightOpen, onSelect: () => a.onOpen(note.id) },
+    {
+      label: note.title ? 'Rename' : 'Add title',
+      icon: Pencil,
+      submenu: [{ label: 'Title', input: { type: 'text', initial: note.title, onSubmit: (title) => update({ title }) } }],
+    },
+    { label: 'Copy markdown', icon: Copy, separatorBefore: true, onSelect: () => a.onCopy(note, false) },
+    { label: 'Copy as rich text', icon: ClipboardCopy, onSelect: () => a.onCopy(note, true) },
+    {
+      label: note.pinned ? 'Unpin' : 'Pin to top',
+      icon: note.pinned ? PinOff : Pin,
+      separatorBefore: true,
+      onSelect: () => update({ pinned: !note.pinned }),
+    },
+    {
+      label: 'Colour',
+      icon: Palette,
+      submenu: [
+        { label: 'None', checked: note.color === null, onSelect: () => update({ color: null }) },
+        ...PROJECT_COLORS.map((color) => ({
+          label: color,
+          swatch: color,
+          checked: note.color === color,
+          onSelect: () => update({ color }),
+        })),
+      ],
+    },
+    {
+      label: 'Tags',
+      icon: Tag,
+      submenu: [
+        ...a.allTags.map((tag) => ({ label: `#${tag}`, checked: note.tags.includes(tag), onSelect: () => toggleTag(tag) })),
+        {
+          label: 'New tag',
+          separatorBefore: a.allTags.length > 0,
+          input: {
+            type: 'text',
+            list: a.tagListId,
+            onSubmit: (text) => {
+              const tag = cleanTag(text);
+              if (tag && !note.tags.includes(tag)) update({ tags: [...note.tags, tag] });
+            },
+          },
+        },
+      ],
+    },
+    { label: 'Duplicate', icon: CopyPlus, separatorBefore: true, onSelect: () => a.onDuplicate(note) },
+    { label: 'Delete', icon: Trash2, danger: true, onSelect: () => a.onDelete(note) },
   ];
 }
