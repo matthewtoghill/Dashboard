@@ -54,6 +54,7 @@ export function filterTasks(
       if (nav.id === 'today' && (task.dueDate === null || task.dueDate > today)) return false;
       if (nav.id === 'upcoming' && (task.dueDate === null || task.dueDate <= today)) return false;
       if (nav.id === 'completed' && task.status !== 'done') return false;
+      if (nav.id === 'on_hold' && task.status !== 'on_hold') return false;
     } else if (nav.type === 'project') {
       if (task.projectId !== nav.id) return false;
     } else if (!task.tags.includes(nav.id)) {
@@ -117,7 +118,7 @@ export function dueBucket(dueDate: string | null, today: string): DueBucket {
   return dueDate <= toIsoDate(addDays(day, 7)) ? 'week' : 'later';
 }
 
-const STATUS_ORDER = { in_progress: 1, todo: 2, done: 3, archived: 4 } as const;
+const STATUS_ORDER = { in_progress: 1, todo: 2, on_hold: 3, done: 4, archived: 5 } as const;
 
 /** Splits already-sorted tasks into ordered sections, keeping their order within each. */
 export function groupTasks(
@@ -186,9 +187,14 @@ export function buildTaskList(
   today: string
 ): TaskListModel {
   const filtered = filterTasks(tasks, view, projects, today);
+  // On hold tasks sink below the rest of the active list.
   const active = sortTasks(
     filtered.filter((t) => t.status !== 'done'),
     view.sortBy
+  ).sort((a, b) =>
+    isSmart(view.nav, 'on_hold')
+      ? (a.heldSince ?? 0) - (b.heldSince ?? 0) // oldest hold first
+      : Number(a.status === 'on_hold') - Number(b.status === 'on_hold')
   );
   const completed = sortTasks(
     filtered.filter((t) => t.status === 'done'),
@@ -237,6 +243,7 @@ const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
   inbox: 'All Active',
   today: 'Today & Overdue',
   upcoming: 'Upcoming',
+  on_hold: 'On Hold',
   completed: 'Completed',
   archived: 'Archive',
   notes: 'Notes',

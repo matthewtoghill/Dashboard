@@ -15,7 +15,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 7 | Automatic Azure DevOps sync check | **Done** (branch `roadmap/ado-sync`) |
 | 8 | Weekly review view | Proposed |
 | 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
-| 10 | Waiting-on state | Proposed |
+| 10 | Waiting-on state (built as On Hold) | **Done** (branch `feat/on-hold-status`) |
 | 11 | Daily plan | Proposed |
 | 12 | Task status notes | Proposed |
 | 13 | Dismissed Azure DevOps items | Proposed |
@@ -332,6 +332,10 @@ Track tasks that are blocked on someone else. Today a blocked task is just `todo
 
 - A new status, or a flag on top of `todo` and `in_progress`, so a started task keeps its "in progress" state while blocked?
 - Should the person be free text, or a list that autocompletes from earlier entries?
+
+### Outcome
+
+Built as an **On Hold** status (`on_hold`) with an optional free-text reason (`holdReason`) and `heldSince`, rather than a person field. The drawer gets a next-action button (Start / Complete / Resume / Reopen) and a Hold button; the held-since date can be backdated. Rows show "reason · 9d" in the due column with a "Chase?" badge after the `chaseHoldDays` setting (7 by default). The On Hold smart view lists oldest holds first, and its sidebar count turns amber with the number to chase. Quick-add has no hold token, since `@` is already the due-date token, and reasons don't autocomplete.
 
 ## 11. Daily Plan
 

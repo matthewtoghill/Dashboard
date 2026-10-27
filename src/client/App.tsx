@@ -115,6 +115,7 @@ const GROUP_LABEL_COLORS: Record<string, string> = {
   'due-tomorrow': 'text-indigo-600 dark:text-indigo-300',
   'due-none': 'text-zinc-500',
   'status-in_progress': 'text-(--in-progress)',
+  'status-on_hold': 'text-slate-500 dark:text-slate-400',
 };
 
 /** "› Later 6": a collapsible list toggle in the task list footer. */
@@ -266,6 +267,7 @@ export const App: React.FC = () => {
   const defaultProjectId = settingsData?.settings.defaultProjectId ?? '';
   const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
   const inProgressColor = settingsData?.settings.inProgressColor;
+  const chaseHoldDays = settingsData?.settings.chaseHoldDays ?? 7;
   useEffect(() => {
     if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
   }, [inProgressColor]);
@@ -945,6 +947,7 @@ export const App: React.FC = () => {
             onRenameSavedView={handleRenameSavedView}
             onDeleteSavedView={handleDeleteSavedView}
             claudeAttentionCount={claudeAttentionCount}
+            chaseHoldDays={chaseHoldDays}
           />
         )}
 
@@ -1085,6 +1088,7 @@ export const App: React.FC = () => {
                           onMove={(taskId, targetIndex) => handleMoveTask(group.tasks, taskId, targetIndex)}
                           renderRow={(task, dragHandle) => (
                             <TaskRow
+                              chaseHoldDays={chaseHoldDays}
                               task={task}
                               projects={projects}
                               showProject={!currentProject}
@@ -1144,6 +1148,7 @@ export const App: React.FC = () => {
                     <div>
                       {completedFilteredTasks.map((task) => (
                         <TaskRow
+                          chaseHoldDays={chaseHoldDays}
                           key={task.id}
                           task={task}
                           projects={projects}
@@ -1202,6 +1207,7 @@ export const App: React.FC = () => {
         projects={projects}
         onClose={() => setSelectedTaskId(null)}
         onUpdateTask={handleUpdateTask}
+        onSetStatus={handleSetStatus}
         onDeleteTask={handleDeleteTask}
         onCreateSubtask={handleCreateSubtask}
         onUpdateSubtask={handleUpdateSubtask}

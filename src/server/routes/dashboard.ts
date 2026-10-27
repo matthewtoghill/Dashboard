@@ -330,6 +330,8 @@ export async function registerDashboardRoutes(
               statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
               recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
               recurrenceParentId: t.recurrenceParentId,
+              holdReason: t.holdReason,
+              heldSince: t.heldSince,
             })
             .onConflictDoNothing()
             .run();

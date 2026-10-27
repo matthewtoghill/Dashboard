@@ -20,6 +20,9 @@ import {
   GitPullRequest,
   History,
   Copy,
+  Play,
+  Pause,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Task,
@@ -30,6 +33,7 @@ import {
   UpdateSubtaskInput,
   ClaudeSession,
 } from '../../shared/types.ts';
+import { parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 import {
   formatDayDate,
   formatTimestamp,
@@ -37,6 +41,7 @@ import {
   getTodayIso,
   cleanTag,
   describeTaskEvent,
+  STATUS_LABELS,
 } from '../utils/taskUtils.ts';
 import { fetchTaskEvents } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
@@ -163,11 +168,29 @@ const RecurrenceEditor: React.FC<{
   );
 };
 
+/** The drawer's primary button: the usual next step from the current status. */
+function nextStatusAction(task: Task): [string, TaskStatus, typeof Play] {
+  switch (task.status) {
+    case 'todo':
+      return ['Start', 'in_progress', Play];
+    case 'in_progress':
+      return ['Complete', 'done', Check];
+    case 'on_hold':
+      return ['Resume', 'in_progress', Play];
+    case 'done':
+      return ['Reopen', 'todo', RotateCcw];
+    case 'archived':
+      return ['Restore', task.statusBeforeArchive ?? 'todo', RotateCcw];
+  }
+}
+
 interface TaskDetailDrawerProps {
   task: Task | null;
   projects: Project[];
   onClose: () => void;
   onUpdateTask: (id: string, payload: UpdateTaskInput) => void;
+  /** Status changes go through here so completing shows the usual toast and undo. */
+  onSetStatus: (task: Task, status: TaskStatus) => void;
   onDeleteTask: (id: string) => void;
   onCreateSubtask: (taskId: string, title: string) => void;
   onUpdateSubtask: (subtaskId: string, input: UpdateSubtaskInput) => void;
@@ -182,6 +205,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   projects,
   onClose,
   onUpdateTask,
+  onSetStatus,
   onDeleteTask,
   onCreateSubtask,
   onUpdateSubtask,
@@ -228,6 +252,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const saveWidth = (w: number) => localStorage.setItem(DRAWER_WIDTH_KEY, String(w));
 
   if (!task) return null;
+
+  const [nextLabel, nextStatus, NextIcon] = nextStatusAction(task);
+  const canHold = task.status === 'todo' || task.status === 'in_progress';
 
   const subtasks = task.subtasks ?? [];
   const completedSubtasks = subtasks.filter((s) => s.isCompleted).length;
@@ -363,16 +390,34 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             <select
               aria-label="Task status"
               value={task.status}
-              onChange={(e) =>
-                onUpdateTask(task.id, { status: e.target.value as TaskStatus })
-              }
+              onChange={(e) => onSetStatus(task, e.target.value as TaskStatus)}
               className="text-xs font-medium px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
             >
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="done">Completed</option>
-              <option value="archived">Archived</option>
+              {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABELS[status]}
+                </option>
+              ))}
             </select>
+            <button
+              type="button"
+              onClick={() => onSetStatus(task, nextStatus)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer"
+            >
+              <NextIcon className="w-3.5 h-3.5" />
+              {nextLabel}
+            </button>
+            {canHold && (
+              <button
+                type="button"
+                onClick={() => onSetStatus(task, 'on_hold')}
+                title="Put on hold"
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <Pause className="w-3.5 h-3.5" />
+                Hold
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -419,6 +464,49 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               }`}
             />
           </div>
+
+          {task.status === 'on_hold' && (
+            <div className="p-3 rounded-xl border border-dashed border-slate-400 dark:border-slate-500 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                <Pause className="w-3.5 h-3.5 text-slate-500" />
+                <span>On hold</span>
+                {task.heldSince !== null && (
+                  <span className="font-normal text-zinc-400" title={formatTimestamp(task.heldSince)}>
+                    since {formatRelativeTime(task.heldSince)}
+                  </span>
+                )}
+                {task.heldSince !== null && (
+                  <input
+                    type="date"
+                    aria-label="On hold since"
+                    value={toIsoDate(new Date(task.heldSince))}
+                    max={getTodayIso()}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onUpdateTask(task.id, { heldSince: parseIsoDate(e.target.value).getTime() });
+                      }
+                    }}
+                    className="ml-auto text-xs font-normal px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                  />
+                )}
+              </div>
+              <input
+                key={task.id}
+                type="text"
+                defaultValue={task.holdReason ?? ''}
+                placeholder="Reason (optional), e.g. Waiting on Jordan"
+                aria-label="On hold reason"
+                onBlur={(e) => {
+                  const holdReason = e.currentTarget.value.trim() || null;
+                  if (holdReason !== task.holdReason) onUpdateTask(task.id, { holdReason });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+                className="w-full text-sm px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          )}
 
           {/* Metadata Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/70 dark:border-zinc-800">

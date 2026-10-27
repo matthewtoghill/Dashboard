@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Project, Task } from '../../shared/types.ts';
-import { getTodayIso, getTomorrowIso } from '../../client/utils/taskUtils.ts';
+import { getTodayIso, getTomorrowIso, heldDays, needsChase } from '../../client/utils/taskUtils.ts';
 import {
   DEFAULT_VIEW_STATE,
   ViewState,
@@ -37,6 +37,8 @@ function task(overrides: Partial<Task>): Task {
     statusBeforeArchive: null,
     recurrence: null,
     recurrenceParentId: null,
+    holdReason: null,
+    heldSince: null,
     adoLinks: [],
     subtasks: [],
     ...overrides,
@@ -154,6 +156,21 @@ describe('taskView', () => {
     const archive = buildTaskList(all, view({ nav: { type: 'smart', id: 'archived' } }), projects, TODAY);
     expect(archive.sections[0].label).toBe('Archived Tasks');
     expect(ids(archive.active)).toEqual(['archived']);
+  });
+
+  it('sinks on hold tasks in lists, and lists them oldest hold first in On Hold', () => {
+    const DAY = 86_400_000;
+    const now = Date.now();
+    const held = [
+      task({ id: 'recent', status: 'on_hold', heldSince: now - 2 * DAY, createdAt: 100 }),
+      task({ id: 'oldest', status: 'on_hold', heldSince: now - 9 * DAY, createdAt: 50 }),
+      task({ id: 'open', createdAt: 1 }),
+    ];
+    expect(ids(buildTaskList(held, view({}), projects, TODAY).active)).toEqual(['open', 'recent', 'oldest']);
+    const onHold = buildTaskList(held, view({ nav: { type: 'smart', id: 'on_hold' } }), projects, TODAY);
+    expect(ids(onHold.active)).toEqual(['oldest', 'recent']);
+    expect(heldDays(held[1], now)).toBe(9);
+    expect(held.map((t) => needsChase(t, 7, now))).toEqual([false, true, false]);
   });
 
   it('titles views', () => {

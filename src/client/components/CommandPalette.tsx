@@ -21,6 +21,7 @@ import {
   PanelLeft,
   StickyNote,
   NotebookPen,
+  Pause,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -136,6 +137,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: CalendarClock,
         action: () => {
           onSelectNav({ type: 'smart', id: 'upcoming' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-on-hold',
+        label: 'Go to On Hold',
+        category: 'Views',
+        icon: Pause,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'on_hold' });
           onClose();
         },
       },

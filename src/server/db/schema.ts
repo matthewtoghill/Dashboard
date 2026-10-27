@@ -15,7 +15,7 @@ export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
-  status: text('status', { enum: ['todo', 'in_progress', 'done', 'archived'] })
+  status: text('status', { enum: ['todo', 'in_progress', 'on_hold', 'done', 'archived'] })
     .notNull()
     .default('todo'),
   priority: integer('priority').notNull().default(0),
@@ -26,9 +26,11 @@ export const tasks = sqliteTable('tasks', {
   completedAt: integer('completed_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-  statusBeforeArchive: text('status_before_archive', { enum: ['todo', 'in_progress', 'done'] }),
+  statusBeforeArchive: text('status_before_archive', { enum: ['todo', 'in_progress', 'on_hold', 'done'] }),
   recurrence: text('recurrence'), // JSON Recurrence, see shared/recurrence.ts
   recurrenceParentId: text('recurrence_parent_id'),
+  holdReason: text('hold_reason'),
+  heldSince: integer('held_since'),
 });
 
 export const subtasks = sqliteTable('subtasks', {

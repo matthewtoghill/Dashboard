@@ -22,6 +22,8 @@ function task(overrides: Partial<Task>): Task {
     statusBeforeArchive: null,
     recurrence: null,
     recurrenceParentId: null,
+    holdReason: null,
+    heldSince: null,
     adoLinks: [],
     subtasks: [],
     ...overrides,

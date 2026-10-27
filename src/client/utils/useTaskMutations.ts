@@ -116,13 +116,13 @@ export function useTaskMutations({
     );
   };
 
-  /** Cycles status on checkbox click: To Do → In Progress → Completed → To Do. */
+  /** Cycles status on checkbox click: To Do → In Progress → Completed → To Do. On Hold resumes as In Progress. */
   const handleToggleTask = (task: Task) => {
     if (task.status === 'done') {
       updateTaskMutation.mutate({ id: task.id, payload: { status: 'todo' } });
       return;
     }
-    if (task.status === 'todo') {
+    if (task.status === 'todo' || task.status === 'on_hold') {
       updateTaskMutation.mutate({ id: task.id, payload: { status: 'in_progress' } });
       return;
     }
@@ -137,7 +137,7 @@ export function useTaskMutations({
   };
 
   const completeTask = (task: Task) => {
-    const previous = task.status === 'in_progress' ? 'in_progress' : 'todo';
+    const previous = task.status === 'in_progress' || task.status === 'on_hold' ? task.status : 'todo';
     updateTaskMutation.mutate({ id: task.id, payload: { status: 'done' } });
     const nextDue = task.recurrence
       ? ` · next due ${formatDayDate(nextOccurrence(task.recurrence, task.dueDate, getTodayIso()))}`

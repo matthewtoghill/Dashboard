@@ -18,6 +18,8 @@ const base: Task = {
   statusBeforeArchive: null,
   recurrence: null,
   recurrenceParentId: null,
+  holdReason: null,
+  heldSince: null,
   adoLinks: [],
   subtasks: [],
 };
@@ -45,7 +47,7 @@ describe('taskMenuItems', () => {
   it('lists the task actions, ticking the current status', () => {
     const items = taskMenuItems(base, false, actions());
     expect(items.map((i) => i.label)).toEqual([
-      'Open task', 'Edit title', 'To Do', 'In Progress', 'Completed', 'Priority', 'Due date',
+      'Open task', 'Edit title', 'To Do', 'In Progress', 'On Hold', 'Completed', 'Priority', 'Due date',
       'Move to project', 'Add tag', 'Copy title', 'Archive', 'Delete',
     ]);
     expect(items.find((i) => i.label === 'To Do')?.checked).toBe(true);

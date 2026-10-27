@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { RecurrenceSchema } from './recurrence.ts';
 
-export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'done', 'archived']);
+export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'on_hold', 'done', 'archived']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
-const UnarchivedStatusSchema = z.enum(['todo', 'in_progress', 'done']);
+const UnarchivedStatusSchema = z.enum(['todo', 'in_progress', 'on_hold', 'done']);
 
 export const TaskPrioritySchema = z.union([
   z.literal(0),
@@ -98,6 +98,9 @@ export const TaskSchema = z.object({
   /** Set while archived: the status a restore returns the task to. */
   statusBeforeArchive: UnarchivedStatusSchema.nullable().optional().default(null),
   recurrence: RecurrenceSchema.nullable().optional().default(null),
+  /** Set while on hold: why, and when it went on hold. Leaving on hold clears both. */
+  holdReason: z.string().nullable().optional().default(null),
+  heldSince: z.number().nullable().optional().default(null),
   /** The completed task this occurrence was spawned from. */
   recurrenceParentId: z.string().nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
@@ -157,6 +160,9 @@ export const UpdateTaskInputSchema = z.object({
   dueDate: IsoDateSchema.nullable().optional(),
   sortOrder: z.number().optional(),
   recurrence: RecurrenceSchema.nullable().optional(),
+  holdReason: z.string().trim().nullable().optional(),
+  /** Backdates when an on hold task went on hold. Ignored unless the task is on hold. */
+  heldSince: z.number().int().optional(),
 });
 export type UpdateTaskInput = z.input<typeof UpdateTaskInputSchema>;
 
@@ -197,7 +203,7 @@ export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
 /** 'notes' is the Notes page, not a task list. */
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'completed', 'archived', 'notes']);
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'completed', 'archived', 'notes']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),
@@ -301,6 +307,8 @@ export const SettingsSchema = z.object({
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
   /** The Overview's stale widget lists to-do tasks untouched for this many days. */
   staleTaskDays: z.number().int().min(1).max(365).default(14),
+  /** On hold tasks held this many days or more get a "Chase?" badge. */
+  chaseHoldDays: z.number().int().min(1).max(365).default(7),
   /** Accent for in-progress tasks, as #rrggbb. */
   inProgressColor: z
     .string()

@@ -170,6 +170,12 @@ export const MIGRATIONS: string[] = [
       updated_at INTEGER NOT NULL
     );
   `,
+
+  // 11: On Hold status. A held task keeps an optional reason and the time it went on hold.
+  `
+    ALTER TABLE tasks ADD COLUMN hold_reason TEXT;
+    ALTER TABLE tasks ADD COLUMN held_since INTEGER;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

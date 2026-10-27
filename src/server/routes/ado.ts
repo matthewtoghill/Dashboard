@@ -422,7 +422,7 @@ export async function registerAdoRoutes(
     // Items of unfinished linked tasks that dropped off the open list: look up their state
     const watched = linked.filter(
       (l) =>
-        (l.status === 'todo' || l.status === 'in_progress') && !(l.projectId && offProjectIds.has(l.projectId))
+        (l.status === 'todo' || l.status === 'in_progress' || l.status === 'on_hold') && !(l.projectId && offProjectIds.has(l.projectId))
     );
     const toCheck = watched.filter((l) => !found.has(l.externalId));
     const seen = new Map<string, { title: string; type?: string; state: string; closed: boolean }>();
@@ -523,7 +523,7 @@ export async function registerAdoRoutes(
       db
         .select({ id: tasks.id, title: tasks.title })
         .from(tasks)
-        .where(inArray(tasks.status, ['todo', 'in_progress']))
+        .where(inArray(tasks.status, ['todo', 'in_progress', 'on_hold']))
         .all()
         .map((t) => [t.id, t])
     );

@@ -20,6 +20,39 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     await app.close();
   });
 
+  it('keeps a hold reason and start time while on hold, through archive and restore', async () => {
+    const id = (
+      await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 'Renew certs' } })
+    ).json().task.id;
+    const patch = async (payload: object) =>
+      (await app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, payload })).json().task;
+
+    // A reason sent while not on hold is ignored
+    expect((await patch({ holdReason: 'ignored' })).holdReason).toBeNull();
+
+    const held = await patch({ status: 'on_hold' });
+    expect(held.status).toBe('on_hold');
+    expect(typeof held.heldSince).toBe('number');
+    expect(held.holdReason).toBeNull();
+
+    const reasoned = await patch({ holdReason: '  Waiting on Jordan ' });
+    expect(reasoned.holdReason).toBe('Waiting on Jordan');
+    expect(reasoned.heldSince).toBe(held.heldSince);
+
+    await app.inject({ method: 'POST', url: '/api/tasks/bulk-archive', payload: { ids: [id] } });
+    await app.inject({ method: 'POST', url: '/api/tasks/bulk-restore', payload: { ids: [id] } });
+    const restored = (await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks[0];
+    expect(restored.status).toBe('on_hold');
+    expect(restored.holdReason).toBe('Waiting on Jordan');
+    expect(restored.heldSince).toBe(held.heldSince);
+
+    expect((await patch({ heldSince: 1_000 })).heldSince).toBe(1_000);
+
+    const resumed = await patch({ status: 'in_progress' });
+    expect(resumed.holdReason).toBeNull();
+    expect(resumed.heldSince).toBeNull();
+  });
+
   it('creates, lists, updates, toggles completion, and deletes tasks', async () => {
     const emptyRes = await app.inject({
       method: 'GET',
@@ -489,6 +522,8 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         statusBeforeArchive: null,
         recurrence: null,
         recurrenceParentId: null,
+        holdReason: null,
+        heldSince: null,
         adoLinks: [],
         subtasks: [],
       },

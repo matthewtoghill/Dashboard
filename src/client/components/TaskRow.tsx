@@ -13,6 +13,7 @@ import {
   Bot,
   ExternalLink,
   GitPullRequest,
+  Pause,
 } from 'lucide-react';
 import {
   Task,
@@ -23,7 +24,14 @@ import {
 } from '../../shared/types.ts';
 import { describeRecurrence } from '../../shared/recurrence.ts';
 import { checklistProgress } from '../utils/markdown.ts';
-import { PRIORITY_CONFIG, formatShortDate, getDueDateInfo, cleanTag } from '../utils/taskUtils.ts';
+import {
+  PRIORITY_CONFIG,
+  formatShortDate,
+  getDueDateInfo,
+  cleanTag,
+  heldDays,
+  needsChase,
+} from '../utils/taskUtils.ts';
 import { externalLinkLabel } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
 import { STATE_STYLES, primaryClaudeSession } from './ClaudeSessions.tsx';
@@ -52,13 +60,14 @@ export const TaskListHeader: React.FC<{ showProject?: boolean }> = ({ showProjec
   </div>
 );
 
-/** Cycles To Do → In Progress → Completed → To Do through `onToggle`. */
+/** Cycles To Do → In Progress → Completed → To Do through `onToggle`; On Hold resumes as In Progress. */
 export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) => void }> = ({
   task,
   onToggle,
 }) => {
   const isArchived = task.status === 'archived';
   const isInProgress = task.status === 'in_progress';
+  const isOnHold = task.status === 'on_hold';
   const isDone = task.status === 'done' || (isArchived && task.completedAt !== null);
   return (
     <button
@@ -72,6 +81,8 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
           ? `Mark "${task.title}" as incomplete`
           : isInProgress
           ? `Mark "${task.title}" as complete`
+          : isOnHold
+          ? `Resume "${task.title}"`
           : `Mark "${task.title}" as in progress`
       }
       title={
@@ -81,6 +92,8 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
           ? 'Completed (click to reopen as To Do)'
           : isInProgress
           ? 'In Progress (click to mark Completed)'
+          : isOnHold
+          ? `On Hold${task.holdReason ? `: ${task.holdReason}` : ''} (click to resume)`
           : 'To Do (click to mark In Progress)'
       }
       className={`shrink-0 w-[18px] h-[18px] rounded-md border flex items-center justify-center transition-colors duration-150 cursor-pointer disabled:cursor-default disabled:opacity-60 ${
@@ -88,11 +101,14 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
           ? 'bg-indigo-600 border-indigo-600 text-white'
           : isInProgress
           ? 'border-(--in-progress) bg-(--in-progress)/15 hover:bg-(--in-progress)/25'
+          : isOnHold
+          ? 'border-slate-400 text-slate-500 dark:text-slate-400 hover:border-indigo-500'
           : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400'
       }`}
     >
       {isDone && <Check className="w-[12px] h-[12px] stroke-[3]" />}
       {isInProgress && <span className="w-[8px] h-[8px] rounded-sm bg-(--in-progress)" />}
+      {isOnHold && <Pause className="w-[10px] h-[10px] fill-current" />}
     </button>
   );
 };
@@ -164,6 +180,8 @@ interface TaskRowProps {
   onDelete: (id: string) => void;
   onArchive: (task: Task) => void;
   onRestore: (task: Task) => void;
+  /** Days on hold before the row shows "Chase?". */
+  chaseHoldDays?: number;
   /** Drag handle supplied by ReorderableTaskList when manual sorting is active. */
   dragHandle?: React.ReactNode;
   /** Inline title editing, controlled by App so the `e` shortcut can start it. */
@@ -192,6 +210,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   onDelete,
   onArchive,
   onRestore,
+  chaseHoldDays = 7,
   dragHandle,
   isEditing,
   onEditingChange: setIsEditing,
@@ -499,26 +518,46 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       )}
 
-      {/* Due pill opens the date picker */}
-      <DatePopover
-        value={task.dueDate}
-        onChange={(dueDate) => onUpdate(task.id, { dueDate })}
-        open={showDateMenu}
-        onOpenChange={setShowDateMenu}
-        className="relative min-w-0 justify-self-start"
-        align="right"
-        trigger={
-          <button
-            type="button"
-            onClick={() => setShowDateMenu((v) => !v)}
-            aria-label={`Due date for "${task.title}"`}
-            title={dueInfo.state === 'overdue' && !isDone ? `Overdue · ${dueInfo.label}` : dueInfo.label}
-            className={`max-w-full truncate text-xs px-[7px] py-0.5 rounded-[5px] cursor-pointer transition-colors duration-150 ${dueInfo.badgeClass}`}
-          >
-            {dueInfo.label}
-          </button>
-        }
-      />
+      {/* On hold: reason and days held replace the due pill; the drawer has the details */}
+      {task.status === 'on_hold' ? (
+        <button
+          type="button"
+          onClick={() => onSelect?.(task)}
+          aria-label={`On hold${task.holdReason ? `: ${task.holdReason}` : ''}, ${heldDays(task)} days`}
+          title={`On hold for ${heldDays(task)}d${task.holdReason ? `: ${task.holdReason}` : ''}${
+            task.dueDate ? ` · Due ${formatShortDate(task.dueDate)}` : ''
+          }`}
+          className={`flex max-w-full min-w-0 justify-self-start items-center gap-1 text-xs px-[7px] py-0.5 rounded-[5px] cursor-pointer ${
+            needsChase(task, chaseHoldDays)
+              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+              : 'bg-slate-500/10 text-slate-600 dark:text-slate-300'
+          }`}
+        >
+          <span className="truncate">{task.holdReason || 'On hold'}</span>
+          <span className="shrink-0">· {heldDays(task)}d</span>
+          {needsChase(task, chaseHoldDays) && <span className="shrink-0 font-semibold">· Chase?</span>}
+        </button>
+      ) : (
+        <DatePopover
+          value={task.dueDate}
+          onChange={(dueDate) => onUpdate(task.id, { dueDate })}
+          open={showDateMenu}
+          onOpenChange={setShowDateMenu}
+          className="relative min-w-0 justify-self-start"
+          align="right"
+          trigger={
+            <button
+              type="button"
+              onClick={() => setShowDateMenu((v) => !v)}
+              aria-label={`Due date for "${task.title}"`}
+              title={dueInfo.state === 'overdue' && !isDone ? `Overdue · ${dueInfo.label}` : dueInfo.label}
+              className={`max-w-full truncate text-xs px-[7px] py-0.5 rounded-[5px] cursor-pointer transition-colors duration-150 ${dueInfo.badgeClass}`}
+            >
+              {dueInfo.label}
+            </button>
+          }
+        />
+      )}
 
       {/* Priority: dot + label over a native select */}
       <div className="relative flex items-center gap-1.5 min-w-0">

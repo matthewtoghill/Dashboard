@@ -51,6 +51,7 @@ export const PRIORITY_CONFIG: Record<
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   todo: 'To Do',
   in_progress: 'In Progress',
+  on_hold: 'On Hold',
   done: 'Completed',
   archived: 'Archived',
 };
@@ -423,6 +424,16 @@ export function projectProgress(tasks: Task[], projects: Project[]): ProjectProg
 }
 
 const isOpen = (t: Task) => t.status === 'todo' || t.status === 'in_progress';
+
+/** Whole days an on hold task has been held; 0 when not on hold. */
+export function heldDays(task: Task, now = Date.now()): number {
+  if (task.status !== 'on_hold' || task.heldSince === null) return 0;
+  return Math.floor((now - task.heldSince) / 86_400_000);
+}
+
+/** On hold for `chaseDays` or more: time to follow up. */
+export const needsChase = (task: Task, chaseDays: number, now = Date.now()) =>
+  task.status === 'on_hold' && heldDays(task, now) >= chaseDays;
 const byPriorityThenOrder = (a: Task, b: Task) => b.priority - a.priority || a.sortOrder - b.sortOrder;
 
 export interface AgendaGroup {

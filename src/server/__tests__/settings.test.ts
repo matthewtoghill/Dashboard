@@ -39,6 +39,7 @@ describe('settings', () => {
         adoSyncMinutes: 30,
         weekStartDay: 1,
         staleTaskDays: 14,
+        chaseHoldDays: 7,
         inProgressColor: '#fbbf24',
         density: 'comfortable',
       },

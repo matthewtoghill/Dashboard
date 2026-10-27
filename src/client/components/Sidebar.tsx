@@ -17,9 +17,10 @@ import {
   Bookmark,
   ChevronRight,
   StickyNote,
+  Pause,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
-import { PROJECT_COLORS, getTodayIso } from '../utils/taskUtils.ts';
+import { PROJECT_COLORS, getTodayIso, needsChase } from '../utils/taskUtils.ts';
 import { ActiveNavigation, SmartViewId, resolveSavedView, viewTaskCount } from '../utils/taskView.ts';
 import { ViewNameInput } from './SavedViewControls.tsx';
 import { Dot, LABEL_CLASS } from './ui.tsx';
@@ -42,6 +43,7 @@ interface SidebarProps {
   onDeleteSavedView: (id: string) => void;
   /** Claude sessions waiting on the user, badged on Home. */
   claudeAttentionCount: number;
+  chaseHoldDays: number;
 }
 
 const SECTIONS_KEY = 'dashboard_sidebar_sections';
@@ -96,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRenameSavedView,
   onDeleteSavedView,
   claudeAttentionCount,
+  chaseHoldDays,
 }) => {
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -115,6 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const todayCount = activeTasks.filter((t) => t.dueDate !== null && t.dueDate <= today).length;
   const upcomingCount = activeTasks.filter((t) => t.dueDate !== null && t.dueDate > today).length;
   const completedCount = tasks.filter((t) => t.status === 'done').length;
+  const onHoldCount = tasks.filter((t) => t.status === 'on_hold').length;
+  const chaseCount = tasks.filter((t) => needsChase(t, chaseHoldDays)).length;
   const archivedCount = tasks.filter((t) => t.status === 'archived').length;
 
   // Gather unique tags across active tasks
@@ -166,6 +171,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       countClass: todayCount > 0 ? 'text-xs font-semibold text-emerald-600 dark:text-emerald-400' : undefined,
     },
     { id: 'upcoming', label: 'Upcoming', icon: CalendarClock, count: upcomingCount },
+    {
+      id: 'on_hold',
+      label: 'On Hold',
+      icon: Pause,
+      ...(chaseCount > 0
+        ? {
+            count: chaseCount,
+            countClass:
+              'px-1.5 py-px rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300',
+            title: `${chaseCount} of ${onHoldCount} on hold need${chaseCount === 1 ? 's' : ''} chasing`,
+          }
+        : { count: onHoldCount }),
+    },
     { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
     { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
     { id: 'notes', label: 'Notes', icon: StickyNote },

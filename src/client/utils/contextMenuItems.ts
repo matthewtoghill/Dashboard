@@ -58,7 +58,7 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
 
   if (!isArchived) {
     items.push(
-      ...(['todo', 'in_progress', 'done'] as const).map((status, i) => ({
+      ...(['todo', 'in_progress', 'on_hold', 'done'] as const).map((status, i) => ({
         label: STATUS_LABELS[status],
         checked: task.status === status,
         separatorBefore: i === 0,

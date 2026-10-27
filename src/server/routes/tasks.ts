@@ -151,6 +151,8 @@ export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = [], adoLink
     statusBeforeArchive: row.statusBeforeArchive ?? null,
     recurrence: parseRecurrence(row.recurrence),
     recurrenceParentId: row.recurrenceParentId ?? null,
+    holdReason: row.holdReason ?? null,
+    heldSince: row.heldSince ?? null,
     subtasks: taskSubtasks,
     adoLinks,
   };
@@ -265,9 +267,16 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     let completedAt = existing.completedAt;
     if (input.status === 'done') {
       completedAt = existing.completedAt ?? now;
-    } else if (input.status === 'todo' || input.status === 'in_progress') {
+    } else if (input.status === 'todo' || input.status === 'in_progress' || input.status === 'on_hold') {
       completedAt = null;
     }
+
+    // On hold keeps a reason and start time; any other status clears them. Archiving a held
+    // task keeps them so a restore returns it on hold.
+    const status = input.status ?? existing.status;
+    const held = status === 'on_hold' || (status === 'archived' && existing.heldSince !== null);
+    const heldSince = held ? input.heldSince ?? existing.heldSince ?? now : null;
+    const holdReason = held ? (input.holdReason !== undefined ? input.holdReason || null : existing.holdReason) : null;
 
     let statusBeforeArchive = existing.statusBeforeArchive;
     if (input.status === 'archived' && existing.status !== 'archived') {
@@ -278,7 +287,8 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
 
     const completing = input.status === 'done' && existing.status !== 'done';
     const reopening =
-      (input.status === 'todo' || input.status === 'in_progress') && existing.status === 'done';
+      (input.status === 'todo' || input.status === 'in_progress' || input.status === 'on_hold') &&
+      existing.status === 'done';
 
     const outcome = db.transaction(() => {
       db.update(tasks)
@@ -296,6 +306,8 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
             : {}),
           completedAt,
           statusBeforeArchive,
+          holdReason,
+          heldSince,
           updatedAt: now,
         })
         .where(eq(tasks.id, id))
