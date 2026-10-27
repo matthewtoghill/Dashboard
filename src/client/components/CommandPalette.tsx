@@ -19,6 +19,8 @@ import {
   Settings,
   CloudDownload,
   PanelLeft,
+  StickyNote,
+  NotebookPen,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -36,6 +38,7 @@ interface CommandPaletteProps {
   onToggleSidebar: () => void;
   onOpenSettings: () => void;
   onOpenAdoImport: () => void;
+  onNewNote: () => void;
   onArchiveCompleted: () => void;
   onShowShortcuts: () => void;
   /** The task open in the detail drawer, if any. */
@@ -65,6 +68,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onToggleSidebar,
   onOpenSettings,
   onOpenAdoImport,
+  onNewNote,
   onArchiveCompleted,
   onShowShortcuts,
   openTask,
@@ -162,6 +166,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: Archive,
         action: () => {
           onSelectNav({ type: 'smart', id: 'archived' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-notes',
+        label: 'Go to Notes',
+        category: 'Views',
+        icon: StickyNote,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'notes' });
+          onClose();
+        },
+      },
+      {
+        id: 'act-new-note',
+        label: 'New Note',
+        category: 'Actions',
+        icon: NotebookPen,
+        action: () => {
+          onNewNote();
           onClose();
         },
       },
@@ -281,6 +305,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     onToggleSidebar,
     onOpenSettings,
     onOpenAdoImport,
+    onNewNote,
     onArchiveCompleted,
     onShowShortcuts,
     openTask,

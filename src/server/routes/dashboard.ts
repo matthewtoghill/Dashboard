@@ -6,6 +6,7 @@ import { listTasks } from './tasks.ts';
 import { serializeProject } from './projects.ts';
 import { listClaudeSessions } from './claude.ts';
 import { listAdoProjectLinks } from './ado.ts';
+import { listNotes } from './notes.ts';
 import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
 import { listTaskEvents } from '../taskEvents.ts';
 import {
@@ -18,6 +19,7 @@ import {
   adoProjectLinks,
   taskAdoLinks,
   taskEvents,
+  notes,
   DbQuickLink,
 } from '../db/schema.ts';
 import {
@@ -247,7 +249,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 7,
+      version: 8,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -258,6 +260,7 @@ export async function registerDashboardRoutes(
       settings: readSettings(db.$client),
       adoProjectLinks: listAdoProjectLinks(db),
       taskEvents: listTaskEvents(db),
+      notes: listNotes(db),
     };
   });
 
@@ -288,6 +291,7 @@ export async function registerDashboardRoutes(
     let importedQuickLinks = 0;
     let importedSavedViews = 0;
     let importedClaudeSessions = 0;
+    let importedNotes = 0;
 
     try {
       db.transaction((tx) => {
@@ -410,6 +414,15 @@ export async function registerDashboardRoutes(
           tx.insert(taskEvents).values(event).onConflictDoNothing().run();
         }
 
+        for (const note of payload.notes) {
+          const result = tx
+            .insert(notes)
+            .values({ ...note, tags: JSON.stringify(note.tags) })
+            .onConflictDoNothing()
+            .run();
+          importedNotes += result.changes;
+        }
+
         // Only into a database with no saved settings, so an import never changes them.
         // The backup folder is machine-specific and not carried over.
         if (payload.settings && !hasSavedSettings(db.$client)) {
@@ -445,6 +458,7 @@ export async function registerDashboardRoutes(
       importedQuickLinks,
       importedSavedViews,
       importedClaudeSessions,
+      importedNotes,
     };
   });
 }

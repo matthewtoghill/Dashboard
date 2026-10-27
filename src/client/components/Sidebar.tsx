@@ -16,6 +16,7 @@ import {
   Settings2,
   Bookmark,
   ChevronRight,
+  StickyNote,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { PROJECT_COLORS, getTodayIso } from '../utils/taskUtils.ts';
@@ -167,6 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'upcoming', label: 'Upcoming', icon: CalendarClock, count: upcomingCount },
     { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
     { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
+    { id: 'notes', label: 'Notes', icon: StickyNote },
   ];
 
   const isArchiveSelected = activeNav.type === 'smart' && activeNav.id === 'archived';

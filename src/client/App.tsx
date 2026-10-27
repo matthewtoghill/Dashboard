@@ -31,6 +31,9 @@ import {
   saveSavedViews,
   fetchSettings,
   fetchAdoItems,
+  deleteNote,
+  createNote,
+  updateNote,
 } from './api.ts';
 import {
   Task,
@@ -43,6 +46,8 @@ import {
   UpdateClaudeSessionInput,
   CreateQuickLinkInput,
   UpdateProjectInput,
+  Note,
+  UpdateNoteInput,
 } from '../shared/types.ts';
 import { TaskRow, TaskListHeader } from './components/TaskRow.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -55,6 +60,7 @@ import { AdoImportDialog } from './components/AdoImport.tsx';
 import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
 import { PomodoroTimer } from './components/PomodoroTimer.tsx';
+import { NOTE_TAG_LIST_ID, NotePanel, NotesView, copyNote, noteTags, upsertNote } from './components/Notes.tsx';
 import {
   ClaudeIcon,
   ClaudeSessionActions,
@@ -69,7 +75,7 @@ import { QuickAddBar } from './components/QuickAddBar.tsx';
 import { ProjectProgressStrip, TaskListToolbar } from './components/TaskListToolbar.tsx';
 import { ContextMenuHost, MenuContent } from './components/ContextMenu.tsx';
 import { KBD_CLASS, LABEL_CLASS } from './components/ui.tsx';
-import { projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
+import { noteMenuItems, projectMenuItems, taskMenuItems } from './utils/contextMenuItems.ts';
 import {
   ConfirmDialog,
   ConfirmRequest,
@@ -172,6 +178,10 @@ export const App: React.FC = () => {
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // The note open in the side panel on the Notes page; id null while a new note is still empty.
+  // key changes only when another note is opened, so creating a note keeps the editor mounted.
+  const [notePanel, setNotePanel] = useState<{ key: number; id: string | null } | null>(null);
+  const openNote = (id: string | null) => setNotePanel((p) => ({ key: (p?.key ?? 0) + 1, id }));
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -209,7 +219,10 @@ export const App: React.FC = () => {
   const focusQuickAdd = useCallback(() => {
     if (
       activeNav.type === 'smart' &&
-      (activeNav.id === 'overview' || activeNav.id === 'completed' || activeNav.id === 'archived')
+      (activeNav.id === 'overview' ||
+        activeNav.id === 'completed' ||
+        activeNav.id === 'archived' ||
+        activeNav.id === 'notes')
     ) {
       setActiveNav({ type: 'smart', id: 'inbox' });
     }
@@ -608,6 +621,41 @@ export const App: React.FC = () => {
   const visibleOrder = visibleTaskOrder({ ...taskList, sections: shownSections }, showCompleted);
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
+  const isNotesPage = activeNav.type === 'smart' && activeNav.id === 'notes';
+  // The note panel belongs to the Notes page
+  useEffect(() => {
+    if (!isNotesPage) setNotePanel(null);
+  }, [isNotesPage]);
+  const handleNewNote = () => {
+    setActiveNav({ type: 'smart', id: 'notes' });
+    openNote(null);
+  };
+  const handleDeleteNote = (note: Note) => {
+    setNotePanel(null);
+    const undo = schedule([note.id], async () => {
+      await deleteNote(note.id);
+      await invalidate('notes');
+    });
+    showToast(`Deleted "${note.title || 'Untitled note'}"`, undo);
+  };
+  const saveNote = (id: string, patch: UpdateNoteInput) =>
+    updateNote(id, patch).then(
+      (note) => upsertNote(queryClient, note),
+      (err) => showToast(errorMessage(err, 'Saving note failed'))
+    );
+  const handleDuplicateNote = (note: Note) =>
+    createNote({
+      title: note.title ? `${note.title} (copy)`.slice(0, 200) : '',
+      body: note.body,
+      color: note.color,
+      tags: note.tags,
+    }).then(
+      (copy) => {
+        upsertNote(queryClient, copy);
+        openNote(copy.id);
+      },
+      (err) => showToast(errorMessage(err, 'Duplicating note failed'))
+    );
   const currentProject =
     activeNav.type === 'project' ? projects.find((p) => p.id === activeNav.id) : undefined;
   const showAdoImported = (count: number, linked: boolean) =>
@@ -622,7 +670,7 @@ export const App: React.FC = () => {
     tasks,
     visibleOrder,
     enabled: !(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId),
-    listShown: !isOverviewPage && !isCalendar,
+    listShown: !isOverviewPage && !isNotesPage && !isCalendar,
     onShowShortcuts: () => setShortcutsOpen(true),
     onOpen: setSelectedTaskId,
     onToggle: handleToggleTask,
@@ -634,6 +682,27 @@ export const App: React.FC = () => {
 
   // Right-click menus: list rows rename inline; calendar and widget entries open the drawer instead
   const resolveContextMenu = (target: HTMLElement): MenuContent | null => {
+    const noteId = target.closest<HTMLElement>('[data-menu-note]')?.dataset.menuNote;
+    const notes = queryClient.getQueryData<Note[]>(['notes']) ?? [];
+    const note = notes.find((n) => n.id === noteId);
+    if (note) {
+      return {
+        label: note.title || 'Untitled note',
+        items: noteMenuItems(note, {
+          allTags: noteTags(notes),
+          tagListId: NOTE_TAG_LIST_ID,
+          onOpen: openNote,
+          onUpdate: saveNote,
+          onCopy: (n, rich) =>
+            copyNote(n, rich).then(
+              () => showToast(rich ? 'Copied as rich text' : 'Copied markdown'),
+              () => showToast('Copying failed')
+            ),
+          onDuplicate: handleDuplicateNote,
+          onDelete: handleDeleteNote,
+        }),
+      };
+    }
     const projectId = target.closest<HTMLElement>('[data-menu-project]')?.dataset.menuProject;
     const project = projects.find((p) => p.id === projectId);
     if (project) {
@@ -761,14 +830,14 @@ export const App: React.FC = () => {
             onChange={(e) =>
               updateView({
                 search: e.target.value,
-                // Typing a search on Home jumps to the task list
+                // Typing a search on Home jumps to the task list; on Notes it filters notes
                 ...(isOverviewPage && e.target.value.trim()
                   ? { nav: { type: 'smart', id: 'inbox' } as const }
                   : {}),
               })
             }
-            placeholder="Search tasks or run a command…"
-            aria-label="Search tasks"
+            placeholder={isNotesPage ? 'Search notes…' : 'Search tasks or run a command…'}
+            aria-label={isNotesPage ? 'Search notes' : 'Search tasks'}
             className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
           {searchQuery ? (
@@ -886,7 +955,16 @@ export const App: React.FC = () => {
               isOverviewPage ? 'py-7 gap-[22px] min-h-full' : 'py-6 gap-3.5'
             }`}
           >
-          {isOverviewPage ? (
+          {isNotesPage ? (
+            <NotesView
+              search={searchQuery}
+              hiddenIds={pendingIds}
+              selectedId={notePanel?.id ?? null}
+              onOpen={openNote}
+              onNew={() => openNote(null)}
+              showToast={showToast}
+            />
+          ) : isOverviewPage ? (
             <HomeView
               tasks={tasks}
               claudeSessions={claudeSessions}
@@ -1091,15 +1169,25 @@ export const App: React.FC = () => {
           </div>
         </main>
 
-        {sidePanel === 'widgets' && <WidgetsPanel {...widgetProps} onClose={() => toggleSidePanel('widgets')} />}
-        {sidePanel === 'claude' && (
+        {notePanel ? (
+          <NotePanel
+            key={notePanel.key}
+            noteId={notePanel.id}
+            onCreated={(id) => setNotePanel((p) => p && { ...p, id })}
+            onDelete={handleDeleteNote}
+            onClose={() => setNotePanel(null)}
+            showToast={showToast}
+          />
+        ) : sidePanel === 'widgets' ? (
+          <WidgetsPanel {...widgetProps} onClose={() => toggleSidePanel('widgets')} />
+        ) : sidePanel === 'claude' ? (
           <ClaudeSessionsSidePanel
             sessions={claudeSessions}
             tasks={tasks}
             onClose={() => toggleSidePanel('claude')}
             {...claudeSessionActions}
           />
-        )}
+        ) : null}
       </div>
 
       <datalist id="tag-suggestions">
@@ -1147,6 +1235,7 @@ export const App: React.FC = () => {
         onToggleSidebar={toggleSidebar}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAdoImport={() => setAdoImportOpen(true)}
+        onNewNote={handleNewNote}
         onArchiveCompleted={() =>
           requestArchiveCompleted(
             tasks.filter((t) => t.status === 'done'),

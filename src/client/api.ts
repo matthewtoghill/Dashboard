@@ -22,6 +22,9 @@ import {
   AdoProjectLink,
   AdoSyncResult,
   TaskEvent,
+  Note,
+  CreateNoteInput,
+  UpdateNoteInput,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -315,6 +318,7 @@ export interface ImportResult {
   importedQuickLinks: number;
   importedSavedViews: number;
   importedClaudeSessions: number;
+  importedNotes: number;
 }
 
 export async function importDashboardData(payload: BackupPayload): Promise<ImportResult> {
@@ -447,4 +451,35 @@ export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
   }
   const data = (await res.json()) as { events: TaskEvent[] };
   return data.events;
+}
+
+export async function fetchNotes(): Promise<Note[]> {
+  const res = await fetch('/api/notes');
+  if (!res.ok) throw new Error(`Failed to load notes: ${res.statusText}`);
+  return ((await res.json()) as { notes: Note[] }).notes;
+}
+
+export async function createNote(input: CreateNoteInput): Promise<Note> {
+  const res = await fetch('/api/notes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Failed to create note: ${res.statusText}`);
+  return ((await res.json()) as { note: Note }).note;
+}
+
+export async function updateNote(id: string, input: UpdateNoteInput): Promise<Note> {
+  const res = await fetch(`/api/notes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Failed to save note: ${res.statusText}`);
+  return ((await res.json()) as { note: Note }).note;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const res = await fetch(`/api/notes/${id}`, { method: 'DELETE', keepalive: true });
+  if (!res.ok) throw new Error(`Failed to delete note: ${res.statusText}`);
 }

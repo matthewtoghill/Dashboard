@@ -239,6 +239,7 @@ const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
   upcoming: 'Upcoming',
   completed: 'Completed',
   archived: 'Archive',
+  notes: 'Notes',
 };
 
 export function viewTitle(nav: ActiveNavigation, projects: Project[]): string {
