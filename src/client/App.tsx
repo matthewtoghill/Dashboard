@@ -989,6 +989,8 @@ export const App: React.FC = () => {
                 activeCount={activeFilteredTasks.length}
                 onRestoreAll={() => handleRestoreTasks(activeFilteredTasks)}
                 onDeleteAll={() => requestDeleteArchived(activeFilteredTasks)}
+                completedCount={completedFilteredTasks.length}
+                onArchiveCompleted={() => requestArchiveCompleted(completedFilteredTasks, 'shown in this view')}
                 onOpenProjectSettings={currentProject && (() => setProjectSettingsId(currentProject.id))}
                 savedViewControls={
                   <SavedViewControls
@@ -1077,10 +1079,23 @@ export const App: React.FC = () => {
                     shownSections.map((group) => (
                       <section key={group.key} aria-label={groupBy === 'none' ? undefined : group.label}>
                         {groupBy !== 'none' && (
-                          <h3 className={`px-2 pt-3 pb-1.5 ${LABEL_CLASS} ${GROUP_LABEL_COLORS[group.key] ?? 'text-zinc-600 dark:text-zinc-400'}`}>
-                            {group.label}{' '}
-                            <span className="ml-1 font-normal text-zinc-400 dark:text-zinc-600">{group.tasks.length}</span>
-                          </h3>
+                          <div className="flex items-center">
+                            <h3 className={`px-2 pt-3 pb-1.5 ${LABEL_CLASS} ${GROUP_LABEL_COLORS[group.key] ?? 'text-zinc-600 dark:text-zinc-400'}`}>
+                              {group.label}{' '}
+                              <span className="ml-1 font-normal text-zinc-400 dark:text-zinc-600">{group.tasks.length}</span>
+                            </h3>
+                            {/* Completed view has this in the toolbar */}
+                            {group.key === 'status-done' && !isCompletedView && (
+                              <button
+                                type="button"
+                                onClick={() => requestArchiveCompleted(group.tasks, viewScope)}
+                                className="ml-auto mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                              >
+                                <Archive className="w-3 h-3" />
+                                <span>Archive completed</span>
+                              </button>
+                            )}
+                          </div>
                         )}
                         <ReorderableTaskList
                           tasks={group.tasks}
@@ -1111,7 +1126,7 @@ export const App: React.FC = () => {
                   )}
 
                   {/* Footer: Later and Completed toggles, and Archive completed */}
-                  {(laterSection || completedSection || (isCompletedView && completedFilteredTasks.length > 0)) && (
+                  {(laterSection || completedSection) && (
                     <div className="flex items-center gap-2 p-2 border-t border-zinc-200/70 dark:border-zinc-800/50 text-xs text-zinc-500">
                       {laterSection && (
                         <FooterToggle
@@ -1129,12 +1144,10 @@ export const App: React.FC = () => {
                           onToggle={() => setShowCompleted((s) => !s)}
                         />
                       )}
-                      {completedFilteredTasks.length > 0 && (
+                      {completedSection && (
                         <button
                           type="button"
-                          onClick={() =>
-                            requestArchiveCompleted(completedFilteredTasks, isCompletedView ? 'shown in this view' : viewScope)
-                          }
+                          onClick={() => requestArchiveCompleted(completedFilteredTasks, viewScope)}
                           className="ml-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
                         >
                           <Archive className="w-3 h-3" />

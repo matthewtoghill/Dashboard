@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Archive,
   ArchiveRestore,
   ArrowRight,
   ArrowUpDown,
@@ -55,6 +56,9 @@ export const TaskListToolbar: React.FC<{
   activeCount: number;
   onRestoreAll: () => void;
   onDeleteAll: () => void;
+  /** Completed view: tasks the archive button would archive. */
+  completedCount: number;
+  onArchiveCompleted: () => void;
   savedViewControls: React.ReactNode;
   /** Set in project views. */
   onOpenProjectSettings?: () => void;
@@ -68,11 +72,14 @@ export const TaskListToolbar: React.FC<{
   activeCount,
   onRestoreAll,
   onDeleteAll,
+  completedCount,
+  onArchiveCompleted,
   savedViewControls,
   onOpenProjectSettings,
 }) => {
   const { nav: activeNav, priority: priorityFilter, groupBy, sortBy } = view;
   const isArchiveView = activeNav.type === 'smart' && activeNav.id === 'archived';
+  const isCompletedView = activeNav.type === 'smart' && activeNav.id === 'completed';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -109,6 +116,13 @@ export const TaskListToolbar: React.FC<{
               <span>Delete {activeCount} permanently</span>
             </button>
           </>
+        )}
+
+        {isCompletedView && completedCount > 0 && (
+          <button type="button" onClick={onArchiveCompleted} className={toolbarButtonClass}>
+            <Archive className="w-[13px] h-[13px]" />
+            <span>Archive {completedCount}</span>
+          </button>
         )}
 
         {/* List or calendar layout */}
