@@ -97,7 +97,7 @@ export const DockedPanel: React.FC<{
         }}
         className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize touch-none focus:outline-none group/resize"
       >
-        <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-indigo-500/60 group-focus-visible/resize:bg-indigo-500 group-active/resize:bg-indigo-500 transition-colors" />
+        <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-primary-500/60 group-focus-visible/resize:bg-primary-500 group-active/resize:bg-primary-500 transition-colors" />
       </div>
 
       <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">

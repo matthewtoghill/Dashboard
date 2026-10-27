@@ -102,7 +102,7 @@ export const PomodoroTimer: React.FC = () => {
   };
 
   const accent =
-    state.mode === 'focus' ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400';
+    state.mode === 'focus' ? 'text-primary-600 dark:text-primary-400' : 'text-emerald-600 dark:text-emerald-400';
   const iconButton =
     'p-2 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer';
 
@@ -154,7 +154,7 @@ export const PomodoroTimer: React.FC = () => {
             <button
               type="button"
               onClick={toggleRunning}
-              className="h-8 px-4 flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-medium cursor-pointer"
+              className="h-8 px-4 flex items-center gap-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-[13px] font-medium cursor-pointer"
             >
               {running ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               {running ? 'Pause' : 'Start'}
@@ -185,7 +185,7 @@ export const PomodoroTimer: React.FC = () => {
                       const value = Math.round(Number(e.target.value));
                       if (value >= 1) setState((s) => setDurations(s, { ...s.durations, [key]: value }));
                     }}
-                    className="w-full h-7 px-1.5 rounded-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-[13px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500/60"
+                    className="w-full h-7 px-1.5 rounded-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-[13px] text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-primary-500/60"
                   />
                 </label>
               ))}

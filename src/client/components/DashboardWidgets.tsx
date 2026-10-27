@@ -177,7 +177,7 @@ export const WidgetsPanel: React.FC<HomeDrawerProps & { onClose: () => void }> =
   };
 
   return (
-    <DockedPanel title="Widgets" icon={<LayoutGrid className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />} widthKey="dashboard_widgets_width" onClose={onClose}>
+    <DockedPanel title="Widgets" icon={<LayoutGrid className="w-4 h-4 text-primary-500 dark:text-primary-400" />} widthKey="dashboard_widgets_width" onClose={onClose}>
       <div className="flex-1 min-h-0 overflow-y-auto p-3">
         {widgets.length === 0 ? (
           <EmptyNote>All widgets are turned off in Settings.</EmptyNote>
@@ -239,8 +239,8 @@ const TrendsPanel: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
               d.count === 0
                 ? 'bg-zinc-200 dark:bg-zinc-800'
                 : d.date === today
-                ? 'bg-indigo-700 dark:bg-indigo-300'
-                : 'bg-indigo-500'
+                ? 'bg-primary-700 dark:bg-primary-300'
+                : 'bg-primary-500'
             }`}
             style={{ height: d.count === 0 ? 2 : Math.max(4, (d.count / max) * TREND_HEIGHT) }}
           />
@@ -393,14 +393,14 @@ const ScratchpadPanel: React.FC<{
         onBlur={flush}
         placeholder="Brain-dumps, meeting notes, rough ideas. 'Convert top line to Task' turns the first line into a task."
         aria-label="Scratchpad"
-        className="w-full p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[13px] font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-indigo-500/60 resize-y"
+        className="w-full p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[13px] font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-primary-500/60 resize-y"
       />
       <div className="flex items-center gap-3 text-xs">
         <button
           type="button"
           onClick={promoteTopLine}
           disabled={!localScratchpad.trim()}
-          className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-default"
+          className="inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400 hover:underline cursor-pointer disabled:opacity-40 disabled:no-underline disabled:cursor-default"
         >
           <Sparkles className="w-3 h-3" />
           Convert top line to Task
@@ -412,7 +412,7 @@ const ScratchpadPanel: React.FC<{
 };
 
 const linkInputClass =
-  'text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 focus:outline-none focus:border-indigo-500/60';
+  'text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 focus:outline-none focus:border-primary-500/60';
 
 /** Quick links in a 4-column grid, with add, edit and delete. */
 const QuickLinksPanel: React.FC<{
@@ -489,7 +489,7 @@ const QuickLinksPanel: React.FC<{
           </button>
           <button
             type="submit"
-            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium cursor-pointer"
           >
             {editingLinkId ? 'Update link' : 'Save link'}
           </button>
@@ -501,10 +501,10 @@ const QuickLinksPanel: React.FC<{
           {quickLinks.map((link) => (
             <li
               key={link.id}
-              className="group flex items-center gap-1 px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 dark:hover:border-indigo-500/60 transition-colors duration-150"
+              className="group flex items-center gap-1 px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-primary-400 dark:hover:border-primary-500/60 transition-colors duration-150"
             >
               <a href={link.url} target="_blank" rel="noreferrer" className="flex-1 min-w-0" title={link.url}>
-                <span className="flex items-center gap-1 text-xs font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                <span className="flex items-center gap-1 text-xs font-medium text-zinc-800 dark:text-zinc-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">
                   <span className="truncate">{link.title}</span>
                   <ArrowUpRight className="w-3 h-3 shrink-0 text-zinc-400" />
                 </span>
@@ -515,7 +515,7 @@ const QuickLinksPanel: React.FC<{
                   type="button"
                   onClick={() => startEdit(link)}
                   aria-label={`Edit quick link ${link.title}`}
-                  className="p-1 rounded-md text-zinc-400 hover:text-indigo-600 cursor-pointer"
+                  className="p-1 rounded-md text-zinc-400 hover:text-primary-600 cursor-pointer"
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
@@ -575,7 +575,7 @@ export const BackupStatusLine: React.FC<{ compact?: boolean }> = ({ compact }) =
         type="button"
         onClick={() => backupNow.mutate()}
         disabled={backupNow.isPending}
-        className={`${compact ? 'hover:text-zinc-800 dark:hover:text-zinc-200' : 'text-indigo-600 dark:text-indigo-400'} hover:underline cursor-pointer disabled:opacity-50`}
+        className={`${compact ? 'hover:text-zinc-800 dark:hover:text-zinc-200' : 'text-primary-600 dark:text-primary-400'} hover:underline cursor-pointer disabled:opacity-50`}
       >
         {backupNow.isPending ? 'Backing up…' : 'Back up now'}
       </button>

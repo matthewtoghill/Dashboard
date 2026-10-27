@@ -407,7 +407,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-indigo-600 text-white'
+                      ? 'bg-primary-600 text-white'
                       : 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
@@ -417,7 +417,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   </span>
                   <span
                     className={`text-[11px] ${
-                      isActive ? 'text-indigo-100' : 'text-zinc-400'
+                      isActive ? 'text-primary-100' : 'text-zinc-400'
                     }`}
                   >
                     {item.category}

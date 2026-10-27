@@ -37,9 +37,9 @@ export const ViewNameInput: React.FC<{
         maxLength={60}
         autoFocus
         onFocus={(e) => e.currentTarget.select()}
-        className="w-36 text-xs px-2 py-1 rounded-lg border border-indigo-400 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+        className="w-36 text-xs px-2 py-1 rounded-lg border border-primary-400 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none"
       />
-      <button type="submit" aria-label="Save" className="p-1 text-indigo-600 dark:text-indigo-400 cursor-pointer">
+      <button type="submit" aria-label="Save" className="p-1 text-primary-600 dark:text-primary-400 cursor-pointer">
         <Check className="w-3.5 h-3.5" />
       </button>
       <button type="button" onClick={onCancel} aria-label="Cancel" className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer">

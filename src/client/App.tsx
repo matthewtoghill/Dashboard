@@ -112,7 +112,7 @@ type SidePanel = 'widgets' | 'claude' | null;
 const GROUP_LABEL_COLORS: Record<string, string> = {
   'due-overdue': 'text-red-600 dark:text-red-400',
   'due-today': 'text-emerald-600 dark:text-emerald-300',
-  'due-tomorrow': 'text-indigo-600 dark:text-indigo-300',
+  'due-tomorrow': 'text-primary-600 dark:text-primary-300',
   'due-none': 'text-zinc-500',
   'status-in_progress': 'text-(--in-progress)',
   'status-on_hold': 'text-slate-500 dark:text-slate-400',
@@ -271,6 +271,16 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
   }, [inProgressColor]);
+  const primaryColor = settingsData?.settings.primaryColor;
+  useEffect(() => {
+    if (!primaryColor) return;
+    document.documentElement.dataset.primary = primaryColor;
+    // Recolour the favicon (public/favicon.svg) to match; every icon link gets it so the PNG fallbacks don't win
+    const fill = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-600').trim();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${fill}"/><g transform="translate(6.5 6.5) scale(0.7917)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344"/><path d="m9 11 3 3L22 4"/></g></svg>`;
+    const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((link) => (link.href = href));
+  }, [primaryColor]);
   const density = settingsData?.settings.density;
   useEffect(() => {
     if (density) document.documentElement.dataset.density = density;
@@ -815,7 +825,7 @@ export const App: React.FC = () => {
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             aria-expanded={sidebarOpen}
             title={`${sidebarOpen ? 'Collapse' : 'Expand'} sidebar ([)`}
-            className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-colors duration-150 cursor-pointer"
+            className="w-7 h-7 rounded-lg bg-primary-600 hover:bg-primary-500 text-white flex items-center justify-center transition-colors duration-150 cursor-pointer"
           >
             <SquareCheckBig className="w-[15px] h-[15px]" />
           </button>
@@ -823,7 +833,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Search; Ctrl+K opens the command palette */}
-        <div className="flex-1 max-w-[560px] h-8 px-2.5 flex items-center gap-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus-within:border-indigo-500/60 text-[13px] text-zinc-500 transition-colors duration-150">
+        <div className="flex-1 max-w-[560px] h-8 px-2.5 flex items-center gap-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus-within:border-primary-500/60 text-[13px] text-zinc-500 transition-colors duration-150">
           <Search className="w-3.5 h-3.5 shrink-0" />
           <input
             ref={searchInputRef}
@@ -885,7 +895,7 @@ export const App: React.FC = () => {
               aria-pressed={sidePanel === panel}
               title={`${sidePanel === panel ? 'Hide' : 'Show'} ${label}`}
               className={`relative p-2 rounded-lg hover:bg-zinc-200/60 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer ${
-                sidePanel === panel ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'
+                sidePanel === panel ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 dark:text-zinc-400'
               }`}
             >
               {icon}

@@ -41,6 +41,7 @@ describe('settings', () => {
         staleTaskDays: 14,
         chaseHoldDays: 7,
         inProgressColor: '#fbbf24',
+        primaryColor: 'indigo',
         density: 'comfortable',
       },
       envOverrides: { backupKeep: null, backupDir: null },
@@ -54,6 +55,7 @@ describe('settings', () => {
     expect((await put({ backupDir: 'relative/path' })).statusCode).toBe(400);
     expect((await put({ inProgressColor: 'red' })).statusCode).toBe(400);
     expect((await put({ density: 'huge' })).statusCode).toBe(400);
+    expect((await put({ primaryColor: 'beige' })).statusCode).toBe(400);
     expect((await put({ unknown: true })).statusCode).toBe(400);
   });
 

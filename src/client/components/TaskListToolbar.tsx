@@ -32,7 +32,7 @@ const GhostSelect: React.FC<{
       aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="appearance-none bg-transparent pr-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 rounded cursor-pointer"
+      className="appearance-none bg-transparent pr-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 rounded cursor-pointer"
     >
       {children}
     </select>

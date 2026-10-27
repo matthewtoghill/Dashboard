@@ -87,9 +87,9 @@ export const TypeLabel: React.FC<{ item: TypedItem; className?: string }> = ({ i
 };
 
 export const inputClass =
-  'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
+  'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-primary-400';
 export const buttonClass =
-  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer disabled:opacity-50 disabled:cursor-default';
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-primary-400 cursor-pointer disabled:opacity-50 disabled:cursor-default';
 
 /** The last Azure DevOps check. Shared by the Overview card, project panels and import dialog. */
 export function useAdoSync() {
@@ -221,7 +221,7 @@ export const LinkedAdoItems: React.FC<{ links: TaskAdoLink[] }> = ({ links }) =>
             rel="noreferrer"
             aria-label={`Open ${externalLinkLabel(link.externalId)}`}
             title={externalLinkLabel(link.externalId)}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
@@ -299,7 +299,7 @@ export const WorkItemFieldPicker: React.FC<{
 
   return (
     <div className="flex-1 min-w-0 space-y-1">
-      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus-within:border-indigo-400">
+      <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus-within:border-primary-400">
         {value.map((type) => {
           const unknown = options !== undefined && !known(type);
           return (
@@ -309,7 +309,7 @@ export const WorkItemFieldPicker: React.FC<{
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
                 unknown
                   ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                  : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200/70 dark:border-indigo-800/70'
+                  : 'bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border-primary-200/70 dark:border-primary-800/70'
               }`}
             >
               {type}
@@ -463,7 +463,7 @@ export const AdoSettings: React.FC<{
           type="checkbox"
           checked={settings.adoLinkedProjectsOnly}
           onChange={(e) => onSave({ adoLinkedProjectsOnly: e.target.checked })}
-          className="rounded text-indigo-600"
+          className="rounded text-primary-600"
         />
         Only fetch projects mapped to a Dashboard project
       </label>
@@ -473,7 +473,7 @@ export const AdoSettings: React.FC<{
           type="button"
           onClick={() => sync.refresh.mutate()}
           disabled={sync.refresh.isPending}
-          className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
         >
           <RefreshCw className={`w-3 h-3 ${sync.refresh.isPending ? 'animate-spin' : ''}`} />
           Check now
@@ -491,7 +491,7 @@ export const AdoSettings: React.FC<{
           type="button"
           onClick={() => refreshTypes.mutate()}
           disabled={refreshTypes.isPending}
-          className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          className="inline-flex items-center gap-1 text-primary-600 dark:text-primary-400 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
         >
           <RefreshCw className={`w-3 h-3 ${refreshTypes.isPending ? 'animate-spin' : ''}`} />
           Refresh types
@@ -738,7 +738,7 @@ export const AdoImportDialog: React.FC<{
         <div className="flex flex-col max-h-[85vh] text-sm">
           <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
             <h2 id="ado-dialog-title" className="flex items-center gap-2 text-base font-semibold">
-              <CloudDownload className="w-4 h-4 text-indigo-500" />
+              <CloudDownload className="w-4 h-4 text-primary-500" />
               Fetch from Azure DevOps
             </h2>
             <div className="flex items-center gap-1">
@@ -828,7 +828,7 @@ export const AdoImportDialog: React.FC<{
                         rel="noreferrer"
                         aria-label={`Open ${externalLinkLabel(item.externalId)}`}
                         title={externalLinkLabel(item.externalId)}
-                        className="p-1 text-zinc-400 hover:text-indigo-600"
+                        className="p-1 text-zinc-400 hover:text-primary-600"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
@@ -860,7 +860,7 @@ export const AdoImportDialog: React.FC<{
                           onChange={(e) => setDestination(adoProject, e.target.value || null)}
                           disabled={saveLinks.isPending}
                           aria-label={`Dashboard project for ${adoProject}`}
-                          className="px-1.5 py-0.5 rounded-md text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:border-indigo-400 cursor-pointer"
+                          className="px-1.5 py-0.5 rounded-md text-xs bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 focus:outline-none focus:border-primary-400 cursor-pointer"
                         >
                           <option value="">Inbox</option>
                           {projects.map((p) => (
@@ -895,7 +895,7 @@ export const AdoImportDialog: React.FC<{
                           rel="noreferrer"
                           aria-label={`Open ${externalLinkLabel(item.externalId)}`}
                           title={externalLinkLabel(item.externalId)}
-                          className="p-1 text-zinc-400 hover:text-indigo-600"
+                          className="p-1 text-zinc-400 hover:text-primary-600"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
@@ -933,7 +933,7 @@ export const AdoImportDialog: React.FC<{
                 disabled={selected.size === 0 || importMutation.isPending}
                 onClick={() => importMutation.mutate({ items: newItems.filter((i) => selected.has(i.externalId)) })}
                 title="Create a task for each selected item"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-primary-600 hover:bg-primary-500 cursor-pointer disabled:opacity-50 disabled:cursor-default"
               >
                 Import {selected.size || ''} as new
               </button>

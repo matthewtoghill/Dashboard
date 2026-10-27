@@ -278,6 +278,9 @@ export type UpdateClaudeSessionInput = z.input<typeof UpdateClaudeSessionInputSc
 
 // Roadmap 4: settings, stored as JSON under the `settings` key of key_value_store.
 // Theme stays per-browser in localStorage; widget visibility stays under `widget_config`.
+/** Tailwind palettes offered as the primary colour; each needs a data-primary block in index.css. */
+export const PRIMARY_COLORS = ['indigo', 'blue', 'sky', 'teal', 'emerald', 'violet', 'purple', 'pink', 'rose', 'orange'] as const;
+
 export const SettingsSchema = z.object({
   /** Quick-add project outside project views; ignored if the project no longer exists. */
   defaultProjectId: z.string().min(1).nullable().default(null),
@@ -315,6 +318,8 @@ export const SettingsSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, 'Expected a #rrggbb colour')
     .default('#fbbf24'),
+  /** Primary accent palette used for highlights, borders and buttons. */
+  primaryColor: z.enum(PRIMARY_COLORS).default('indigo'),
   /** UI density: scales Tailwind's spacing unit, leaving text size alone. */
   density: z.enum(['compact', 'comfortable', 'spacious']).default('comfortable'),
 });

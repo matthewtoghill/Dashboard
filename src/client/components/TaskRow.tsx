@@ -98,12 +98,12 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
       }
       className={`shrink-0 w-[18px] h-[18px] rounded-md border flex items-center justify-center transition-colors duration-150 cursor-pointer disabled:cursor-default disabled:opacity-60 ${
         isDone
-          ? 'bg-indigo-600 border-indigo-600 text-white'
+          ? 'bg-primary-600 border-primary-600 text-white'
           : isInProgress
           ? 'border-(--in-progress) bg-(--in-progress)/15 hover:bg-(--in-progress)/25'
           : isOnHold
-          ? 'border-slate-400 text-slate-500 dark:text-slate-400 hover:border-indigo-500'
-          : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500 dark:hover:border-indigo-400'
+          ? 'border-slate-400 text-slate-500 dark:text-slate-400 hover:border-primary-500'
+          : 'border-zinc-300 dark:border-zinc-600 hover:border-primary-500 dark:hover:border-primary-400'
       }`}
     >
       {isDone && <Check className="w-[12px] h-[12px] stroke-[3]" />}
@@ -113,7 +113,7 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
   );
 };
 
-/** Bot badge: amber when the most urgent linked session needs attention, else indigo. */
+/** Bot badge: amber when the most urgent linked session needs attention, else primary. */
 export const ClaudeSessionBadge: React.FC<{
   sessions: ClaudeSession[];
   onOpenSession?: (sessionId: string) => void;
@@ -134,7 +134,7 @@ export const ClaudeSessionBadge: React.FC<{
           ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
           : primarySession.state === 'ended'
           ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
-          : 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/25'
+          : 'bg-primary-500/15 text-primary-700 dark:text-primary-300 hover:bg-primary-500/25'
       }`}
     >
       <Bot className="w-[11px] h-[11px]" />
@@ -157,7 +157,7 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
       onClick={(e) => e.stopPropagation()}
       aria-label={`Open ${externalLinkLabel(first.externalId)}`}
       title={[first, ...more].map((l) => externalLinkLabel(l.externalId)).join('\n')}
-      className={`${NEUTRAL_BADGE_CLASS} hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-150`}
+      className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}
     >
       <Icon className="w-[11px] h-[11px]" />
       <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
@@ -195,7 +195,7 @@ interface TaskRowProps {
 const actionButtonClass =
   'p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 cursor-pointer';
 const cellSelectClass =
-  'max-w-full truncate bg-transparent appearance-none text-xs cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60';
+  'max-w-full truncate bg-transparent appearance-none text-xs cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60';
 
 export const TaskRow: React.FC<TaskRowProps> = ({
   task,
@@ -305,9 +305,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       role="group"
       aria-label={`${task.title}${isInProgress ? ', in progress' : ''}${isDone ? ', completed' : ''}${isArchived ? ', archived' : ''}`}
       onFocus={() => onFocusRow(task.id)}
-      className={`group ${taskGridClass(showProject)} items-center gap-3 p-2 border-t border-zinc-200/70 dark:border-zinc-800/50 outline-none focus-visible:bg-indigo-500/10 transition-colors duration-150 ${
+      className={`group ${taskGridClass(showProject)} items-center gap-3 p-2 border-t border-zinc-200/70 dark:border-zinc-800/50 outline-none focus-visible:bg-primary-500/10 transition-colors duration-150 ${
         isSelected
-          ? 'bg-indigo-500/10'
+          ? 'bg-primary-500/10'
           : isInProgress
           ? 'bg-(--in-progress)/[.04] hover:bg-(--in-progress)/[.08]'
           : 'hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60'
@@ -327,7 +327,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onBlur={handleSaveTitle}
             onKeyDown={handleTitleKeyDown}
             aria-label="Edit task title"
-            className="flex-1 min-w-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm px-2 py-0.5 rounded border border-indigo-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-sm px-2 py-0.5 rounded border border-primary-500 focus:outline-none"
           />
         ) : (
           <>
@@ -341,7 +341,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               className={`min-w-0 text-left text-sm truncate cursor-pointer transition-colors duration-150 ${
                 isDone
                   ? 'line-through text-zinc-400 dark:text-zinc-500'
-                  : 'text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  : 'text-zinc-900 dark:text-zinc-100 hover:text-primary-600 dark:hover:text-primary-400'
               }`}
               title={`${task.title}\n\nClick to open details, double-click to edit title`}
             >
@@ -475,7 +475,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               placeholder="tag..."
               list="tag-suggestions"
               aria-label="New tag name"
-              className="w-full text-xs px-1.5 py-0.5 rounded border border-indigo-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+              className="w-full text-xs px-1.5 py-0.5 rounded border border-primary-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none"
             />
           </form>
         ) : (

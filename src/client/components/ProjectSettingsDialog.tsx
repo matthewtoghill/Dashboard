@@ -74,7 +74,7 @@ export const ProjectSettingsDialog: React.FC<{
                       aria-pressed={project.color === color}
                       onClick={() => onUpdate(project.id, { color })}
                       className={`w-5 h-5 rounded-full cursor-pointer ${
-                        project.color === color ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-zinc-900' : ''
+                        project.color === color ? 'ring-2 ring-offset-2 ring-primary-500 dark:ring-offset-zinc-900' : ''
                       }`}
                       style={{ backgroundColor: color }}
                     />
@@ -90,7 +90,7 @@ export const ProjectSettingsDialog: React.FC<{
                   type="checkbox"
                   checked={project.adoEnabled}
                   onChange={(e) => onUpdate(project.id, { adoEnabled: e.target.checked })}
-                  className="mt-0.5 rounded text-indigo-600"
+                  className="mt-0.5 rounded text-primary-600"
                 />
                 <span>
                   Use Azure DevOps in this project

@@ -282,14 +282,14 @@ export const AdoProjectPanel: React.FC<{
           tasks={[...tasks].sort((a, b) => Number(b.projectId === project.id) - Number(a.projectId === project.id))}
           disabled={importItems.isPending}
           onLink={(taskId) => importItems.mutate({ items: toImport, taskId })}
-          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:border-zinc-200 dark:disabled:hover:border-zinc-700"
+          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:border-primary-400 text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:border-zinc-200 dark:disabled:hover:border-zinc-700"
         />
         <button
           type="button"
           disabled={toImport.length === 0 || importItems.isPending}
           onClick={() => importItems.mutate({ items: toImport })}
           title="Create a task for each selected item"
-          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-indigo-600"
+          className="inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-primary-600"
         >
           <Download className="w-3 h-3" />
           Import {toImport.length} as new
@@ -343,7 +343,7 @@ export const AdoProjectPanel: React.FC<{
                       aria-label={`Select ${item.title}`}
                       onClick={() => toggle(item.externalId)}
                       className={`w-[15px] h-[15px] rounded border flex items-center justify-center cursor-pointer transition-colors duration-150 ${
-                        checked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'
+                        checked ? 'bg-primary-600 border-primary-600 text-white' : 'border-zinc-300 dark:border-zinc-600 hover:border-primary-500'
                       }`}
                     >
                       {checked && <Check className="w-[10px] h-[10px] stroke-[3]" />}
@@ -354,7 +354,7 @@ export const AdoProjectPanel: React.FC<{
                       target="_blank"
                       rel="noreferrer"
                       title={externalLinkLabel(item.externalId)}
-                      className="font-mono text-xs text-zinc-500 hover:text-indigo-600 dark:hover:text-indigo-400 truncate"
+                      className="font-mono text-xs text-zinc-500 hover:text-primary-600 dark:hover:text-primary-400 truncate"
                     >
                       {kind === 'pr' ? `PR ${id}` : id}
                     </a>

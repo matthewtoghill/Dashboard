@@ -7,7 +7,7 @@ import { calendarDays, calendarTitle, shiftAnchor } from '../utils/calendar.ts';
 import { formatDayDate, getTodayIso, getTomorrowIso } from '../utils/taskUtils.ts';
 
 const quickButtonClass =
-  'text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-zinc-700 dark:text-zinc-200 cursor-pointer';
+  'text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-primary-50 dark:hover:bg-primary-950/50 text-zinc-700 dark:text-zinc-200 cursor-pointer';
 const navButtonClass =
   'p-1 rounded text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer';
 
@@ -77,9 +77,9 @@ export const DatePanel: React.FC<{
               aria-pressed={selected}
               className={`h-7 text-xs rounded-md cursor-pointer transition-colors ${
                 selected
-                  ? 'bg-indigo-600 text-white font-semibold'
+                  ? 'bg-primary-600 text-white font-semibold'
                   : day === today
-                    ? 'text-indigo-600 dark:text-indigo-400 font-semibold ring-1 ring-inset ring-indigo-300 dark:ring-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50'
+                    ? 'text-primary-600 dark:text-primary-400 font-semibold ring-1 ring-inset ring-primary-300 dark:ring-primary-700 hover:bg-primary-50 dark:hover:bg-primary-950/50'
                     : parseIsoDate(day).getMonth() === month
                       ? 'text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                       : 'text-zinc-300 dark:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'

@@ -33,7 +33,7 @@ type ColorStyle = 'border' | 'tint';
 const COLOR_STYLE_KEY = 'dashboard_notes_color_style';
 export const NOTE_TAG_LIST_ID = 'note-tag-suggestions';
 const TAG_CLASS =
-  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300';
+  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300';
 
 export const useNotes = () => useQuery({ queryKey: ['notes'], queryFn: fetchNotes });
 
@@ -167,7 +167,7 @@ const PinButton: React.FC<{ pinned: boolean; onToggle: () => void; className?: s
     aria-label={pinned ? 'Unpin note' : 'Pin note'}
     title={pinned ? 'Unpin' : 'Pin to top'}
     className={`p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer ${
-      pinned ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+      pinned ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
     } ${className}`}
   >
     <Pin className={`w-3.5 h-3.5 ${pinned ? 'fill-current' : ''}`} />
@@ -207,14 +207,14 @@ const NoteCard: React.FC<NoteItemProps & { layout: 'grid' | 'masonry'; colorStyl
       onClick={(e) => !isInnerControl(e.target) && onOpen(note.id)}
       onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && onOpen(note.id)}
       style={note.color ? ({ '--note': note.color } as React.CSSProperties) : undefined}
-      className={`group relative flex flex-col gap-2 p-3.5 rounded-xl bg-(--card-bg) border cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+      className={`group relative flex flex-col gap-2 p-3.5 rounded-xl bg-(--card-bg) border cursor-pointer transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
         tint
           ? // Like the Claude session cards: a wash of the colour, with a border in the same hue
             '[--card-bg:color-mix(in_srgb,var(--note)_9%,var(--color-white))] dark:[--card-bg:color-mix(in_srgb,var(--note)_12%,var(--color-zinc-900))] border-[color:color-mix(in_srgb,var(--note)_35%,transparent)] hover:border-[color:color-mix(in_srgb,var(--note)_60%,transparent)]'
           : `[--card-bg:var(--color-white)] dark:[--card-bg:var(--color-zinc-900)] border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 ${
               note.color ? 'border-t-[3px] border-t-(color:--note)! ' : ''
             }`
-      } ${selected ? 'ring-2 ring-indigo-500' : ''} ${grid ? 'h-64' : 'mb-3 break-inside-avoid'}`}
+      } ${selected ? 'ring-2 ring-primary-500' : ''} ${grid ? 'h-64' : 'mb-3 break-inside-avoid'}`}
     >
       <div className="flex items-start gap-2 min-h-6">
         <h3 className="flex-1 min-w-0 text-sm font-semibold text-zinc-900 dark:text-zinc-100 break-words">
@@ -284,8 +284,8 @@ const NoteRow: React.FC<NoteItemProps> = ({ note, selected, onOpen, onTogglePin,
       aria-label={`Note: ${note.title || 'Untitled'}`}
       onClick={(e) => !isInnerControl(e.target) && onOpen(note.id)}
       onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && onOpen(note.id)}
-      className={`group flex items-center gap-3 px-3 py-2 border-b border-zinc-200/70 dark:border-zinc-800/50 cursor-pointer hover:bg-zinc-100/70 dark:hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
-        selected ? 'bg-indigo-500/10' : ''
+      className={`group flex items-center gap-3 px-3 py-2 border-b border-zinc-200/70 dark:border-zinc-800/50 cursor-pointer hover:bg-zinc-100/70 dark:hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 ${
+        selected ? 'bg-primary-500/10' : ''
       }`}
     >
       <span
@@ -440,7 +440,7 @@ export const NotesView: React.FC<{
           <button
             type="button"
             onClick={onNew}
-            className={`${toolbarButtonClass} bg-indigo-600! hover:bg-indigo-500! text-white!`}
+            className={`${toolbarButtonClass} bg-primary-600! hover:bg-primary-500! text-white!`}
           >
             <Plus className="w-[13px] h-[13px]" />
             <span>New note</span>
@@ -588,7 +588,7 @@ export const NotePanel: React.FC<{
           aria-label="Note title"
           maxLength={200}
           autoFocus={!note}
-          className="w-full text-lg font-semibold bg-transparent border-b border-transparent focus:border-indigo-500 pb-1 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
+          className="w-full text-lg font-semibold bg-transparent border-b border-transparent focus:border-primary-500 pb-1 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none"
         />
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -600,7 +600,7 @@ export const NotePanel: React.FC<{
               aria-label="No colour"
               aria-pressed={!note?.color}
               className={`w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex items-center justify-center cursor-pointer ${
-                note?.color ? '' : 'ring-2 ring-offset-1 ring-indigo-500 dark:ring-offset-zinc-900'
+                note?.color ? '' : 'ring-2 ring-offset-1 ring-primary-500 dark:ring-offset-zinc-900'
               }`}
             >
               <X className="w-2.5 h-2.5 text-zinc-400" />
@@ -613,7 +613,7 @@ export const NotePanel: React.FC<{
                 aria-label={`Colour ${color}`}
                 aria-pressed={note?.color === color}
                 className={`w-4 h-4 rounded-full cursor-pointer ${
-                  note?.color === color ? 'ring-2 ring-offset-1 ring-indigo-500 dark:ring-offset-zinc-900' : ''
+                  note?.color === color ? 'ring-2 ring-offset-1 ring-primary-500 dark:ring-offset-zinc-900' : ''
                 }`}
                 style={{ backgroundColor: color }}
               />
@@ -658,7 +658,7 @@ export const NotePanel: React.FC<{
               list={NOTE_TAG_LIST_ID}
               aria-label="Add tag"
               maxLength={50}
-              className="text-xs px-2.5 py-0.5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 w-24"
+              className="text-xs px-2.5 py-0.5 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-primary-500 w-24"
             />
           </form>
         </div>
@@ -670,7 +670,7 @@ export const NotePanel: React.FC<{
               if (!preview) saveText();
               setPreview((p) => !p);
             }}
-            className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
           >
             {preview ? <Edit3 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             <span>{preview ? 'Edit' : 'Preview'}</span>
@@ -696,7 +696,7 @@ export const NotePanel: React.FC<{
             placeholder="Write in markdown…"
             aria-label="Note body"
             autoFocus={Boolean(note)}
-            className="flex-1 min-h-[240px] w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 font-mono text-[13px] leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-indigo-500 resize-none"
+            className="flex-1 min-h-[240px] w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 font-mono text-[13px] leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-primary-500 resize-none"
           />
         )}
       </div>

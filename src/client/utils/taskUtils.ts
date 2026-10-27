@@ -114,7 +114,7 @@ export function getDueDateInfo(dueDate: string | null): {
     return {
       label: 'Tomorrow',
       state: 'tomorrow',
-      badgeClass: 'text-indigo-700 dark:text-indigo-300 bg-indigo-500/15',
+      badgeClass: 'text-primary-700 dark:text-primary-300 bg-primary-500/15',
     };
   }
 

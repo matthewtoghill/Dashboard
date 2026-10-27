@@ -65,13 +65,13 @@ const InputItem: React.FC<{ item: MenuItem; onCloseAll: () => void }> = ({ item,
         }}
         aria-label={item.label}
         placeholder={item.label}
-        className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+        className="flex-1 min-w-0 text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-primary-500"
       />
       <button
         type="button"
         tabIndex={-1}
         onClick={submit}
-        className="px-2 py-1 rounded text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 cursor-pointer"
+        className="px-2 py-1 rounded text-xs font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/50 cursor-pointer"
       >
         Set
       </button>
@@ -208,7 +208,7 @@ const MenuPanel: React.FC<{
               >
                 <span className="w-3.5 flex-shrink-0 flex justify-center">
                   {item.checked ? (
-                    <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <Check className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
                   ) : item.swatch ? (
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.swatch }} />
                   ) : (

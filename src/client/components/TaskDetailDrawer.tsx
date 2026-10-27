@@ -381,7 +381,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           }}
           className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize touch-none focus:outline-none group/resize"
         >
-          <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-indigo-500/60 group-focus-visible/resize:bg-indigo-500 group-active/resize:bg-indigo-500 transition-colors" />
+          <div className="mx-auto h-full w-0.5 bg-transparent group-hover/resize:bg-primary-500/60 group-focus-visible/resize:bg-primary-500 group-active/resize:bg-primary-500 transition-colors" />
         </div>
 
         {/* Drawer Header */}
@@ -391,7 +391,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               aria-label="Task status"
               value={task.status}
               onChange={(e) => onSetStatus(task, e.target.value as TaskStatus)}
-              className="text-xs font-medium px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              className="text-xs font-medium px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 focus:outline-none focus:border-primary-500 cursor-pointer"
             >
               {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((status) => (
                 <option key={status} value={status}>
@@ -402,7 +402,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             <button
               type="button"
               onClick={() => onSetStatus(task, nextStatus)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-primary-600 hover:bg-primary-500 text-white transition-colors cursor-pointer"
             >
               <NextIcon className="w-3.5 h-3.5" />
               {nextLabel}
@@ -457,7 +457,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 }
               }}
               aria-label="Detail task title"
-              className={`w-full text-lg font-semibold bg-transparent border-b border-transparent focus:border-indigo-500 pb-1 focus:outline-none ${
+              className={`w-full text-lg font-semibold bg-transparent border-b border-transparent focus:border-primary-500 pb-1 focus:outline-none ${
                 task.status === 'done'
                   ? 'line-through text-zinc-400 dark:text-zinc-500'
                   : 'text-zinc-900 dark:text-zinc-100'
@@ -486,7 +486,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         onUpdateTask(task.id, { heldSince: parseIsoDate(e.target.value).getTime() });
                       }
                     }}
-                    className="ml-auto text-xs font-normal px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+                    className="ml-auto text-xs font-normal px-1.5 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-primary-500"
                   />
                 )}
               </div>
@@ -503,7 +503,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.currentTarget.blur();
                 }}
-                className="w-full text-sm px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-indigo-500"
+                className="w-full text-sm px-2.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-primary-500"
               />
             </div>
           )}
@@ -598,7 +598,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {task.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200/70 dark:border-primary-800/70"
                 >
                   <span>#{tag}</span>
                   <button
@@ -619,7 +619,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   placeholder="+ Add tag"
                   list="tag-suggestions"
                   aria-label="Add tag in drawer"
-                  className="text-xs px-2.5 py-1 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-indigo-500 w-24"
+                  className="text-xs px-2.5 py-1 rounded-full border border-dashed border-zinc-300 dark:border-zinc-700 bg-transparent text-zinc-700 dark:text-zinc-200 focus:outline-none focus:border-primary-500 w-24"
                 />
               </form>
             </div>
@@ -635,7 +635,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </span>
               </label>
               {subtasks.length > 0 && (
-                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                <span className="text-xs font-medium text-primary-600 dark:text-primary-400">
                   {progressPercent}%
                 </span>
               )}
@@ -644,7 +644,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {subtasks.length > 0 && (
               <div className="w-full h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                 <div
-                  className="h-full bg-indigo-600 transition-all duration-200"
+                  className="h-full bg-primary-600 transition-all duration-200"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -707,8 +707,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     }
                     className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer ${
                       sub.isCompleted
-                        ? 'bg-indigo-600 border-indigo-600 text-white'
-                        : 'border-zinc-300 dark:border-zinc-600 hover:border-indigo-500'
+                        ? 'bg-primary-600 border-primary-600 text-white'
+                        : 'border-zinc-300 dark:border-zinc-600 hover:border-primary-500'
                     }`}
                   >
                     {sub.isCompleted && <Check className="w-3 h-3 stroke-[2.5]" />}
@@ -727,7 +727,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           setEditingSubtaskId(null);
                         }
                       }}
-                      className="flex-1 min-w-0 text-xs sm:text-sm bg-transparent border-b border-indigo-500 outline-none text-zinc-800 dark:text-zinc-200"
+                      className="flex-1 min-w-0 text-xs sm:text-sm bg-transparent border-b border-primary-500 outline-none text-zinc-800 dark:text-zinc-200"
                     />
                   ) : (
                     <button
@@ -765,13 +765,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   onChange={(e) => setNewSubtaskTitle(e.target.value)}
                   placeholder="Add a subtask..."
                   aria-label="New subtask title"
-                  className="w-full pl-8 pr-3 py-1.5 text-xs sm:text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs sm:text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-primary-500"
                 />
               </div>
               {newSubtaskTitle.trim() && (
                 <button
                   type="submit"
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium cursor-pointer"
                 >
                   Add
                 </button>
@@ -820,7 +820,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     setNotesCopied(true);
                     setTimeout(() => setNotesCopied(false), 1500);
                   }}
-                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:no-underline"
+                  className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline cursor-pointer disabled:opacity-40 disabled:cursor-default disabled:no-underline"
                 >
                   {notesCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                   <span>{notesCopied ? 'Copied' : 'Copy'}</span>
@@ -831,7 +831,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     if (!isPreviewingNotes) handleDescriptionBlur();
                     setIsPreviewingNotes((v) => !v);
                   }}
-                  className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
                 >
                   {isPreviewingNotes ? (
                     <>
@@ -872,7 +872,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 onBlur={handleDescriptionBlur}
                 placeholder="Write notes, links, or markdown lists..."
                 aria-label="Task notes"
-                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-indigo-500 resize-y"
+                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-primary-500 resize-y"
               />
             )}
           </div>
@@ -952,7 +952,7 @@ const TaskHistory: React.FC<{ task: Task; projects: Project[]; linkedSessionIds:
 const SubtaskDropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
   <div
     aria-hidden
-    className={`absolute inset-x-0 h-0.5 rounded-full bg-indigo-500 pointer-events-none ${
+    className={`absolute inset-x-0 h-0.5 rounded-full bg-primary-500 pointer-events-none ${
       position === 'top' ? '-top-1' : '-bottom-1'
     }`}
   />

@@ -29,7 +29,7 @@ interface CalendarViewProps {
 }
 
 const navButtonClass =
-  'p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer';
+  'p-1.5 rounded-lg text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-primary-400 cursor-pointer';
 
 /** Month or week grid of tasks by due date. Drag (or Alt+Arrows) moves a task to another day. */
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -147,7 +147,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <button
             type="button"
             onClick={() => setAnchor(today)}
-            className="px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-indigo-400 cursor-pointer"
+            className="px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-primary-400 cursor-pointer"
           >
             Today
           </button>
@@ -205,7 +205,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 layout === 'week' ? 'min-h-96' : 'min-h-28'
               } ${
                 dropDay === day
-                  ? 'bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-inset ring-indigo-500'
+                  ? 'bg-primary-50 dark:bg-primary-950/40 ring-2 ring-inset ring-primary-500'
                   : outside
                   ? 'bg-zinc-50 dark:bg-zinc-950'
                   : 'bg-white dark:bg-zinc-900'
@@ -215,7 +215,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <span
                   className={`text-xs w-6 h-6 inline-flex items-center justify-center rounded-full ${
                     day === today
-                      ? 'bg-indigo-600 text-white font-semibold'
+                      ? 'bg-primary-600 text-white font-semibold'
                       : outside
                       ? 'text-zinc-400 dark:text-zinc-600'
                       : 'text-zinc-600 dark:text-zinc-300'
@@ -230,7 +230,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     setAddingDay(day);
                   }}
                   aria-label={`Add task on ${formatDayDate(day)}`}
-                  className="p-0.5 rounded text-zinc-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-indigo-600 cursor-pointer"
+                  className="p-0.5 rounded text-zinc-400 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-primary-600 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -257,7 +257,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onBlur={() => submitAdd(day)}
                   placeholder="New task..."
                   aria-label={`New task due ${formatDayDate(day)}`}
-                  className="w-full text-xs px-1.5 py-1 rounded border border-indigo-400 bg-white dark:bg-zinc-900 focus:outline-none"
+                  className="w-full text-xs px-1.5 py-1 rounded border border-primary-400 bg-white dark:bg-zinc-900 focus:outline-none"
                 />
               )}
             </div>

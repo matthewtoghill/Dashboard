@@ -28,7 +28,7 @@ const TaskCheckbox: React.FC<{ checked: boolean; onToggle?: (line: number) => vo
       aria-label={item?.label || 'Checklist item'}
       disabled={!onToggle || item === null}
       onChange={() => item && onToggle?.(item.line)}
-      className="mr-1.5 align-middle accent-indigo-600 cursor-pointer disabled:cursor-default"
+      className="mr-1.5 align-middle accent-primary-600 cursor-pointer disabled:cursor-default"
     />
   );
 };
@@ -43,13 +43,13 @@ function buildComponents(onToggleCheckbox?: (line: number) => void): Components 
     h6: ({ node, ...props }) => <h6 className="font-semibold text-xs text-zinc-700 dark:text-zinc-300" {...props} />,
     ul: ({ node, className, ...props }) => (
       <ul
-        className={className?.includes('contains-task-list') ? 'pl-1 space-y-0.5' : 'list-disc pl-5 space-y-0.5 marker:text-indigo-500'}
+        className={className?.includes('contains-task-list') ? 'pl-1 space-y-0.5' : 'list-disc pl-5 space-y-0.5 marker:text-primary-500'}
         {...props}
       />
     ),
     ol: ({ node, className, ...props }) => (
       <ol
-        className={className?.includes('contains-task-list') ? 'pl-1 space-y-0.5' : 'list-decimal pl-5 space-y-0.5 marker:text-indigo-500'}
+        className={className?.includes('contains-task-list') ? 'pl-1 space-y-0.5' : 'list-decimal pl-5 space-y-0.5 marker:text-primary-500'}
         {...props}
       />
     ),
@@ -68,7 +68,7 @@ function buildComponents(onToggleCheckbox?: (line: number) => void): Components 
           href={href}
           target="_blank"
           rel="noreferrer noopener"
-          className="text-indigo-600 dark:text-indigo-400 underline underline-offset-2 hover:text-indigo-500"
+          className="text-primary-600 dark:text-primary-400 underline underline-offset-2 hover:text-primary-500"
         >
           {children}
         </a>

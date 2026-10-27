@@ -29,7 +29,7 @@ const HomeStatsStrip: React.FC<{ tasks: Task[]; onOpenOverdue: () => void }> = (
           aria-hidden
           className="w-4 h-4 rounded-full [--ring-track:var(--color-zinc-200)] dark:[--ring-track:var(--color-zinc-800)]"
           style={{
-            background: `conic-gradient(var(--color-indigo-500) ${stats.completionRate}%, var(--ring-track) 0)`,
+            background: `conic-gradient(var(--color-primary-500) ${stats.completionRate}%, var(--ring-track) 0)`,
           }}
         />
         <span className="font-semibold text-zinc-900 dark:text-zinc-100">{stats.completionRate}%</span> done

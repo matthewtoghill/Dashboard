@@ -91,15 +91,15 @@ export const QuickAddBar: React.FC<{
   const pickedProject = projects.find((p) => p.id === newProjectId);
   const pickerButtonClass = (active: boolean) =>
     `relative p-[5px] rounded-md transition-colors duration-150 cursor-pointer ${
-      active ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+      active ? 'text-primary-600 dark:text-primary-400' : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
     }`;
   // A native select laid invisibly over an icon, so the icon opens the usual picker
   const overlaySelectClass = 'absolute inset-0 opacity-0 cursor-pointer';
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
-      <div className="h-10 px-3 flex items-center gap-2.5 rounded-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus-within:border-indigo-500/60 focus-within:ring-2 focus-within:ring-indigo-500/15 text-[13px] transition-colors duration-150">
-        <Plus className="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-400" />
+      <div className="h-10 px-3 flex items-center gap-2.5 rounded-[10px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus-within:border-primary-500/60 focus-within:ring-2 focus-within:ring-primary-500/15 text-[13px] transition-colors duration-150">
+        <Plus className="w-4 h-4 shrink-0 text-primary-500 dark:text-primary-400" />
         <div className="relative flex-1 min-w-0 flex items-center">
           <input
             ref={inputRef}
@@ -209,7 +209,7 @@ export const QuickAddBar: React.FC<{
               placeholder="tag"
               list="tag-suggestions"
               aria-label="New task tag"
-              className="w-20 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-transparent text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:border-indigo-500"
+              className="w-20 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-transparent text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:border-primary-500"
             />
           ) : (
             <button
@@ -228,7 +228,7 @@ export const QuickAddBar: React.FC<{
           <button
             type="submit"
             disabled={isCreating}
-            className="shrink-0 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50"
+            className="shrink-0 px-2.5 py-1 rounded-md bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-50"
           >
             Add
           </button>
@@ -262,7 +262,7 @@ export const QuickAddBar: React.FC<{
             </span>
           )}
           {newTaskPreview.tags.map((tag) => (
-            <span key={tag} className={`${BADGE_CLASS} bg-indigo-500/10 text-indigo-700 dark:text-indigo-300`}>
+            <span key={tag} className={`${BADGE_CLASS} bg-primary-500/10 text-primary-700 dark:text-primary-300`}>
               #{tag}
             </span>
           ))}

@@ -150,7 +150,7 @@ export const Toast: React.FC<{ toast: ToastState | null; onDismiss: () => void }
                 toast.onUndo?.();
                 onDismiss();
               }}
-              className="px-2 py-1 rounded-md font-semibold text-indigo-300 dark:text-indigo-600 hover:bg-white/10 dark:hover:bg-black/10 cursor-pointer"
+              className="px-2 py-1 rounded-md font-semibold text-primary-300 dark:text-primary-600 hover:bg-white/10 dark:hover:bg-black/10 cursor-pointer"
             >
               Undo
             </button>

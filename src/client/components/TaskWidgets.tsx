@@ -52,7 +52,7 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
       <button
         type="button"
         onClick={() => actions.onOpenTask(task.id)}
-        className="flex-1 min-w-0 text-left text-sm truncate text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+        className="flex-1 min-w-0 text-left text-sm truncate text-zinc-900 dark:text-zinc-100 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer"
       >
         {task.title}
       </button>
@@ -140,7 +140,7 @@ export const InProgressRail: React.FC<{ tasks: Task[]; actions: TaskWidgetAction
                 <button
                   type="button"
                   onClick={() => actions.onOpenTask(task.id)}
-                  className="flex-1 min-w-0 truncate text-left text-[13px] text-zinc-800 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                  className="flex-1 min-w-0 truncate text-left text-[13px] text-zinc-800 dark:text-zinc-200 hover:text-primary-600 dark:hover:text-primary-400 cursor-pointer"
                 >
                   {task.title}
                 </button>
@@ -213,7 +213,7 @@ export const AdoSummaryPanel: React.FC<{ tasks: Task[]; onOpenAdoImport: () => v
         <button
           type="button"
           onClick={onOpenAdoImport}
-          className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer"
+          className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-[5px] rounded-[7px] bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium transition-colors duration-150 cursor-pointer"
         >
           <Download className="w-3 h-3" />
           Import

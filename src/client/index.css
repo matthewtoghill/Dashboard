@@ -2,6 +2,21 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Primary colour: defaults to indigo, swapped per the primaryColor setting via data-primary. */
+@theme {
+  --color-primary-50: var(--color-indigo-50);
+  --color-primary-100: var(--color-indigo-100);
+  --color-primary-200: var(--color-indigo-200);
+  --color-primary-300: var(--color-indigo-300);
+  --color-primary-400: var(--color-indigo-400);
+  --color-primary-500: var(--color-indigo-500);
+  --color-primary-600: var(--color-indigo-600);
+  --color-primary-700: var(--color-indigo-700);
+  --color-primary-800: var(--color-indigo-800);
+  --color-primary-900: var(--color-indigo-900);
+  --color-primary-950: var(--color-indigo-950);
+}
+
 /* Native controls (select popups, date pickers, scrollbars) follow the app theme. */
 :root {
   color-scheme: light;
@@ -18,6 +33,124 @@
 }
 :root[data-density='spacious'] {
   --spacing: 0.3rem;
+}
+
+:root[data-primary='blue'] {
+  --color-primary-50: var(--color-blue-50);
+  --color-primary-100: var(--color-blue-100);
+  --color-primary-200: var(--color-blue-200);
+  --color-primary-300: var(--color-blue-300);
+  --color-primary-400: var(--color-blue-400);
+  --color-primary-500: var(--color-blue-500);
+  --color-primary-600: var(--color-blue-600);
+  --color-primary-700: var(--color-blue-700);
+  --color-primary-800: var(--color-blue-800);
+  --color-primary-900: var(--color-blue-900);
+  --color-primary-950: var(--color-blue-950);
+}
+:root[data-primary='sky'] {
+  --color-primary-50: var(--color-sky-50);
+  --color-primary-100: var(--color-sky-100);
+  --color-primary-200: var(--color-sky-200);
+  --color-primary-300: var(--color-sky-300);
+  --color-primary-400: var(--color-sky-400);
+  --color-primary-500: var(--color-sky-500);
+  --color-primary-600: var(--color-sky-600);
+  --color-primary-700: var(--color-sky-700);
+  --color-primary-800: var(--color-sky-800);
+  --color-primary-900: var(--color-sky-900);
+  --color-primary-950: var(--color-sky-950);
+}
+:root[data-primary='teal'] {
+  --color-primary-50: var(--color-teal-50);
+  --color-primary-100: var(--color-teal-100);
+  --color-primary-200: var(--color-teal-200);
+  --color-primary-300: var(--color-teal-300);
+  --color-primary-400: var(--color-teal-400);
+  --color-primary-500: var(--color-teal-500);
+  --color-primary-600: var(--color-teal-600);
+  --color-primary-700: var(--color-teal-700);
+  --color-primary-800: var(--color-teal-800);
+  --color-primary-900: var(--color-teal-900);
+  --color-primary-950: var(--color-teal-950);
+}
+:root[data-primary='emerald'] {
+  --color-primary-50: var(--color-emerald-50);
+  --color-primary-100: var(--color-emerald-100);
+  --color-primary-200: var(--color-emerald-200);
+  --color-primary-300: var(--color-emerald-300);
+  --color-primary-400: var(--color-emerald-400);
+  --color-primary-500: var(--color-emerald-500);
+  --color-primary-600: var(--color-emerald-600);
+  --color-primary-700: var(--color-emerald-700);
+  --color-primary-800: var(--color-emerald-800);
+  --color-primary-900: var(--color-emerald-900);
+  --color-primary-950: var(--color-emerald-950);
+}
+:root[data-primary='violet'] {
+  --color-primary-50: var(--color-violet-50);
+  --color-primary-100: var(--color-violet-100);
+  --color-primary-200: var(--color-violet-200);
+  --color-primary-300: var(--color-violet-300);
+  --color-primary-400: var(--color-violet-400);
+  --color-primary-500: var(--color-violet-500);
+  --color-primary-600: var(--color-violet-600);
+  --color-primary-700: var(--color-violet-700);
+  --color-primary-800: var(--color-violet-800);
+  --color-primary-900: var(--color-violet-900);
+  --color-primary-950: var(--color-violet-950);
+}
+:root[data-primary='purple'] {
+  --color-primary-50: var(--color-purple-50);
+  --color-primary-100: var(--color-purple-100);
+  --color-primary-200: var(--color-purple-200);
+  --color-primary-300: var(--color-purple-300);
+  --color-primary-400: var(--color-purple-400);
+  --color-primary-500: var(--color-purple-500);
+  --color-primary-600: var(--color-purple-600);
+  --color-primary-700: var(--color-purple-700);
+  --color-primary-800: var(--color-purple-800);
+  --color-primary-900: var(--color-purple-900);
+  --color-primary-950: var(--color-purple-950);
+}
+:root[data-primary='pink'] {
+  --color-primary-50: var(--color-pink-50);
+  --color-primary-100: var(--color-pink-100);
+  --color-primary-200: var(--color-pink-200);
+  --color-primary-300: var(--color-pink-300);
+  --color-primary-400: var(--color-pink-400);
+  --color-primary-500: var(--color-pink-500);
+  --color-primary-600: var(--color-pink-600);
+  --color-primary-700: var(--color-pink-700);
+  --color-primary-800: var(--color-pink-800);
+  --color-primary-900: var(--color-pink-900);
+  --color-primary-950: var(--color-pink-950);
+}
+:root[data-primary='rose'] {
+  --color-primary-50: var(--color-rose-50);
+  --color-primary-100: var(--color-rose-100);
+  --color-primary-200: var(--color-rose-200);
+  --color-primary-300: var(--color-rose-300);
+  --color-primary-400: var(--color-rose-400);
+  --color-primary-500: var(--color-rose-500);
+  --color-primary-600: var(--color-rose-600);
+  --color-primary-700: var(--color-rose-700);
+  --color-primary-800: var(--color-rose-800);
+  --color-primary-900: var(--color-rose-900);
+  --color-primary-950: var(--color-rose-950);
+}
+:root[data-primary='orange'] {
+  --color-primary-50: var(--color-orange-50);
+  --color-primary-100: var(--color-orange-100);
+  --color-primary-200: var(--color-orange-200);
+  --color-primary-300: var(--color-orange-300);
+  --color-primary-400: var(--color-orange-400);
+  --color-primary-500: var(--color-orange-500);
+  --color-primary-600: var(--color-orange-600);
+  --color-primary-700: var(--color-orange-700);
+  --color-primary-800: var(--color-orange-800);
+  --color-primary-900: var(--color-orange-900);
+  --color-primary-950: var(--color-orange-950);
 }
 
 /* Browsers without customizable selects: at least theme the native option list. */
@@ -69,12 +202,12 @@
     color: inherit;
   }
   option::checkmark {
-    @apply text-indigo-600;
+    @apply text-primary-600;
     order: 1;
     margin-inline-start: auto;
   }
   .dark option::checkmark {
-    @apply text-indigo-400;
+    @apply text-primary-400;
   }
   option:hover,
   option:focus-visible {
@@ -85,9 +218,9 @@
     @apply bg-zinc-800;
   }
   option:checked {
-    @apply font-semibold text-indigo-600;
+    @apply font-semibold text-primary-600;
   }
   .dark option:checked {
-    @apply text-indigo-400;
+    @apply text-primary-400;
   }
 }

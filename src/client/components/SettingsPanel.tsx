@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileJson, FileSpreadsheet, Settings, Trash2, Upload, X } from 'lucide-react';
 import {
   BackupPayload,
+  PRIMARY_COLORS,
   Project,
   Task,
   UpdateSettingsInput,
@@ -33,9 +34,9 @@ const WIDGET_LABELS: [keyof WidgetConfig, string][] = [
 ];
 
 const inputClass =
-  'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
+  'px-2.5 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-primary-400';
 const buttonClass =
-  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-indigo-400 cursor-pointer disabled:opacity-50 disabled:cursor-default';
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:border-primary-400 cursor-pointer disabled:opacity-50 disabled:cursor-default';
 
 function download(content: string, type: string, name: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -266,6 +267,24 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </fieldset>
+            <div className="flex items-center gap-4">
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">Primary colour</span>
+              <div className="flex flex-wrap gap-1.5">
+                {PRIMARY_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    title={color}
+                    aria-label={color}
+                    aria-pressed={(settings?.primaryColor ?? 'indigo') === color}
+                    onClick={() => save.mutate({ primaryColor: color })}
+                    disabled={!settings}
+                    style={{ backgroundColor: `var(--color-${color}-500)` }}
+                    className="w-6 h-6 rounded-full cursor-pointer ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 aria-pressed:ring-2 aria-pressed:ring-zinc-400 dark:aria-pressed:ring-zinc-500"
+                  />
+                ))}
+              </div>
+            </div>
             <label className="flex items-center gap-4">
               <span className="w-32 text-zinc-600 dark:text-zinc-300">In progress colour</span>
               <input
@@ -286,7 +305,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     type="checkbox"
                     checked={widgetConfig[key]}
                     onChange={(e) => onUpdateWidgetConfig({ [key]: e.target.checked })}
-                    className="rounded text-indigo-600"
+                    className="rounded text-primary-600"
                   />
                   {label}
                 </label>
@@ -398,7 +417,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   )
                 }
               >
-                <FileJson className="w-3.5 h-3.5 text-indigo-500" />
+                <FileJson className="w-3.5 h-3.5 text-primary-500" />
                 Export JSON
               </button>
               <button
@@ -428,7 +447,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
             </div>
             {importStatus && (
-              <p className="text-xs text-indigo-700 dark:text-indigo-300">{importStatus}</p>
+              <p className="text-xs text-primary-700 dark:text-primary-300">{importStatus}</p>
             )}
             <button
               type="button"

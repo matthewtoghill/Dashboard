@@ -26,7 +26,7 @@ export const STATE_STYLES: Record<ClaudeSessionState, { label: string; className
   },
   running: {
     label: 'Running',
-    className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300',
+    className: 'bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300',
   },
   idle: {
     label: 'Idle',
@@ -145,7 +145,7 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
 };
 
 const inputClass =
-  'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-indigo-400';
+  'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-primary-400';
 
 /**
  * Dialog for choosing a task among open tasks to link something to, or (with `create`) creating a
@@ -209,7 +209,7 @@ export const TaskLinkDialog: React.FC<{
 
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
             {linkedTask && (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10">
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-primary-50 dark:bg-primary-500/10">
                 <span className="flex-1 min-w-0 truncate">
                   <span className="text-zinc-500 dark:text-zinc-400">Linked: </span>
                   {linkedTask.title}
@@ -245,7 +245,7 @@ export const TaskLinkDialog: React.FC<{
                         type="button"
                         onClick={() => link(t.id)}
                         className={`w-full flex items-center gap-2 px-2 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer ${
-                          t.id === linkedTaskId ? 'font-medium text-indigo-600 dark:text-indigo-400' : ''
+                          t.id === linkedTaskId ? 'font-medium text-primary-600 dark:text-primary-400' : ''
                         }`}
                       >
                         <span className="flex-1 truncate">{t.title}</span>
@@ -280,7 +280,7 @@ export const TaskLinkDialog: React.FC<{
                   <button
                     type="submit"
                     disabled={!newTitle.trim()}
-                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 text-white text-xs font-medium cursor-pointer"
                   >
                     <ListPlus className="w-3.5 h-3.5" />
                     Create & link
@@ -312,7 +312,7 @@ const TaskLinkControls: React.FC<
             type="button"
             onClick={() => onOpenTask(linkedTask.id)}
             title={`Open task: ${linkedTask.title}`}
-            className="min-w-0 truncate pl-2 py-1 text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            className="min-w-0 truncate pl-2 py-1 text-primary-600 dark:text-primary-400 hover:underline cursor-pointer"
           >
             {linkedTask.title}
           </button>
@@ -423,7 +423,7 @@ export const ClaudeSessionItem: React.FC<
 
 const RAIL_DOT: Record<ClaudeSessionState, string> = {
   needs_attention: 'bg-amber-400 ring-[3px] ring-amber-400/20',
-  running: 'bg-indigo-400',
+  running: 'bg-primary-400',
   idle: 'bg-emerald-400',
   ended: 'bg-zinc-400 dark:bg-zinc-600',
 };
@@ -476,7 +476,7 @@ export const ClaudeSessionsRail: React.FC<
                 title="Show session details"
                 className="flex-1 min-w-0 text-left cursor-pointer"
               >
-                <span className="block truncate text-[13px] text-zinc-800 dark:text-zinc-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                <span className="block truncate text-[13px] text-zinc-800 dark:text-zinc-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">
                   {s.title || 'Untitled session'}
                 </span>
                 <span className="block truncate text-[11px] text-zinc-500" title={s.cwd}>
@@ -769,9 +769,9 @@ const CARD_STYLES: Record<ClaudeSessionState, { card: string; dot: string; label
     label: 'text-amber-700 dark:text-amber-300',
   },
   running: {
-    card: 'border-indigo-300/70 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10',
-    dot: 'bg-indigo-400 animate-pulse',
-    label: 'text-indigo-600 dark:text-indigo-300',
+    card: 'border-primary-300/70 dark:border-primary-500/40 bg-primary-50 dark:bg-primary-500/10',
+    dot: 'bg-primary-400 animate-pulse',
+    label: 'text-primary-600 dark:text-primary-300',
   },
   idle: {
     card: 'border-emerald-200/80 dark:border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-500/[.07]',

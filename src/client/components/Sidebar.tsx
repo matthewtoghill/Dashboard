@@ -48,7 +48,7 @@ interface SidebarProps {
 
 const SECTIONS_KEY = 'dashboard_sidebar_sections';
 const ROW_CLASS = 'w-full flex items-center gap-2.5 px-2.5 rounded-lg transition-colors duration-150 cursor-pointer';
-const ACTIVE_CLASS = 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-medium';
+const ACTIVE_CLASS = 'bg-primary-500/15 text-primary-700 dark:text-primary-300 font-medium';
 const IDLE_CLASS = 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/60 dark:hover:bg-zinc-900';
 const HOVER_ICON_CLASS =
   'hidden group-hover:block group-focus-within:block p-0.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer';
@@ -248,7 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 placeholder="Project name..."
                 aria-label="Project name"
                 autoFocus
-                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full text-xs px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-primary-500"
               />
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
@@ -260,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       aria-label={`Select color ${color}`}
                       className={`w-4 h-4 rounded-full transition-transform cursor-pointer ${
                         newProjectColor === color
-                          ? 'scale-125 ring-2 ring-offset-1 ring-indigo-500 dark:ring-offset-zinc-900'
+                          ? 'scale-125 ring-2 ring-offset-1 ring-primary-500 dark:ring-offset-zinc-900'
                           : ''
                       }`}
                       style={{ backgroundColor: color }}
@@ -278,7 +278,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="p-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 cursor-pointer"
+                    className="p-1 text-primary-600 dark:text-primary-400 hover:text-primary-500 cursor-pointer"
                     aria-label="Save new project"
                   >
                     <Check className="w-3.5 h-3.5" />
@@ -418,8 +418,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     aria-current={isSelected ? 'page' : undefined}
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors duration-150 cursor-pointer ${
                       isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-indigo-400'
+                        ? 'bg-primary-600 text-white border-primary-600'
+                        : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-primary-400'
                     }`}
                   >
                     <Tag className="w-2.5 h-2.5" />

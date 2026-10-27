@@ -146,7 +146,7 @@ export const ReorderableTaskList: React.FC<ReorderableTaskListProps> = ({
 const DropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
   <div
     aria-hidden
-    className={`absolute inset-x-0 h-0.5 rounded-full bg-indigo-500 pointer-events-none ${
+    className={`absolute inset-x-0 h-0.5 rounded-full bg-primary-500 pointer-events-none ${
       position === 'top' ? '-top-1' : '-bottom-1'
     }`}
   />
