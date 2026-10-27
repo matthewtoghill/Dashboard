@@ -410,19 +410,6 @@ export const NotesView: React.FC<{
           </span>
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-          <Segmented
-            label="Layout"
-            value={layout}
-            options={[
-              ['grid', 'Grid', Grid2x2, 'Same-size cards'],
-              ['masonry', 'Masonry', LayoutDashboard, 'Cards sized to fit'],
-              ['list', 'List', List, 'List'],
-            ]}
-            onChange={(value) => {
-              setLayout(value);
-              localStorage.setItem(LAYOUT_KEY, value);
-            }}
-          />
           {layout !== 'list' && (
             <Segmented
               label="Note colour style"
@@ -437,6 +424,19 @@ export const NotesView: React.FC<{
               }}
             />
           )}
+          <Segmented
+            label="Layout"
+            value={layout}
+            options={[
+              ['grid', 'Grid', Grid2x2, 'Same-size cards'],
+              ['masonry', 'Masonry', LayoutDashboard, 'Cards sized to fit'],
+              ['list', 'List', List, 'List'],
+            ]}
+            onChange={(value) => {
+              setLayout(value);
+              localStorage.setItem(LAYOUT_KEY, value);
+            }}
+          />
           <button
             type="button"
             onClick={onNew}
