@@ -334,16 +334,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             <button
               type="button"
               onClick={() => onSelect?.(task)}
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                setIsEditing(true);
-              }}
               className={`min-w-0 text-left text-sm truncate cursor-pointer transition-colors duration-150 ${
                 isDone
                   ? 'line-through text-zinc-400 dark:text-zinc-500'
                   : 'text-zinc-900 dark:text-zinc-100 hover:text-primary-600 dark:hover:text-primary-400'
               }`}
-              title={`${task.title}\n\nClick to open details, double-click to edit title`}
+              title={`${task.title}\n\nClick to open details`}
             >
               {task.title}
             </button>
