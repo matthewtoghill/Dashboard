@@ -101,6 +101,7 @@ import {
   getTodayIso,
   plural,
   errorMessage,
+  sortOrderForMove,
 } from './utils/taskUtils.ts';
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
@@ -417,6 +418,18 @@ export const App: React.FC = () => {
     },
     onError: (err) => showToast(errorMessage(err, 'Updating project failed')),
   });
+
+  const handleMoveProject = (id: string, targetIndex: number) => {
+    const others = projects.filter((p) => p.id !== id);
+    const order = sortOrderForMove(
+      others.map((p) => p.sortOrder),
+      targetIndex
+    );
+    if (order !== null) return updateProjectMutation.mutate({ id, sortOrder: order });
+    // No gap left between neighbours: renumber the whole list
+    const reordered = [...others.slice(0, targetIndex), projects.find((p) => p.id === id)!, ...others.slice(targetIndex)];
+    reordered.forEach((p, i) => updateProjectMutation.mutate({ id: p.id, sortOrder: i }));
+  };
 
   // Dashboard / Widget Mutations
   // Write-through cache instead of invalidating, so a refetch racing an in-flight save
@@ -957,6 +970,7 @@ export const App: React.FC = () => {
             }
             onOpenProjectSettings={setProjectSettingsId}
             onDeleteProject={handleDeleteProject}
+            onMoveProject={handleMoveProject}
             savedViews={savedViews}
             appliedViewId={appliedViewId}
             onApplySavedView={handleApplySavedView}

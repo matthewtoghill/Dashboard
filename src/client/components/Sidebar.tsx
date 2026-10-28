@@ -36,6 +36,8 @@ interface SidebarProps {
   onCreateProject: (name: string, color: string) => void;
   onOpenProjectSettings: (id: string) => void;
   onDeleteProject: (id: string) => void;
+  /** Move project `id` so it ends up at `targetIndex` among the other projects. */
+  onMoveProject: (id: string, targetIndex: number) => void;
   savedViews: SavedView[];
   appliedViewId: string | null;
   onApplySavedView: (id: string) => void;
@@ -82,6 +84,15 @@ const SectionToggle: React.FC<{ label: string; count: number; open: boolean; onT
   </button>
 );
 
+const ProjectDropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
+  <div
+    aria-hidden
+    className={`absolute inset-x-0 h-0.5 rounded-full bg-primary-500 pointer-events-none ${
+      position === 'top' ? '-top-px' : '-bottom-px'
+    }`}
+  />
+);
+
 export const Sidebar: React.FC<SidebarProps> = ({
   tasks,
   projects,
@@ -92,6 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCreateProject,
   onOpenProjectSettings,
   onDeleteProject,
+  onMoveProject,
   savedViews,
   appliedViewId,
   onApplySavedView,
@@ -104,6 +116,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isAddingProject, setIsAddingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectColor, setNewProjectColor] = useState(PROJECT_COLORS[0]);
+  const [dragProjectId, setDragProjectId] = useState<string | null>(null);
+  // Insertion point (0..projects.length), shown as a line
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const resetDrag = () => {
+    setDragProjectId(null);
+    setDropIndex(null);
+  };
+  const commitProjectDrop = () => {
+    const from = projects.findIndex((p) => p.id === dragProjectId);
+    if (from !== -1 && dropIndex !== null) {
+      const target = dropIndex > from ? dropIndex - 1 : dropIndex;
+      if (target !== from) onMoveProject(dragProjectId!, target);
+    }
+    resetDrag();
+  };
   const [sections, setSections] = useState(loadSections);
   const toggleSection = (key: keyof Sections) =>
     setSections((prev) => {
@@ -288,11 +315,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </form>
           )}
 
-          <div className="flex flex-col gap-px">
+          <div
+            className="flex flex-col gap-px"
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropIndex(null);
+            }}
+          >
             {projects.length === 0 && !isAddingProject ? (
               <p className="px-2.5 py-1.5 text-xs text-zinc-500">No projects yet</p>
             ) : (
-              projects.map((project) => {
+              projects.map((project, index) => {
                 const isSelected = activeNav.type === 'project' && activeNav.id === project.id;
                 const projectTaskCount = activeTasks.filter((t) => t.projectId === project.id).length;
 
@@ -300,11 +332,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div
                     key={project.id}
                     data-menu-project={project.id}
-                    className={`group ${ROW_CLASS} py-1.5 ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', project.id);
+                      setDragProjectId(project.id);
+                    }}
+                    onDragEnd={resetDrag}
+                    onDragOver={(e) => {
+                      if (dragProjectId === null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setDropIndex(e.clientY > rect.top + rect.height / 2 ? index + 1 : index);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      commitProjectDrop();
+                    }}
+                    className={`group relative ${ROW_CLASS} py-1.5 ${isSelected ? ACTIVE_CLASS : IDLE_CLASS} ${
+                      dragProjectId === project.id ? 'opacity-40' : ''
+                    }`}
                   >
+                    {dropIndex === index && <ProjectDropLine position="top" />}
+                    {dropIndex === projects.length && index === projects.length - 1 && (
+                      <ProjectDropLine position="bottom" />
+                    )}
                     <button
                       type="button"
                       onClick={() => onSelectNav({ type: 'project', id: project.id })}
+                      onKeyDown={(e) => {
+                        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+                        e.preventDefault();
+                        const next = e.key === 'ArrowUp' ? index - 1 : index + 1;
+                        if (next >= 0 && next < projects.length) onMoveProject(project.id, next);
+                      }}
+                      title="Drag row to reorder (Alt+Up/Down)"
                       aria-current={isSelected ? 'page' : undefined}
                       className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
                     >
