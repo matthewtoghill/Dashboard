@@ -6,6 +6,7 @@ import { AppDatabase } from '../db/index.ts';
 import { adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, taskAdoLinks, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
 import { recordTaskEvents } from '../taskEvents.ts';
+import { toIsoDate } from '../../shared/dates.ts';
 import {
   AdoFetchResult,
   AdoImportInputSchema,
@@ -699,6 +700,8 @@ export async function registerAdoRoutes(
                     ? mentionTaskTitle(item)
                     : item.title,
               status: 'todo',
+              // PR reviews are time-sensitive: due today, medium priority
+              ...(item.role === 'reviewer' && { dueDate: toIsoDate(new Date(now)), priority: 2 }),
               projectId: linkFor(links, item.adoProject)?.projectId ?? null,
               sortOrder: i - now, // above existing tasks, in the order given
               createdAt: now,
