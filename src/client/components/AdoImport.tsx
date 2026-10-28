@@ -528,16 +528,18 @@ export const AdoSettings: React.FC<{
               className="space-y-2 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800"
             >
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  defaultValue={link.adoProject}
-                  aria-label="Azure DevOps project"
-                  onBlur={(e) => {
-                    const name = e.target.value.trim();
-                    if (name && name !== link.adoProject) update(i, { adoProject: name });
-                  }}
-                  className={`${inputClass} flex-1 min-w-0`}
-                />
+                <label className="flex flex-1 min-w-0 items-center gap-4">
+                  <span className="w-24 shrink-0 text-zinc-600 dark:text-zinc-300">ADO project</span>
+                  <input
+                    type="text"
+                    defaultValue={link.adoProject}
+                    onBlur={(e) => {
+                      const name = e.target.value.trim();
+                      if (name && name !== link.adoProject) update(i, { adoProject: name });
+                    }}
+                    className={`${inputClass} flex-1 min-w-0`}
+                  />
+                </label>
                 <span aria-hidden="true" className="text-zinc-400">
                   →
                 </span>
@@ -563,22 +565,28 @@ export const AdoSettings: React.FC<{
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <WorkItemFieldPicker
-                project={link.adoProject}
-                value={link.workItemTypes ?? []}
-                // No chips means "use the default types"
-                onChange={(types) => update(i, { workItemTypes: types.length ? types : null })}
-                placeholder="Default types"
-                label={`Work item types for ${link.adoProject}`}
-              />
-              <WorkItemFieldPicker
-                field="states"
-                project={link.adoProject}
-                value={link.ignoredStates ?? []}
-                onChange={(states) => update(i, { ignoredStates: states.length ? states : null })}
-                placeholder="Default ignored states"
-                label={`Ignored states for ${link.adoProject}`}
-              />
+              <div className="flex items-start gap-4">
+                <span className="w-24 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Types</span>
+                <WorkItemFieldPicker
+                  project={link.adoProject}
+                  value={link.workItemTypes ?? []}
+                  // No chips means "use the default types"
+                  onChange={(types) => update(i, { workItemTypes: types.length ? types : null })}
+                  placeholder="Default types"
+                  label={`Work item types for ${link.adoProject}`}
+                />
+              </div>
+              <div className="flex items-start gap-4">
+                <span className="w-24 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Ignored states</span>
+                <WorkItemFieldPicker
+                  field="states"
+                  project={link.adoProject}
+                  value={link.ignoredStates ?? []}
+                  onChange={(states) => update(i, { ignoredStates: states.length ? states : null })}
+                  placeholder="Default ignored states"
+                  label={`Ignored states for ${link.adoProject}`}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -590,14 +598,16 @@ export const AdoSettings: React.FC<{
           addProject();
         }}
       >
-        <input
-          type="text"
-          value={newProject}
-          onChange={(e) => setNewProject(e.target.value)}
-          placeholder="Azure DevOps project name"
-          aria-label="New Azure DevOps project"
-          className={`${inputClass} flex-1 min-w-0`}
-        />
+        <label className="flex flex-1 min-w-0 items-center gap-4">
+          <span className="w-24 shrink-0 text-zinc-600 dark:text-zinc-300">ADO project</span>
+          <input
+            type="text"
+            value={newProject}
+            onChange={(e) => setNewProject(e.target.value)}
+            placeholder="Azure DevOps project name"
+            className={`${inputClass} flex-1 min-w-0`}
+          />
+        </label>
         <button type="submit" className={buttonClass} disabled={!newProject.trim()}>
           <Plus className="w-3.5 h-3.5" />
           Add project

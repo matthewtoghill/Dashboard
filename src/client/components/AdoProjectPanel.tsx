@@ -117,21 +117,27 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
               Unlink
             </button>
           </div>
-          <WorkItemFieldPicker
-            project={link.adoProject}
-            value={link.workItemTypes ?? []}
-            onChange={(v) => updateLink(link.adoProject, { workItemTypes: v.length ? v : null })}
-            placeholder="Default types"
-            label={`Work item types for ${link.adoProject}`}
-          />
-          <WorkItemFieldPicker
-            field="states"
-            project={link.adoProject}
-            value={link.ignoredStates ?? []}
-            onChange={(v) => updateLink(link.adoProject, { ignoredStates: v.length ? v : null })}
-            placeholder="Default ignored states"
-            label={`Ignored states for ${link.adoProject}`}
-          />
+          <div className="flex items-start gap-4">
+            <span className="w-24 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Types</span>
+            <WorkItemFieldPicker
+              project={link.adoProject}
+              value={link.workItemTypes ?? []}
+              onChange={(v) => updateLink(link.adoProject, { workItemTypes: v.length ? v : null })}
+              placeholder="Default types"
+              label={`Work item types for ${link.adoProject}`}
+            />
+          </div>
+          <div className="flex items-start gap-4">
+            <span className="w-24 shrink-0 pt-1.5 text-zinc-600 dark:text-zinc-300">Ignored states</span>
+            <WorkItemFieldPicker
+              field="states"
+              project={link.adoProject}
+              value={link.ignoredStates ?? []}
+              onChange={(v) => updateLink(link.adoProject, { ignoredStates: v.length ? v : null })}
+              placeholder="Default ignored states"
+              label={`Ignored states for ${link.adoProject}`}
+            />
+          </div>
         </div>
       ))}
       <form
@@ -141,15 +147,17 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
           linkProject();
         }}
       >
-        <input
-          type="text"
-          list={`ado-linkable-${project.id}`}
-          value={newLink}
-          onChange={(e) => setNewLink(e.target.value)}
-          placeholder="Azure DevOps project name"
-          aria-label="Link an Azure DevOps project"
-          className={`${inputClass} flex-1 min-w-0`}
-        />
+        <label className="flex flex-1 min-w-0 items-center gap-4">
+          <span className="w-24 shrink-0 text-zinc-600 dark:text-zinc-300">ADO project</span>
+          <input
+            type="text"
+            list={`ado-linkable-${project.id}`}
+            value={newLink}
+            onChange={(e) => setNewLink(e.target.value)}
+            placeholder="Azure DevOps project name"
+            className={`${inputClass} flex-1 min-w-0`}
+          />
+        </label>
         <datalist id={`ado-linkable-${project.id}`}>
           {linkable.map((name) => (
             <option key={name} value={name} />

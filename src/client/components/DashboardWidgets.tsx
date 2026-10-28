@@ -572,32 +572,38 @@ const QuickLinksPanel: React.FC<{
   return (
     <div className="flex flex-col gap-2.5">
       {formOpen && (
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
-          <input
-            type="text"
-            value={linkTitle}
-            onChange={(e) => setLinkTitle(e.target.value)}
-            placeholder="Title (e.g. GitHub PRs)"
-            aria-label={editingLinkId ? 'Link title' : 'New link title'}
-            autoFocus
-            className={linkInputClass}
-          />
-          <input
-            type="text"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="URL (e.g. github.com)"
-            aria-label={editingLinkId ? 'Link URL' : 'New link URL'}
-            className={`${linkInputClass} flex-1 min-w-48`}
-          />
-          <input
-            type="text"
-            value={linkCategory}
-            onChange={(e) => setLinkCategory(e.target.value)}
-            placeholder="Category"
-            aria-label={editingLinkId ? 'Link category' : 'New link category'}
-            className={`${linkInputClass} w-28`}
-          />
+        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-0.5 text-[11px] text-zinc-500">
+            Title
+            <input
+              type="text"
+              value={linkTitle}
+              onChange={(e) => setLinkTitle(e.target.value)}
+              placeholder="e.g. GitHub PRs"
+              autoFocus
+              className={linkInputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-zinc-500 flex-1 min-w-48">
+            URL
+            <input
+              type="text"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="e.g. github.com"
+              className={linkInputClass}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 text-[11px] text-zinc-500 w-28">
+            Category
+            <input
+              type="text"
+              value={linkCategory}
+              onChange={(e) => setLinkCategory(e.target.value)}
+              placeholder="General"
+              className={linkInputClass}
+            />
+          </label>
           <button
             type="button"
             onClick={closeForm}
