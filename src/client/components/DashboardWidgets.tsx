@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Pencil, ArrowUpRight, Sparkles, ChevronRight, LayoutGrid } from 'lucide-react';
-import { Task, Project, QuickLink, WidgetConfig } from '../../shared/types.ts';
+import { ClaudeSession, Task, Project, QuickLink, WidgetConfig } from '../../shared/types.ts';
+import { folderName } from './ClaudeSessions.tsx';
 import {
   completionsByDay,
   formatDayDate,
@@ -15,7 +16,15 @@ import { AdoSummaryPanel, EmptyNote, StaleList, TaskWidgetActions } from './Task
 import { useAdoSync } from './AdoImport.tsx';
 import { Dot, DockedPanel } from './ui.tsx';
 
-export type HomeDrawerTab = 'trends' | 'projects' | 'stale' | 'ado' | 'scratchpad' | 'links';
+export type HomeDrawerTab =
+  | 'trends'
+  | 'projects'
+  | 'stale'
+  | 'ado'
+  | 'scratchpad'
+  | 'links'
+  | 'claudeFolders'
+  | 'claudeProjects';
 
 const TAB_KEY = 'dashboard_home_drawer_tab';
 const COLLAPSED_KEY = 'dashboard_home_drawer_collapsed';
@@ -23,6 +32,8 @@ const COLLAPSED_KEY = 'dashboard_home_drawer_collapsed';
 export interface HomeDrawerProps {
   tasks: Task[];
   projects: Project[];
+  claudeSessions: ClaudeSession[];
+  onSelectClaudeFolder: (folder: string) => void;
   scratchpad: string;
   quickLinks: QuickLink[];
   widgetConfig: WidgetConfig;
@@ -118,6 +129,8 @@ const useWidgetList = ({ tasks, widgetConfig, staleTaskDays }: HomeDrawerProps) 
       ['ado', reviewCount ? `Azure DevOps · ${reviewCount} review` : 'Azure DevOps', widgetConfig.showAdo],
       ['scratchpad', 'Scratchpad', widgetConfig.showScratchpad],
       ['links', 'Quick links', widgetConfig.showQuickLinks],
+      ['claudeFolders', 'Claude by folder', widgetConfig.showClaudeFolders],
+      ['claudeProjects', 'Claude by project', widgetConfig.showClaudeProjects],
     ] as const
   ).filter(([, , shown]) => shown);
 };
@@ -139,6 +152,17 @@ const WidgetBody: React.FC<HomeDrawerProps & { id: HomeDrawerTab }> = ({ id, ...
           scratchpad={props.scratchpad}
           onSave={props.onSaveScratchpad}
           onConvertLineToTask={props.onConvertLineToTask}
+        />
+      );
+    case 'claudeFolders':
+      return <ClaudeFoldersPanel sessions={props.claudeSessions} onSelectFolder={props.onSelectClaudeFolder} />;
+    case 'claudeProjects':
+      return (
+        <ClaudeProjectsPanel
+          sessions={props.claudeSessions}
+          tasks={tasks}
+          projects={props.projects}
+          onSelectProject={props.onSelectProject}
         />
       );
     case 'links':
@@ -327,6 +351,100 @@ const ProjectsPanel: React.FC<{
       })}
     </ul>
   );
+};
+
+/** Rows of "name · count" with a bar scaled to the largest count; a row is a button when `onSelect` is given. */
+const CountRows: React.FC<{
+  rows: { key: string; name: string; count: number; color?: string | null; onSelect?: () => void; label: string }[];
+}> = ({ rows }) => {
+  const max = Math.max(...rows.map((r) => r.count), 1);
+  return (
+    <ul className="grid grid-cols-1 @sm:grid-cols-2 @3xl:grid-cols-3 gap-x-6 gap-y-1">
+      {rows.map((r) => {
+        const content = (
+          <>
+            <span className="flex items-center justify-between gap-2 text-xs">
+              <span className="flex items-center gap-2 min-w-0">
+                {r.color !== undefined && <Dot color={r.color} />}
+                <span className="truncate text-zinc-800 dark:text-zinc-200">{r.name}</span>
+              </span>
+              <span className="tabular-nums text-zinc-500 shrink-0">{r.count}</span>
+            </span>
+            <span aria-hidden className="mt-1.5 block h-1 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+              <span
+                className="block h-full rounded-full bg-zinc-400 dark:bg-zinc-500"
+                style={{ width: `${(r.count / max) * 100}%`, ...(r.color ? { backgroundColor: r.color } : {}) }}
+              />
+            </span>
+          </>
+        );
+        return (
+          <li key={r.key}>
+            {r.onSelect ? (
+              <button
+                type="button"
+                onClick={r.onSelect}
+                aria-label={r.label}
+                className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-zinc-100/70 dark:hover:bg-zinc-900/60 transition-colors duration-150 cursor-pointer"
+              >
+                {content}
+              </button>
+            ) : (
+              <div className="px-2 py-1.5">{content}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+/** Sessions the user hasn't cleared, per folder, most first; a row opens the Claude panel on that folder. */
+const ClaudeFoldersPanel: React.FC<{ sessions: ClaudeSession[]; onSelectFolder: (folder: string) => void }> = ({
+  sessions,
+  onSelectFolder,
+}) => {
+  const counts = new Map<string, number>();
+  for (const s of sessions) if (!s.dismissedAt) counts.set(folderName(s.cwd), (counts.get(folderName(s.cwd)) ?? 0) + 1);
+  if (counts.size === 0) return <EmptyNote>No Claude sessions yet.</EmptyNote>;
+  const rows = [...counts]
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+    .map(([name, count]) => ({
+      key: name,
+      name,
+      count,
+      onSelect: () => onSelectFolder(name),
+      label: `${name}: ${count} ${count === 1 ? 'session' : 'sessions'}. Show in Claude Sessions`,
+    }));
+  return <CountRows rows={rows} />;
+};
+
+/** Sessions linked (through their task) to each project, most first; a row opens the project. */
+const ClaudeProjectsPanel: React.FC<{
+  sessions: ClaudeSession[];
+  tasks: Task[];
+  projects: Project[];
+  onSelectProject: (projectId: string) => void;
+}> = ({ sessions, tasks, projects, onSelectProject }) => {
+  const projectByTask = new Map(tasks.map((t) => [t.id, t.projectId]));
+  const counts = new Map<string, number>();
+  for (const s of sessions) {
+    const projectId = s.taskId && !s.dismissedAt ? projectByTask.get(s.taskId) : null;
+    if (projectId) counts.set(projectId, (counts.get(projectId) ?? 0) + 1);
+  }
+  const rows = projects
+    .filter((p) => counts.has(p.id))
+    .sort((a, b) => counts.get(b.id)! - counts.get(a.id)! || a.sortOrder - b.sortOrder)
+    .map((p) => ({
+      key: p.id,
+      name: p.name,
+      color: p.color,
+      count: counts.get(p.id)!,
+      onSelect: () => onSelectProject(p.id),
+      label: `${p.name}: ${counts.get(p.id)} linked ${counts.get(p.id) === 1 ? 'session' : 'sessions'}. Open project`,
+    }));
+  if (rows.length === 0) return <EmptyNote>No Claude sessions linked to a project's tasks yet.</EmptyNote>;
+  return <CountRows rows={rows} />;
 };
 
 /** The scratchpad: autosaves while typing; the top line can become a task. */

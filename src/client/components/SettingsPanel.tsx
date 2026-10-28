@@ -31,6 +31,8 @@ const WIDGET_LABELS: [keyof WidgetConfig, string][] = [
   ['showInProgress', 'In progress tasks'],
   ['showStale', 'Stale tasks'],
   ['showAdo', 'Azure DevOps summary'],
+  ['showClaudeFolders', 'Claude sessions per folder'],
+  ['showClaudeProjects', 'Claude sessions per project'],
 ];
 
 const inputClass =

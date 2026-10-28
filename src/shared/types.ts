@@ -198,6 +198,8 @@ export const WidgetConfigSchema = z.object({
   showInProgress: z.boolean().default(true),
   showStale: z.boolean().default(true),
   showAdo: z.boolean().default(true),
+  showClaudeFolders: z.boolean().default(true),
+  showClaudeProjects: z.boolean().default(true),
 });
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 

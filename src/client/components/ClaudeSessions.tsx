@@ -93,7 +93,7 @@ export function taskFromSession(session: ClaudeSession): { title: string; descri
   };
 }
 
-const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+export const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
 
 const StateBadge: React.FC<{ state: ClaudeSessionState }> = ({ state }) => (
   <span
@@ -866,8 +866,20 @@ export function groupSessionsForPanel(sessions: ClaudeSession[]) {
 
 /** Docked right-hand panel with every Claude session, live or ended, as a card. */
 export const ClaudeSessionsSidePanel: React.FC<
-  { sessions: ClaudeSession[]; tasks: Task[]; onClose: () => void } & ClaudeSessionActions
-> = ({ sessions, tasks, onClose, ...actions }) => {
+  {
+    sessions: ClaudeSession[];
+    tasks: Task[];
+    /** Formatted folder name to show only, or null for all. */
+    folder: string | null;
+    onFolderChange: (folder: string | null) => void;
+    onClose: () => void;
+  } & ClaudeSessionActions
+> = ({ sessions: allSessions, tasks, folder, onFolderChange, onClose, ...actions }) => {
+  const folderCounts = new Map<string, number>();
+  for (const s of allSessions) folderCounts.set(folderName(s.cwd), (folderCounts.get(folderName(s.cwd)) ?? 0) + 1);
+  if (folder && !folderCounts.has(folder)) folderCounts.set(folder, 0);
+  const folders = [...folderCounts].sort(([a], [b]) => a.localeCompare(b));
+  const sessions = folder ? allSessions.filter((s) => folderName(s.cwd) === folder) : allSessions;
   const { attention, rest, cleared } = groupSessionsForPanel(sessions);
   const count = (state: ClaudeSessionState) => rest.filter((s) => s.state === state).length;
   const summary = [
@@ -887,13 +899,26 @@ export const ClaudeSessionsSidePanel: React.FC<
   return (
     <DockedPanel title="Claude Sessions" icon={<ClaudeIcon className="w-4 h-4 text-orange-500 dark:text-orange-400" />} widthKey="dashboard_claude_panel_width" onClose={onClose}>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
-        {sessions.length === 0 ? (
+        {allSessions.length === 0 ? (
           <p className="px-1 py-3 text-[13px] text-zinc-500">
             No sessions yet. Add the Dashboard hooks to <code>~/.claude/settings.json</code> (see "Claude Session
             Tracking" in the README).
           </p>
         ) : (
           <>
+            <select
+              value={folder ?? ''}
+              onChange={(e) => onFolderChange(e.target.value || null)}
+              aria-label="Filter by folder"
+              className={inputClass}
+            >
+              <option value="">All folders</option>
+              {folders.map(([name, n]) => (
+                <option key={name} value={name}>
+                  {name} ({n})
+                </option>
+              ))}
+            </select>
             {summary.length > 0 && <p className="px-1 text-xs text-zinc-500">{summary.join(' · ')}</p>}
             {attention.length > 0 && (
               <section aria-label="Needs your input" className="space-y-2">

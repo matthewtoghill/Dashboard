@@ -163,6 +163,7 @@ export const App: React.FC = () => {
     else localStorage.removeItem(SIDE_PANEL_KEY);
     setSidePanel(next);
   };
+  const [claudeFolder, setClaudeFolder] = useState<string | null>(null);
   // List view: navigation, search, priority filter, grouping and sorting
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
@@ -766,6 +767,11 @@ export const App: React.FC = () => {
       onOpenSession: claudeSessionActions.onOpen,
     },
     projects,
+    claudeSessions,
+    onSelectClaudeFolder: (folder) => {
+      setClaudeFolder(folder);
+      if (sidePanel !== 'claude') toggleSidePanel('claude');
+    },
     scratchpad,
     quickLinks,
     staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
@@ -1212,6 +1218,8 @@ export const App: React.FC = () => {
           <ClaudeSessionsSidePanel
             sessions={claudeSessions}
             tasks={tasks}
+            folder={claudeFolder}
+            onFolderChange={setClaudeFolder}
             onClose={() => toggleSidePanel('claude')}
             {...claudeSessionActions}
           />
