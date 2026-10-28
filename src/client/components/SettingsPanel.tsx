@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileJson, FileSpreadsheet, Settings, Trash2, Upload, X } from 'lucide-react';
 import {
   BackupPayload,
+  COMPLETION_ANIMATIONS,
+  CompletionAnimation,
   PRIMARY_COLORS,
   Project,
   Task,
@@ -19,6 +21,7 @@ import {
 import { formatRelativeTime, tasksToCsv, errorMessage } from '../utils/taskUtils.ts';
 import { BackupStatusLine } from './DashboardWidgets.tsx';
 import { AdoSettings } from './AdoImport.tsx';
+import { playCompletionAnimation } from '../utils/celebrate.ts';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -296,6 +299,47 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 disabled={!settings}
                 className="h-8 w-12 cursor-pointer rounded-lg bg-transparent"
               />
+            </label>
+            <div className="flex items-center gap-4">
+              <label htmlFor="completion-animation" className="w-32 text-zinc-600 dark:text-zinc-300">
+                Completion animation
+              </label>
+              <select
+                id="completion-animation"
+                value={settings?.completionAnimation ?? 'none'}
+                onChange={(e) => save.mutate({ completionAnimation: e.target.value as CompletionAnimation })}
+                disabled={!settings}
+                className={`${inputClass} capitalize`}
+              >
+                {COMPLETION_ANIMATIONS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className={buttonClass}
+                onClick={() =>
+                  playCompletionAnimation(
+                    settings?.completionAnimation ?? 'none',
+                    settings?.completionAnimationFollowsPointer
+                  )
+                }
+                disabled={!settings || settings.completionAnimation === 'none'}
+              >
+                Preview
+              </button>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings?.completionAnimationFollowsPointer ?? true}
+                onChange={(e) => save.mutate({ completionAnimationFollowsPointer: e.target.checked })}
+                disabled={!settings}
+                className="rounded text-primary-600"
+              />
+              Start animation at the click or focused task (otherwise screen centre)
             </label>
           </Section>
 

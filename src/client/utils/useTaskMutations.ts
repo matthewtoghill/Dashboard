@@ -11,7 +11,8 @@ import {
   updateSubtask,
   deleteSubtask,
 } from '../api.ts';
-import { Project, Task, TaskStatus, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
+import { Project, SettingsResponse, Task, TaskStatus, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
+import { playCompletionAnimation } from './celebrate.ts';
 import { nextOccurrence } from '../../shared/recurrence.ts';
 import { ConfirmRequest } from '../components/Feedback.tsx';
 import { DeferredHandle, UNDO_HINT } from './useDeferredDelete.ts';
@@ -58,6 +59,14 @@ export function useTaskMutations({
     onMutate: async ({ id, payload }) => {
       await queryClient.cancelQueries({ queryKey: ['tasks'] });
       const previous = queryClient.getQueryData<Task[]>(['tasks']);
+      // Covers every route to done: checkbox, context menu and drawer
+      if (payload.status === 'done' && previous?.find((t) => t.id === id)?.status !== 'done') {
+        const settings = queryClient.getQueryData<SettingsResponse>(['settings'])?.settings;
+        playCompletionAnimation(
+          settings?.completionAnimation ?? 'none',
+          settings?.completionAnimationFollowsPointer
+        );
+      }
       if (previous) {
         queryClient.setQueryData<Task[]>(
           ['tasks'],

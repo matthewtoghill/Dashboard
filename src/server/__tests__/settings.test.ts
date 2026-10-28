@@ -43,6 +43,8 @@ describe('settings', () => {
         inProgressColor: '#fbbf24',
         primaryColor: 'indigo',
         density: 'comfortable',
+        completionAnimation: 'none',
+        completionAnimationFollowsPointer: true,
       },
       envOverrides: { backupKeep: null, backupDir: null },
     });

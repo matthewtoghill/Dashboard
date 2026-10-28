@@ -283,6 +283,9 @@ export type UpdateClaudeSessionInput = z.input<typeof UpdateClaudeSessionInputSc
 /** Tailwind palettes offered as the primary colour; each needs a data-primary block in index.css. */
 export const PRIMARY_COLORS = ['indigo', 'blue', 'sky', 'teal', 'emerald', 'violet', 'purple', 'pink', 'rose', 'orange'] as const;
 
+export const COMPLETION_ANIMATIONS = ['none', 'confetti', 'fireworks', 'stars', 'snow', 'emoji', 'cannons'] as const;
+export type CompletionAnimation = (typeof COMPLETION_ANIMATIONS)[number];
+
 export const SettingsSchema = z.object({
   /** Quick-add project outside project views; ignored if the project no longer exists. */
   defaultProjectId: z.string().min(1).nullable().default(null),
@@ -324,6 +327,10 @@ export const SettingsSchema = z.object({
   primaryColor: z.enum(PRIMARY_COLORS).default('indigo'),
   /** UI density: scales Tailwind's spacing unit, leaving text size alone. */
   density: z.enum(['compact', 'comfortable', 'spacious']).default('comfortable'),
+  /** Celebration played when a task is completed; 'none' turns it off. */
+  completionAnimation: z.enum(COMPLETION_ANIMATIONS).default('none'),
+  /** Start the animation at the last click or focused element instead of the screen centre. */
+  completionAnimationFollowsPointer: z.boolean().default(true),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const UpdateSettingsInputSchema = SettingsSchema.partial().strict();
