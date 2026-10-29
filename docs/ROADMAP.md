@@ -6,22 +6,24 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 
 | # | Feature | Status |
 | :- | :--- | :--- |
-| 1 | Claude session integration | **Done** (branch `roadmap/claude-sessions`) |
-| 2 | Claude skills, hooks and automations for task management | Proposed |
-| 3 | Azure DevOps work item import | **Done** (branch `roadmap/ado-import`) |
-| 4 | Settings panel | **Done** (branch `roadmap/settings-panel`) |
-| 5 | Calendar view | **Done** (branch `roadmap/calendar`) |
-| 6 | Task activity log | **Done** (branch `roadmap/activity-log`) |
-| 7 | Automatic Azure DevOps sync check | **Done** (branch `roadmap/ado-sync`) |
-| 8 | Weekly review view | Proposed |
-| 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
-| 10 | Waiting-on state (built as On Hold) | **Done** (branch `feat/on-hold-status`) |
-| 11 | Daily plan | Proposed |
-| 12 | Task status notes | **Done** (branch `roadmap/status-notes`) |
-| 13 | Dismissed Azure DevOps items | Proposed |
-| 14 | Source links | Proposed |
+| 1 | [Claude session integration](#1-claude-session-integration) | **Done** (branch `roadmap/claude-sessions`) |
+| 2 | [Claude skills, hooks and automations for task management](#2-claude-skills-hooks-and-automations) | Proposed |
+| 3 | [Azure DevOps work item import](#3-azure-devops-work-item-import) | **Done** (branch `roadmap/ado-import`) |
+| 4 | [Settings panel](#4-settings-panel) | **Done** (branch `roadmap/settings-panel`) |
+| 5 | [Calendar view](#5-calendar-view) | **Done** (branch `roadmap/calendar`) |
+| 6 | [Task activity log](#6-task-activity-log) | **Done** (branch `roadmap/activity-log`) |
+| 7 | [Automatic Azure DevOps sync check](#7-automatic-azure-devops-sync-check) | **Done** (branch `roadmap/ado-sync`) |
+| 8 | [Weekly review view](#8-weekly-review-view) | Proposed |
+| 9 | [Custom right-click menu](#9-custom-right-click-menu) | **Done** (branch `roadmap/context-menu`) |
+| 10 | [Waiting-on state (built as On Hold)](#10-waiting-on-state) | **Done** (branch `feat/on-hold-status`) |
+| 11 | [Daily plan](#11-daily-plan) | Proposed |
+| 12 | [Task status notes](#12-task-status-notes) | **Done** (branch `roadmap/status-notes`) |
+| 13 | [Dismissed Azure DevOps items](#13-dismissed-azure-devops-items) | **Done** (branch `feat/ado-dismissed`) |
+| 14 | [Source links](#14-source-links) | Proposed |
 
 ## 1. Claude Session Integration
+
+> **Status:** ✅ **Done** (branch `roadmap/claude-sessions`)
 
 See Claude sessions from the Dashboard and tie them to tasks.
 
@@ -53,6 +55,8 @@ See Claude sessions from the Dashboard and tie them to tasks.
 
 ## 2. Claude Skills, Hooks and Automations
 
+> **Status:** Proposed
+
 Let Claude add, update and complete Dashboard tasks during a session.
 
 ### Scope
@@ -73,6 +77,8 @@ Let Claude add, update and complete Dashboard tasks during a session.
 - Should Claude be allowed to delete tasks, or only archive them?
 
 ## 3. Azure DevOps Work Item Import
+
+> **Status:** ✅ **Done** (branch `roadmap/ado-import`)
 
 Read outstanding Azure DevOps work and import it as linked Dashboard tasks.
 
@@ -110,6 +116,8 @@ Read outstanding Azure DevOps work and import it as linked Dashboard tasks.
 
 ## 4. Settings Panel
 
+> **Status:** ✅ **Done** (branch `roadmap/settings-panel`)
+
 One place in the UI to configure the Dashboard, instead of environment variables and scattered toggles.
 
 ### Scope
@@ -144,6 +152,8 @@ One place in the UI to configure the Dashboard, instead of environment variables
 - Week start waits for the calendar view (feature 5); Azure DevOps settings wait for feature 3.
 
 ## 5. Calendar View
+
+> **Status:** ✅ **Done** (branch `roadmap/calendar`)
 
 See tasks laid out by due date. Today and Upcoming are filtered lists only, so there is no way to see how work spreads across a week or month.
 
@@ -185,6 +195,8 @@ See tasks laid out by due date. Today and Upcoming are filtered lists only, so t
 
 ## 6. Task Activity Log
 
+> **Status:** ✅ **Done** (branch `roadmap/activity-log`)
+
 Keep a history of what changed on each task and when. Today only `updatedAt` survives an edit, so there is no record of status changes, due dates being pushed back, or changes made by imports and automations.
 
 ### Scope
@@ -217,6 +229,8 @@ Keep a history of what changed on each task and when. Today only `updatedAt` sur
 - The History section loads when first expanded, and reloads when the task's `updatedAt` or linked sessions change.
 
 ## 7. Automatic Azure DevOps Sync Check
+
+> **Status:** ✅ **Done** (branch `roadmap/ado-sync`)
 
 Check Azure DevOps in the background so new work and closed items show up without opening the import dialog.
 
@@ -257,6 +271,8 @@ Check Azure DevOps in the background so new work and closed items show up withou
 
 ## 8. Weekly Review View
 
+> **Status:** Proposed
+
 A guided pass over tasks that have gone stale, so the list stays trustworthy.
 
 ### Scope
@@ -285,6 +301,8 @@ A guided pass over tasks that have gone stale, so the list stays trustworthy.
 
 ## 9. Custom Right-Click Menu
 
+> **Status:** ✅ **Done** (branch `roadmap/context-menu`)
+
 Replace the browser's context menu with Dashboard actions on tasks and projects. Today task actions are spread across hover buttons and inline controls on `TaskRow`, and there is no right-click handling anywhere in the client.
 
 ### Scope
@@ -311,6 +329,8 @@ Replace the browser's context menu with Dashboard actions on tasks and projects.
 - On calendar and widget entries, "Edit title" opens the task drawer, since they have no inline editor.
 
 ## 10. Waiting-On State
+
+> **Status:** ✅ **Done** (branch `feat/on-hold-status`)
 
 Track tasks that are blocked on someone else. Today a blocked task is just `todo` or `in_progress`, so there is no record of who it waits on or for how long, and nothing prompts a follow-up.
 
@@ -339,6 +359,8 @@ Built as an **On Hold** status (`on_hold`) with an optional free-text reason (`h
 
 ## 11. Daily Plan
 
+> **Status:** Proposed
+
 Pick what to work on today, separately from due dates. The Today view lists tasks due today, which is not the same as the set of tasks I have committed to.
 
 ### Scope
@@ -365,6 +387,8 @@ Pick what to work on today, separately from due dates. The Today view lists task
 
 ## 12. Task Status Notes
 
+> **Status:** ✅ **Done** (branch `roadmap/status-notes`)
+
 A short, dated progress log on each task ("Receipts collected, form half done"). The description holds what the task is; status notes record where it stands.
 
 ### Scope
@@ -387,6 +411,8 @@ A short, dated progress log on each task ("Receipts collected, form half done").
 
 ## 13. Dismissed Azure DevOps Items
 
+> **Status:** ✅ **Done** (branch `feat/ado-dismissed`)
+
 Stop deleted or unwanted Azure DevOps items from coming back as new. "New" currently means not imported, so deleting an imported task, or never wanting an item at all, leaves it in the New count after every check.
 
 ### Scope
@@ -406,7 +432,18 @@ Stop deleted or unwanted Azure DevOps items from coming back as new. "New" curre
 - Should a dismissed pull request come back if it gets new commits or a new review request?
 - Prune dismissed ids once the source item is closed?
 
+### Decisions
+
+- Work items, pull requests (authored and review requests) and mentions can all be dismissed, each by its own external id, so dismissing a mention leaves its work item alone.
+- A dismissed item never comes back by itself: not on new commits, a new review request, or closing. Only Restore brings it back. Dismissed ids are not pruned.
+- `GET /api/ado/items` moves dismissed items from `items` to a separate `dismissed` list, so every count leaves them out. `POST /api/ado/dismissed` takes `{ externalIds, dismissed }` and dismisses or restores (migration 12).
+- The import dialog and the project panel each have a Dismiss icon on rows not yet imported, and a "Show dismissed (N)" disclosure with Restore. The panel lists only its own ADO projects' dismissed items. An item dismissed while it no longer shows up in a check cannot be listed, since only the last check's items are known.
+- Deleting a task with Azure DevOps links shows an "Also dismiss" checkbox, ticked by default, in the delete confirmation. The dismiss is sent with the delete after the undo window, so Undo cancels both.
+- Export is version 9 and includes `adoDismissed`; older backups import with none.
+
 ## 14. Source Links
+
+> **Status:** Proposed
 
 Record where a task came from for sources other than Azure DevOps, such as a Slack message, a Teams thread or an email.
 

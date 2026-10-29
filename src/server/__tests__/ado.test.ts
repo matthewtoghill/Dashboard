@@ -323,7 +323,7 @@ describe('Azure DevOps import', () => {
       payload: { items: [{ ...bad, url: `${ORG}_workitems/edit/9` }] },
     });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(8);
+    expect(exported.version).toBe(9);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });
     await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
@@ -380,6 +380,33 @@ describe('Azure DevOps import', () => {
     expect(body.items).toHaveLength(2);
     expect(body.error).toMatch(/az login/);
     expect(body.lastErrorAt).toEqual(expect.any(Number));
+  });
+
+  it('moves dismissed items out of the list until restored, and exports them', async () => {
+    const dismiss = (externalIds: string[], dismissed: boolean) =>
+      app.inject({ method: 'POST', url: '/api/ado/dismissed', payload: { externalIds, dismissed } });
+    await fetchItems();
+    expect((await dismiss(['workitem/3'], true)).statusCode).toBe(204);
+    expect((await dismiss(['workitem/3'], true)).statusCode).toBe(204); // again: no change
+    let { body } = await fetchItems(true);
+    expect(body.items.map((i) => i.externalId)).toEqual(['workitem/1']);
+    expect(body.dismissed.map((i) => i.externalId)).toEqual(['workitem/3']);
+    // A later check keeps it dismissed
+    ({ body } = await fetchItems());
+    expect(body.dismissed.map((i) => i.externalId)).toEqual(['workitem/3']);
+
+    const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
+    expect(exported.adoDismissed).toEqual([{ externalId: 'workitem/3', dismissedAt: expect.any(Number) }]);
+    const { app: fresh } = await buildApp({ dbPath: ':memory:' });
+    await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
+    expect((await fresh.inject({ method: 'GET', url: '/api/export' })).json().adoDismissed).toEqual(exported.adoDismissed);
+    await fresh.close();
+
+    expect((await dismiss(['workitem/3'], false)).statusCode).toBe(204);
+    ({ body } = await fetchItems(true));
+    expect(body.items.map((i) => i.externalId)).toEqual(['workitem/1', 'workitem/3']);
+    expect(body.dismissed).toEqual([]);
+    expect((await dismiss(['bogus'], true)).statusCode).toBe(400);
   });
 
   it('leaves out ignored states, and flags imported tasks that reach one as closed', async () => {

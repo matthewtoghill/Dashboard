@@ -6,7 +6,9 @@ import { fetchAdoProjectLinks } from '../api.ts';
 import { formatRelativeTime } from '../utils/taskUtils.ts';
 import {
   AdoClosedList,
+  AdoDismissedList,
   buttonClass,
+  DismissAdoItemButton,
   externalLinkLabel,
   externalShortLabel,
   inputClass,
@@ -172,7 +174,7 @@ export const AdoProjectLinksEditor: React.FC<{ project: Project }> = ({ project 
   );
 };
 
-const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_136px_70px] gap-3 items-center';
+const ADO_ROW_GRID = 'grid grid-cols-[18px_90px_70px_minmax(0,1fr)_136px_70px_22px] gap-3 items-center';
 
 /**
  * A project view's Azure DevOps inbox: items from the last check for the ADO projects mapped to
@@ -199,6 +201,7 @@ export const AdoProjectPanel: React.FC<{
   const mine = links.filter((l) => l.projectId === project.id);
   const names = new Set(mine.map((l) => l.adoProject.toLowerCase()));
   const items = (data?.items ?? []).filter((i) => names.has(i.adoProject.toLowerCase()));
+  const dismissed = (data?.dismissed ?? []).filter((i) => names.has(i.adoProject.toLowerCase()));
   const projectTaskIds = new Set(tasks.filter((t) => t.projectId === project.id).map((t) => t.id));
   const closed = (data?.closed ?? []).filter((c) => projectTaskIds.has(c.taskId));
   const [[, shown]] = arrangeAdoItems(items, {
@@ -378,11 +381,13 @@ export const AdoProjectPanel: React.FC<{
                     <span className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={item.state}>
                       {item.state}
                     </span>
+                    <DismissAdoItemButton item={item} />
                   </li>
                 );
               })}
             </ul>
           )}
+          <AdoDismissedList items={dismissed} className="px-3.5 pb-2.5" />
         </div>
       )}
     </section>

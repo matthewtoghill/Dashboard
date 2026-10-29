@@ -429,8 +429,21 @@ export interface AdoFetchResult {
   warnings: string[];
 }
 
+/** POST /api/ado/dismissed: dismiss items, or with dismissed false restore them. */
+export const AdoDismissInputSchema = z.object({
+  externalIds: z.array(AdoItemSchema.shape.externalId).min(1).max(500),
+  dismissed: z.boolean(),
+});
+
+export const AdoDismissedSchema = z.object({
+  externalId: AdoItemSchema.shape.externalId,
+  dismissedAt: z.number(),
+});
+
 /** GET /api/ado/items: the last background or manual check, with task links as they are now. */
 export interface AdoSyncResult extends AdoFetchResult {
+  /** Items from the check that were dismissed; left out of `items`. */
+  dismissed: (AdoItem & { taskId: string | null })[];
   /** When the result was fetched; null before the first successful check. */
   checkedAt: number | null;
   /** Why the most recent check failed, if it did. */
@@ -510,5 +523,7 @@ export const BackupPayloadSchema = z.object({
   taskEvents: z.array(TaskEventSchema).optional().default([]),
   /** Since version 8. */
   notes: z.array(NoteSchema).optional().default([]),
+  /** Since version 9. */
+  adoDismissed: z.array(AdoDismissedSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

@@ -11,6 +11,7 @@ import {
   updateSubtask,
   deleteSubtask,
   addTaskNote,
+  setAdoDismissed,
 } from '../api.ts';
 import { Project, SettingsResponse, Task, TaskStatus, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
 import { playCompletionAnimation } from './celebrate.ts';
@@ -195,14 +196,24 @@ export function useTaskMutations({
     const subtaskNote = task.subtasks.length
       ? ` and its ${plural(task.subtasks.length, 'subtask')}`
       : '';
+    const sources = task.adoLinks.map((l) => l.externalId);
     confirm({
       title: 'Delete task?',
       message: `"${task.title}"${subtaskNote} will be permanently deleted.\n${UNDO_HINT}`,
       confirmLabel: 'Delete task',
-      onConfirm: () => {
+      option: sources.length
+        ? sources.length === 1
+          ? 'Also dismiss its Azure DevOps item, so it does not come back as new'
+          : `Also dismiss its ${sources.length} Azure DevOps items, so they do not come back as new`
+        : undefined,
+      onConfirm: (dismissSources) => {
         onTaskRemoved(id);
         const undo = schedule([id], async () => {
           await deleteTask(id);
+          if (dismissSources && sources.length) {
+            await setAdoDismissed(sources, true);
+            await queryClient.invalidateQueries({ queryKey: ['adoItems'] });
+          }
           await invalidateTasks();
         });
         showToast(`Deleted "${task.title}"`, undo);

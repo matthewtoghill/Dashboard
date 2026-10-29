@@ -410,6 +410,16 @@ export async function unlinkAdoItem(externalId: string): Promise<void> {
   if (!res.ok) return failWith(res, 'Failed to unlink item');
 }
 
+/** Hides items from the New list, or with `dismissed` false restores them. */
+export async function setAdoDismissed(externalIds: string[], dismissed: boolean): Promise<void> {
+  const res = await fetch('/api/ado/dismissed', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ externalIds, dismissed }),
+  });
+  if (!res.ok) return failWith(res, dismissed ? 'Failed to dismiss items' : 'Failed to restore items');
+}
+
 export async function fetchAdoProjectLinks(): Promise<AdoProjectLink[]> {
   const res = await fetch('/api/ado/projects');
   if (!res.ok) return failWith(res, 'Failed to load Azure DevOps projects');

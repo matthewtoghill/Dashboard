@@ -7,10 +7,12 @@ import {
   CloudDownload,
   Crown,
   ExternalLink,
+  EyeOff,
   GitPullRequest,
   Link2,
   Plus,
   RefreshCw,
+  RotateCcw,
   SquareCheck,
   SquareMenu,
   Trash2,
@@ -35,6 +37,7 @@ import {
   fetchAdoWorkItemTypes,
   importAdoItems,
   saveAdoProjectLinks,
+  setAdoDismissed,
   unlinkAdoItem,
   updateTask,
 } from '../api.ts';
@@ -134,6 +137,80 @@ export function useImportAdoItems(onImported: (count: number, linked: boolean) =
     },
   });
 }
+
+/** Dismisses items (or with dismissed false restores them), then rereads the stored check. */
+export function useDismissAdoItems() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ externalIds, dismissed }: { externalIds: string[]; dismissed: boolean }) =>
+      setAdoDismissed(externalIds, dismissed),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['adoItems'] }),
+  });
+}
+
+/** An icon button that dismisses one item from the New list. */
+export const DismissAdoItemButton: React.FC<{ item: AdoItem; onDismiss?: () => void; className?: string }> = ({
+  item,
+  onDismiss,
+  className = 'p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer disabled:opacity-50',
+}) => {
+  const dismiss = useDismissAdoItems();
+  return (
+    <button
+      type="button"
+      aria-label={`Dismiss ${externalLinkLabel(item.externalId)}`}
+      title={dismiss.error?.message ?? 'Dismiss: hide it from New until restored'}
+      disabled={dismiss.isPending}
+      onClick={() => {
+        onDismiss?.();
+        dismiss.mutate({ externalIds: [item.externalId], dismissed: true });
+      }}
+      className={className}
+    >
+      <EyeOff className="w-3.5 h-3.5" />
+    </button>
+  );
+};
+
+/** "Show dismissed (3)", opening the dismissed items with a Restore button each. Hidden when there are none. */
+export const AdoDismissedList: React.FC<{ items: AdoItem[]; className?: string }> = ({ items, className = '' }) => {
+  const restore = useDismissAdoItems();
+  if (items.length === 0) return null;
+  return (
+    <details className={`text-xs ${className}`}>
+      <summary className="cursor-pointer text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 select-none">
+        Show dismissed ({items.length})
+      </summary>
+      <ul className="mt-1.5 divide-y divide-zinc-100 dark:divide-zinc-800">
+        {items.map((item) => (
+          <li key={item.externalId} className="flex items-center gap-2 py-1.5">
+            <TypeLabel item={item} className="shrink-0 w-24 opacity-60" />
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noreferrer"
+              title={externalLinkLabel(item.externalId)}
+              className="flex-1 truncate text-sm text-zinc-400 hover:underline"
+            >
+              {item.title}
+            </a>
+            <span className="shrink-0 text-zinc-400">{item.state}</span>
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={restore.isPending}
+              onClick={() => restore.mutate({ externalIds: [item.externalId], dismissed: false })}
+            >
+              <RotateCcw className="w-3 h-3" />
+              Restore
+            </button>
+          </li>
+        ))}
+      </ul>
+      {restore.isError && <p className="text-red-600 dark:text-red-400">{restore.error.message}</p>}
+    </details>
+  );
+};
 
 /** "Link to task": picks an open task and links the given items to it. */
 export const LinkToTaskButton: React.FC<{
@@ -832,6 +909,9 @@ export const AdoImportDialog: React.FC<{
                       <span className="shrink-0 text-xs text-zinc-400">
                         {item.taskId ? 'Linked' : `${item.adoProject} \u00b7 ${item.state}`}
                       </span>
+                      {!item.taskId && (
+                        <DismissAdoItemButton item={item} onDismiss={() => toggle([item.externalId], false)} />
+                      )}
                       <a
                         href={item.url}
                         target="_blank"
@@ -899,6 +979,9 @@ export const AdoImportDialog: React.FC<{
                         <span className="shrink-0 text-xs text-zinc-400">
                           {item.taskId ? 'Linked' : item.state}
                         </span>
+                        {!item.taskId && (
+                          <DismissAdoItemButton item={item} onDismiss={() => toggle([item.externalId], false)} />
+                        )}
                         <a
                           href={item.url}
                           target="_blank"
@@ -915,6 +998,7 @@ export const AdoImportDialog: React.FC<{
                 </section>
               );
             })}
+            {data && <AdoDismissedList items={data.dismissed} />}
           </div>
 
           <div className="px-5 py-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">

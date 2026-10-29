@@ -6,7 +6,9 @@ export interface ConfirmRequest {
   title: string;
   message: string;
   confirmLabel: string;
-  onConfirm: () => void;
+  /** A checkbox shown above the buttons, ticked to start; its value is passed to onConfirm. */
+  option?: string;
+  onConfirm: (optionChecked: boolean) => void;
 }
 
 /** Modal confirmation built on native <dialog>: focus trap, Esc and backdrop inertness for free. */
@@ -15,6 +17,7 @@ export const ConfirmDialog: React.FC<{
   onClose: () => void;
 }> = ({ request, onClose }) => {
   const ref = useRef<HTMLDialogElement>(null);
+  const optionRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -38,6 +41,12 @@ export const ConfirmDialog: React.FC<{
           <p className="text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-line">
             {request.message}
           </p>
+          {request.option && (
+            <label className="flex items-start gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+              <input ref={optionRef} type="checkbox" defaultChecked className="mt-0.5 rounded text-primary-600" />
+              {request.option}
+            </label>
+          )}
           <div className="flex justify-end gap-2">
             {/* Cancel is focused first so Enter never destroys data by accident */}
             <button
@@ -49,7 +58,7 @@ export const ConfirmDialog: React.FC<{
             </button>
             <button
               value="confirm"
-              onClick={request.onConfirm}
+              onClick={() => request.onConfirm(!!optionRef.current?.checked)}
               className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-500 cursor-pointer"
             >
               {request.confirmLabel}

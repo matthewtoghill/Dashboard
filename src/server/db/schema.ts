@@ -81,6 +81,12 @@ export const adoProjectLinks = sqliteTable('ado_project_links', {
   ignoredStates: text('ignored_states'), // JSON string array; null = settings default
 });
 
+/** Azure DevOps items left out of the New list until restored. */
+export const adoDismissed = sqliteTable('ado_dismissed', {
+  externalId: text('external_id').primaryKey(), // workitem/<id>, pr/<id> or mention/<work item id>
+  dismissedAt: integer('dismissed_at').notNull(),
+});
+
 export const taskAdoLinks = sqliteTable('task_ado_links', {
   externalId: text('external_id').primaryKey(), // workitem/<id>, pr/<id> or mention/<work item id>
   taskId: text('task_id')

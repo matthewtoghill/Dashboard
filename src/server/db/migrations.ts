@@ -176,6 +176,14 @@ export const MIGRATIONS: string[] = [
     ALTER TABLE tasks ADD COLUMN hold_reason TEXT;
     ALTER TABLE tasks ADD COLUMN held_since INTEGER;
   `,
+
+  // 12: Azure DevOps items dismissed from the New list, keyed like task_ado_links.external_id.
+  `
+    CREATE TABLE ado_dismissed (
+      external_id TEXT PRIMARY KEY,
+      dismissed_at INTEGER NOT NULL
+    );
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

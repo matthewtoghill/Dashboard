@@ -17,6 +17,7 @@ import {
   subtasks,
   claudeSessions,
   adoProjectLinks,
+  adoDismissed,
   taskAdoLinks,
   taskEvents,
   notes,
@@ -249,7 +250,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 8,
+      version: 9,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -261,6 +262,7 @@ export async function registerDashboardRoutes(
       adoProjectLinks: listAdoProjectLinks(db),
       taskEvents: listTaskEvents(db),
       notes: listNotes(db),
+      adoDismissed: db.select().from(adoDismissed).orderBy(asc(adoDismissed.dismissedAt)).all(),
     };
   });
 
@@ -423,6 +425,10 @@ export async function registerDashboardRoutes(
             .onConflictDoNothing()
             .run();
           importedNotes += result.changes;
+        }
+
+        for (const dismissed of payload.adoDismissed) {
+          tx.insert(adoDismissed).values(dismissed).onConflictDoNothing().run();
         }
 
         // Only into a database with no saved settings, so an import never changes them.

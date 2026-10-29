@@ -3,11 +3,12 @@ import { eq, inArray } from 'drizzle-orm';
 import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
-import { adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, taskAdoLinks, tasks } from '../db/schema.ts';
+import { adoDismissed, adoProjectLinks, DbAdoProjectLink, keyValueStore, projects, taskAdoLinks, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
 import { recordTaskEvents } from '../taskEvents.ts';
 import { toIsoDate } from '../../shared/dates.ts';
 import {
+  AdoDismissInputSchema,
   AdoFetchResult,
   AdoImportInputSchema,
   AdoItem,
@@ -618,6 +619,8 @@ export async function registerAdoRoutes(
   const syncResult = (): AdoSyncResult => {
     const state = readSyncState(db);
     const byExternalId = new Map(db.select().from(taskAdoLinks).all().map((l) => [l.externalId, l.taskId]));
+    const dismissedIds = new Set(db.select().from(adoDismissed).all().map((d) => d.externalId));
+    const items = (state.result?.items ?? []).map((item) => ({ ...item, taskId: byExternalId.get(item.externalId) ?? null }));
     const unfinished = new Map(
       db
         .select({ id: tasks.id, title: tasks.title })
@@ -627,7 +630,8 @@ export async function registerAdoRoutes(
         .map((t) => [t.id, t])
     );
     return {
-      items: (state.result?.items ?? []).map((item) => ({ ...item, taskId: byExternalId.get(item.externalId) ?? null })),
+      items: items.filter((i) => !dismissedIds.has(i.externalId)),
+      dismissed: items.filter((i) => dismissedIds.has(i.externalId)),
       closed: (state.result?.closed ?? []).flatMap((c) => {
         const task = unfinished.get(c.taskId);
         return task ? [{ ...c, title: task.title }] : [];
@@ -726,6 +730,25 @@ export async function registerAdoRoutes(
       if (taskId && importedCount > 0) tx.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId)).run();
     });
     return { importedCount };
+  });
+
+  // POST /api/ado/dismissed — { externalIds, dismissed } hides items from the New list, or restores them
+  app.post('/api/ado/dismissed', async (request, reply) => {
+    const parsed = AdoDismissInputSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid dismiss payload', details: parsed.error.flatten() });
+    }
+    const { externalIds, dismissed } = parsed.data;
+    if (dismissed) {
+      const now = Date.now();
+      db.insert(adoDismissed)
+        .values(externalIds.map((externalId) => ({ externalId, dismissedAt: now })))
+        .onConflictDoNothing()
+        .run();
+    } else {
+      db.delete(adoDismissed).where(inArray(adoDismissed.externalId, externalIds)).run();
+    }
+    return reply.status(204).send();
   });
 
   // DELETE /api/ado/links/:kind/:id — unlinks an item from its task; the task is kept
