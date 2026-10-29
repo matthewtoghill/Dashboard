@@ -57,7 +57,7 @@ export function externalShortLabel(externalId: string): string {
 type TypedItem = Pick<AdoItem, 'externalId' | 'type'> & { role?: AdoItem['role'] };
 
 /** Colour, icon and short label for an Azure DevOps item's type. */
-function typeStyle(item: TypedItem): { label: string; icon: LucideIcon; className: string } {
+export function typeStyle(item: TypedItem): { label: string; icon: LucideIcon; className: string } {
   if (item.role === 'reviewer') return { label: 'Review', icon: GitPullRequest, className: 'text-violet-700 dark:text-violet-400' };
   if (item.externalId.startsWith('mention/')) return { label: 'Mention', icon: AtSign, className: 'text-teal-700 dark:text-teal-400' };
   if (item.type === 'Bug') return { label: 'Bug', icon: Bug, className: 'text-red-700 dark:text-red-400' };

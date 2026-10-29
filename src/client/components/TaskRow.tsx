@@ -11,8 +11,6 @@ import {
   ArchiveRestore,
   Repeat,
   Bot,
-  ExternalLink,
-  GitPullRequest,
   Pause,
   MessageSquare,
 } from 'lucide-react';
@@ -34,7 +32,7 @@ import {
   needsChase,
   formatRelativeTime,
 } from '../utils/taskUtils.ts';
-import { externalLinkLabel } from './AdoImport.tsx';
+import { externalLinkLabel, typeStyle } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
 import { STATE_STYLES, primaryClaudeSession } from './ClaudeSessions.tsx';
 import { BADGE_CLASS, Dot, LABEL_CLASS, NEUTRAL_BADGE_CLASS } from './ui.tsx';
@@ -150,7 +148,7 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
   const [first, ...more] = task.adoLinks;
   if (!first) return null;
   const [kind, id] = first.externalId.split('/');
-  const Icon = kind === 'pr' ? GitPullRequest : ExternalLink;
+  const { icon: Icon, className: iconColour } = typeStyle(first);
   return (
     <a
       href={first.url}
@@ -161,7 +159,7 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
       title={[first, ...more].map((l) => externalLinkLabel(l.externalId)).join('\n')}
       className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}
     >
-      <Icon className="w-[11px] h-[11px]" />
+      <Icon className={`w-[11px] h-[11px] ${iconColour}`} />
       <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
       {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
     </a>
