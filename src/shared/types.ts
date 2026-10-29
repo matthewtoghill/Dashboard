@@ -101,6 +101,8 @@ export const TaskSchema = z.object({
   /** Set while on hold: why, and when it went on hold. Leaving on hold clears both. */
   holdReason: z.string().nullable().optional().default(null),
   heldSince: z.number().nullable().optional().default(null),
+  /** Newest status note, derived from the activity log. */
+  latestNote: z.object({ text: z.string(), at: z.number() }).nullable().optional(),
   /** The completed task this occurrence was spawned from. */
   recurrenceParentId: z.string().nullable().optional().default(null),
   subtasks: z.array(SubtaskSchema).optional().default([]),
@@ -122,6 +124,7 @@ export const TASK_EVENT_KINDS = [
   'subtask_reopened',
   'session_linked',
   'session_unlinked',
+  'status_note',
 ] as const;
 export const TASK_EVENT_SOURCES = ['manual', 'ado', 'claude'] as const;
 
@@ -137,6 +140,15 @@ export const TaskEventSchema = z.object({
 export type TaskEvent = z.infer<typeof TaskEventSchema>;
 export type TaskEventKind = TaskEvent['kind'];
 export type TaskEventSource = TaskEvent['source'];
+
+/** A one-line status note; pasted line breaks collapse to spaces. */
+export const CreateTaskNoteInputSchema = z.object({
+  text: z
+    .string()
+    .transform((t) => t.replace(/\s+/g, ' ').trim())
+    .pipe(z.string().min(1, 'Note is required').max(280, 'Note is limited to 280 characters')),
+});
+export type CreateTaskNoteInput = z.input<typeof CreateTaskNoteInputSchema>;
 
 export const CreateTaskInputSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required'),
@@ -318,6 +330,8 @@ export const SettingsSchema = z.object({
   staleTaskDays: z.number().int().min(1).max(365).default(14),
   /** On hold tasks held this many days or more get a "Chase?" badge. */
   chaseHoldDays: z.number().int().min(1).max(365).default(7),
+  /** How a task's latest status note shows in lists: a second line, or an icon with the note on hover. */
+  statusNoteStyle: z.enum(['line', 'icon']).default('line'),
   /** Accent for in-progress tasks, as #rrggbb. */
   inProgressColor: z
     .string()

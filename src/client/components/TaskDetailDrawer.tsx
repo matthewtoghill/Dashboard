@@ -19,6 +19,7 @@ import {
   Bot,
   GitPullRequest,
   History,
+  MessageSquare,
   Copy,
   Play,
   Pause,
@@ -27,6 +28,7 @@ import {
 import {
   Task,
   Project,
+  TaskEvent,
   TaskPriority,
   TaskStatus,
   UpdateTaskInput,
@@ -198,6 +200,9 @@ interface TaskDetailDrawerProps {
   /** Sessions linked to this task. */
   claudeSessions: ClaudeSession[];
   claudeSessionActions: ClaudeSessionActions;
+  onAddNote: (taskId: string, text: string) => void;
+  /** Bumped by "Status note…" in the right-click menu to focus the note input. */
+  noteFocusRequest: { taskId: string; n: number } | null;
 }
 
 export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
@@ -212,6 +217,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onDeleteSubtask,
   claudeSessions,
   claudeSessionActions,
+  onAddNote,
+  noteFocusRequest,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -877,10 +884,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             )}
           </div>
 
-          <TaskHistory
+          <TaskActivity
             task={task}
             projects={projects}
             linkedSessionIds={claudeSessions.map((s) => s.sessionId).join()}
+            onAddNote={onAddNote}
+            focusRequest={noteFocusRequest}
           />
         </div>
 
@@ -901,53 +910,131 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   );
 };
 
-const SOURCE_LABELS = { manual: null, ado: 'Azure DevOps', claude: 'Claude' } as const;
+const TimeStamp: React.FC<{ at: number }> = ({ at }) => (
+  <span className="text-zinc-400" title={formatTimestamp(at)}>
+    {' · '}
+    {formatRelativeTime(at)}
+  </span>
+);
 
-/** Collapsible activity log, loaded when first expanded and refreshed after each edit. */
-const TaskHistory: React.FC<{ task: Task; projects: Project[]; linkedSessionIds: string }> = ({
-  task,
-  projects,
-  linkedSessionIds,
-}) => {
-  const [open, setOpen] = useState(false);
+/**
+ * Status notes with an input, then the collapsible activity log. Loaded as soon as the drawer
+ * opens and refreshed after each edit.
+ */
+const TaskActivity: React.FC<{
+  task: Task;
+  projects: Project[];
+  linkedSessionIds: string;
+  onAddNote: (taskId: string, text: string) => void;
+  focusRequest: { taskId: string; n: number } | null;
+}> = ({ task, projects, linkedSessionIds, onAddNote, focusRequest }) => {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const { data: events, error } = useQuery({
     // Session links don't touch updatedAt, so they're part of the key too
     queryKey: ['taskEvents', task.id, task.updatedAt, linkedSessionIds],
     queryFn: () => fetchTaskEvents(task.id),
-    enabled: open,
   });
 
+  useEffect(() => setDraft(''), [task.id]);
+  // Deferred so it runs after the drawer's own focus handling on open
+  useEffect(() => {
+    if (focusRequest?.taskId !== task.id) return;
+    const timer = setTimeout(() => inputRef.current?.focus());
+    return () => clearTimeout(timer);
+  }, [focusRequest, task.id]);
+
+  const submit = () => {
+    if (!draft.trim()) return;
+    onAddNote(task.id, draft);
+    setDraft('');
+  };
+
+  const notes = events?.filter((ev) => ev.kind === 'status_note') ?? [];
+  const history = events?.filter((ev) => ev.kind !== 'status_note') ?? [];
+
   return (
-    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 cursor-pointer select-none">
-        <History className="w-3.5 h-3.5" />
-        <span>History</span>
-      </summary>
-      <div className="mt-2">
-        {error ? (
-          <p className="text-xs text-red-500">{error.message}</p>
-        ) : !events ? (
-          <p className="text-xs text-zinc-400">Loading…</p>
-        ) : events.length === 0 ? (
-          <p className="text-xs text-zinc-400 italic">No changes recorded yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {events.map((ev) => (
-              <li key={ev.id} className="text-xs text-zinc-600 dark:text-zinc-300">
-                {describeTaskEvent(ev, projects)}
-                <span className="text-zinc-400" title={formatTimestamp(ev.at)}>
-                  {' · '}
-                  {formatRelativeTime(ev.at)}
-                  {SOURCE_LABELS[ev.source] && ` · ${SOURCE_LABELS[ev.source]}`}
+    <>
+      <div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Status</span>
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={draft}
+          maxLength={280}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            } else if (e.key === 'Escape' && draft) {
+              e.stopPropagation(); // clears the draft instead of closing the drawer
+              setDraft('');
+            }
+          }}
+          placeholder="Where does this stand?  (Enter to add)"
+          aria-label="Add a status note"
+          className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-primary-500"
+        />
+        {notes.length > 0 && (
+          <ul className="mt-3 ml-1 space-y-1.5 border-l-2 border-zinc-200 dark:border-zinc-800 pl-3">
+            {notes.map((ev) => (
+              <li
+                key={ev.id}
+                className="relative text-sm text-zinc-700 dark:text-zinc-200 before:absolute before:-left-[17px] before:top-[7px] before:w-1.5 before:h-1.5 before:rounded-full before:bg-primary-500"
+              >
+                {ev.to}
+                <span className="text-xs">
+                  <TimeStamp at={ev.at} />
                 </span>
               </li>
             ))}
           </ul>
         )}
       </div>
-    </details>
+      <TaskHistory events={history} error={error} projects={projects} />
+    </>
   );
 };
+
+const SOURCE_LABELS = { manual: null, ado: 'Azure DevOps', claude: 'Claude' } as const;
+
+/** Collapsible log of everything except status notes. */
+const TaskHistory: React.FC<{ events: TaskEvent[]; error: Error | null; projects: Project[] }> = ({
+  events,
+  error,
+  projects,
+}) => (
+  <details>
+    <summary className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400 cursor-pointer select-none">
+      <History className="w-3.5 h-3.5" />
+      <span>History</span>
+    </summary>
+    <div className="mt-2">
+      {error ? (
+        <p className="text-xs text-red-500">{error.message}</p>
+      ) : events.length === 0 ? (
+        <p className="text-xs text-zinc-400 italic">No changes recorded yet.</p>
+      ) : (
+        <ul className="space-y-1">
+          {events.map((ev) => (
+            <li key={ev.id} className="text-xs text-zinc-600 dark:text-zinc-300">
+              {describeTaskEvent(ev, projects)}
+              <span className="text-zinc-400" title={formatTimestamp(ev.at)}>
+                {' · '}
+                {formatRelativeTime(ev.at)}
+                {SOURCE_LABELS[ev.source] && ` · ${SOURCE_LABELS[ev.source]}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  </details>
+);
 
 const SubtaskDropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position }) => (
   <div

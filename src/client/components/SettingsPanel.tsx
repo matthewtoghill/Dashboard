@@ -272,6 +272,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </label>
               ))}
             </fieldset>
+            <fieldset className="flex items-center gap-4">
+              <legend className="sr-only">Status notes</legend>
+              <span className="w-32 text-zinc-600 dark:text-zinc-300">Status notes</span>
+              {([['line', 'Line under title'], ['icon', 'Icon, note on hover']] as const).map(([value, label]) => (
+                <label key={value} className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="statusNoteStyle"
+                    checked={settings?.statusNoteStyle === value}
+                    onChange={() => save.mutate({ statusNoteStyle: value })}
+                    disabled={!settings}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
             <div className="flex items-center gap-4">
               <span className="w-32 text-zinc-600 dark:text-zinc-300">Primary colour</span>
               <div className="flex flex-wrap gap-1.5">

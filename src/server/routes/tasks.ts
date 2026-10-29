@@ -7,6 +7,7 @@ import {
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
   CreateSubtaskInputSchema,
+  CreateTaskNoteInputSchema,
   UpdateSubtaskInputSchema,
   BulkTaskIdsSchema,
   Task,
@@ -17,7 +18,7 @@ import {
 } from '../../shared/types.ts';
 import { Recurrence, RecurrenceSchema, nextOccurrence } from '../../shared/recurrence.ts';
 import { toIsoDate } from '../../shared/dates.ts';
-import { diffTask, listTaskEvents, recordTaskEvents } from '../taskEvents.ts';
+import { diffTask, latestNotes, listTaskEvents, recordTaskEvents } from '../taskEvents.ts';
 
 function serializeSubtask(row: DbSubtask): Subtask {
   return {
@@ -124,7 +125,12 @@ function serializeAdoLink(row: DbTaskAdoLink): TaskAdoLink {
   };
 }
 
-export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = [], adoLinks: TaskAdoLink[] = []): Task {
+export function serializeTask(
+  row: DbTask,
+  taskSubtasks: Subtask[] = [],
+  adoLinks: TaskAdoLink[] = [],
+  latestNote: Task['latestNote'] = null
+): Task {
   let parsedTags: string[] = [];
   try {
     const raw = JSON.parse(row.tags);
@@ -153,6 +159,7 @@ export function serializeTask(row: DbTask, taskSubtasks: Subtask[] = [], adoLink
     recurrenceParentId: row.recurrenceParentId ?? null,
     holdReason: row.holdReason ?? null,
     heldSince: row.heldSince ?? null,
+    latestNote,
     subtasks: taskSubtasks,
     adoLinks,
   };
@@ -178,7 +185,11 @@ export function listTasks(db: AppDatabase): Task[] {
     linksByTask.set(link.taskId, [...(linksByTask.get(link.taskId) ?? []), serializeAdoLink(link)]);
   }
 
-  return rows.map((row) => serializeTask(row, subtasksByTask.get(row.id) ?? [], linksByTask.get(row.id) ?? []));
+  const notesByTask = latestNotes(db);
+
+  return rows.map((row) =>
+    serializeTask(row, subtasksByTask.get(row.id) ?? [], linksByTask.get(row.id) ?? [], notesByTask.get(row.id) ?? null)
+  );
 }
 
 export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) {
@@ -197,7 +208,12 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       .where(eq(taskAdoLinks.taskId, taskId))
       .orderBy(asc(taskAdoLinks.linkedAt))
       .all();
-    return serializeTask(row, subRows.map(serializeSubtask), links.map(serializeAdoLink));
+    return serializeTask(
+      row,
+      subRows.map(serializeSubtask),
+      links.map(serializeAdoLink),
+      latestNotes(db).get(taskId) ?? null
+    );
   };
 
   // GET /api/tasks
@@ -333,6 +349,28 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       return reply.status(404).send({ error: 'Task not found' });
     }
     return { events: listTaskEvents(db, id) };
+  });
+
+  // POST /api/tasks/:id/notes — add a status note; counts as touching the task
+  app.post<{ Params: { id: string } }>('/api/tasks/:id/notes', async (request, reply) => {
+    const { id } = request.params;
+    if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) {
+      return reply.status(404).send({ error: 'Task not found' });
+    }
+    const parsed = CreateTaskNoteInputSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: parsed.error.issues[0]?.message ?? 'Invalid note',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const now = Date.now();
+    db.transaction(() => {
+      recordTaskEvents(db, id, [{ kind: 'status_note', to: parsed.data.text }], 'manual', now);
+      db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, id)).run();
+    });
+    return reply.status(201).send({ task: getTaskWithSubtasks(id)! });
   });
 
   // DELETE /api/tasks/:id

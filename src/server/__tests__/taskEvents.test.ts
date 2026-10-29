@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
 import { TaskEvent } from '../../shared/types.ts';
-import { describeTaskEvent } from '../../client/utils/taskUtils.ts';
+import { describeTaskEvent, staleTasks } from '../../client/utils/taskUtils.ts';
 
 describe('Task activity log', () => {
   let app: FastifyInstance;
@@ -142,6 +142,87 @@ describe('Task activity log', () => {
     expect((await app.inject({ method: 'GET', url: `/api/tasks/${id}/events` })).statusCode).toBe(404);
     const after = (await app.inject({ method: 'GET', url: '/api/export' })).json();
     expect(after.taskEvents).toEqual([]);
+  });
+});
+
+describe('Status notes', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    ({ app } = await buildApp({ dbPath: ':memory:' }));
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const createTask = async (payload: object = { title: 'T' }) =>
+    (await app.inject({ method: 'POST', url: '/api/tasks', payload })).json().task.id as string;
+  const note = (id: string, text: unknown) =>
+    app.inject({ method: 'POST', url: `/api/tasks/${id}/notes`, payload: { text } });
+  const listed = async () => (await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks;
+  const events = async (id: string) =>
+    (await app.inject({ method: 'GET', url: `/api/tasks/${id}/events` })).json().events as TaskEvent[];
+
+  it('records a manual note event and exposes the newest as latestNote', async () => {
+    const id = await createTask();
+    expect((await listed())[0].latestNote ?? null).toBeNull();
+
+    expect((await note(id, 'Waiting on receipts')).statusCode).toBe(201);
+    const second = await note(id, '  Receipts collected,\n form half done ');
+    expect(second.json().task.latestNote.text).toBe('Receipts collected, form half done');
+
+    expect((await listed())[0].latestNote.text).toBe('Receipts collected, form half done');
+    expect((await events(id)).filter((e) => e.kind === 'status_note').map((e) => [e.to, e.source])).toEqual([
+      ['Receipts collected, form half done', 'manual'],
+      ['Waiting on receipts', 'manual'],
+    ]);
+  });
+
+  it('rejects empty and over-long notes and unknown tasks', async () => {
+    const id = await createTask();
+    expect((await note(id, '   ')).statusCode).toBe(400);
+    expect((await note(id, 'x'.repeat(281))).statusCode).toBe(400);
+    expect((await note(id, 'x'.repeat(280))).statusCode).toBe(201);
+    expect((await note('missing', 'hi')).statusCode).toBe(404);
+  });
+
+  it('accepts notes on archived tasks without changing their status', async () => {
+    const id = await createTask();
+    await app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, payload: { status: 'archived' } });
+    expect((await note(id, 'Parked until Q1')).statusCode).toBe(201);
+    expect((await listed())[0]).toMatchObject({ status: 'archived', latestNote: { text: 'Parked until Q1' } });
+  });
+
+  it('counts as touching the task, so it leaves the stale list', async () => {
+    const id = await createTask();
+    const month = 30 * 24 * 60 * 60 * 1000;
+    const future = Date.now() + month;
+    expect(staleTasks(await listed(), 14, future).map((t) => t.id)).toEqual([id]);
+    await note(id, 'Still on it');
+    const after = await listed();
+    expect(after[0].updatedAt).toBeGreaterThan(after[0].createdAt - 1);
+    expect(staleTasks(after, 14, after[0].updatedAt + 13 * 24 * 60 * 60 * 1000)).toEqual([]);
+  });
+
+  it('round-trips through export and import, and cascades on delete', async () => {
+    const id = await createTask();
+    await note(id, 'Half done');
+    const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
+
+    const { app: fresh } = await buildApp({ dbPath: ':memory:' });
+    await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
+    const tasks = (await fresh.inject({ method: 'GET', url: '/api/tasks' })).json().tasks;
+    expect(tasks[0].latestNote.text).toBe('Half done');
+    await fresh.close();
+
+    await app.inject({ method: 'DELETE', url: `/api/tasks/${id}` });
+    expect((await app.inject({ method: 'GET', url: '/api/export' })).json().taskEvents).toEqual([]);
+  });
+
+  it('describes a note', () => {
+    const ev: TaskEvent = { id: 'e', taskId: 't', at: 0, kind: 'status_note', from: null, to: 'Half done', source: 'manual' };
+    expect(describeTaskEvent(ev, [])).toBe('Note: Half done');
   });
 });
 

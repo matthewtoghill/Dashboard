@@ -444,6 +444,16 @@ export async function fetchAdoWorkItemTypes(project?: string, refresh = false): 
   return (await res.json()) as AdoWorkItemTypes;
 }
 
+export async function addTaskNote(taskId: string, text: string): Promise<Task> {
+  const res = await fetch(`/api/tasks/${taskId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) return failWith(res, 'Failed to add note');
+  return ((await res.json()) as { task: Task }).task;
+}
+
 export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
   const res = await fetch(`/api/tasks/${taskId}/events`);
   if (!res.ok) {

@@ -10,6 +10,7 @@ import {
   createSubtask,
   updateSubtask,
   deleteSubtask,
+  addTaskNote,
 } from '../api.ts';
 import { Project, SettingsResponse, Task, TaskStatus, UpdateSubtaskInput, UpdateTaskInput } from '../../shared/types.ts';
 import { playCompletionAnimation } from './celebrate.ts';
@@ -92,6 +93,15 @@ export function useTaskMutations({
     mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
       createSubtask(taskId, { title }),
     onSuccess: () => invalidateTasks(),
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: ({ taskId, text }: { taskId: string; text: string }) => addTaskNote(taskId, text),
+    onSuccess: (_task, { taskId }) => {
+      invalidateTasks();
+      queryClient.invalidateQueries({ queryKey: ['taskEvents', taskId] });
+    },
+    onError: (err) => showToast(errorMessage(err, 'Adding note failed')),
   });
 
   const updateSubtaskMutation = useMutation({
@@ -288,6 +298,7 @@ export function useTaskMutations({
     handleUpdateSubtask: (subtaskId: string, input: UpdateSubtaskInput) =>
       updateSubtaskMutation.mutate({ subtaskId, ...input }),
     handleDeleteSubtask,
+    handleAddNote: (taskId: string, text: string) => addNoteMutation.mutate({ taskId, text }),
     handleUpdateTask,
     handleRescheduleTask,
     handleToggleTask,

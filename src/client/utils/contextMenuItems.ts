@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Flag,
   Folder,
+  MessageSquare,
   Palette,
   PanelRightOpen,
   Pencil,
@@ -33,6 +34,8 @@ export interface TaskMenuActions {
   projects: Project[];
   onOpen: (taskId: string) => void;
   onRename: (taskId: string) => void;
+  /** Opens the drawer with the status note input focused. */
+  onAddNote: (taskId: string) => void;
   onSetStatus: (task: Task, status: TaskStatus) => void;
   onUpdate: (id: string, payload: UpdateTaskInput) => void;
   onReschedule: (task: Task, dueDate: string) => void;
@@ -54,6 +57,7 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
   const items: MenuItem[] = [
     open,
     { label: 'Edit title', icon: Pencil, onSelect: () => a.onRename(task.id) },
+    { label: 'Status note…', icon: MessageSquare, onSelect: () => a.onAddNote(task.id) },
   ];
 
   if (!isArchived) {

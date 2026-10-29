@@ -17,7 +17,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 9 | Custom right-click menu | **Done** (branch `roadmap/context-menu`) |
 | 10 | Waiting-on state (built as On Hold) | **Done** (branch `feat/on-hold-status`) |
 | 11 | Daily plan | Proposed |
-| 12 | Task status notes | Proposed |
+| 12 | Task status notes | **Done** (branch `roadmap/status-notes`) |
 | 13 | Dismissed Azure DevOps items | Proposed |
 | 14 | Source links | Proposed |
 

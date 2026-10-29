@@ -28,6 +28,7 @@ const actions = (): TaskMenuActions => ({
   projects: [{ id: 'p1', name: 'Work', color: '#6366f1', sortOrder: 0, createdAt: 1, adoEnabled: true }],
   onOpen: vi.fn(),
   onRename: vi.fn(),
+  onAddNote: vi.fn(),
   onSetStatus: vi.fn(),
   onUpdate: vi.fn(),
   onReschedule: vi.fn(),
@@ -47,7 +48,7 @@ describe('taskMenuItems', () => {
   it('lists the task actions, ticking the current status', () => {
     const items = taskMenuItems(base, false, actions());
     expect(items.map((i) => i.label)).toEqual([
-      'Open task', 'Edit title', 'To Do', 'In Progress', 'On Hold', 'Completed', 'Priority', 'Due date',
+      'Open task', 'Edit title', 'Status note…', 'To Do', 'In Progress', 'On Hold', 'Completed', 'Priority', 'Due date',
       'Move to project', 'Add tag', 'Copy title', 'Archive', 'Delete',
     ]);
     expect(items.find((i) => i.label === 'To Do')?.checked).toBe(true);

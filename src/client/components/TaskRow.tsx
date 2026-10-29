@@ -14,6 +14,7 @@ import {
   ExternalLink,
   GitPullRequest,
   Pause,
+  MessageSquare,
 } from 'lucide-react';
 import {
   Task,
@@ -31,6 +32,7 @@ import {
   cleanTag,
   heldDays,
   needsChase,
+  formatRelativeTime,
 } from '../utils/taskUtils.ts';
 import { externalLinkLabel } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
@@ -166,6 +168,30 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
   );
 };
 
+/** Icon for a task's latest status note; the note shows on hover or focus. */
+export const StatusNoteBadge: React.FC<{ note: { text: string; at: number }; onOpen?: () => void }> = ({
+  note,
+  onOpen,
+}) => (
+  <span className="relative shrink-0 group/note">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Status note: ${note.text}`}
+      className={`${BADGE_CLASS} bg-primary-500/15 text-primary-700 dark:text-primary-300 cursor-pointer`}
+    >
+      <MessageSquare className="w-[11px] h-[11px]" />
+    </button>
+    <span
+      role="tooltip"
+      className="hidden group-hover/note:block group-focus-within/note:block absolute left-0 top-full mt-1 z-20 w-64 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-zinc-800 dark:text-zinc-100 shadow-lg whitespace-normal"
+    >
+      {note.text}
+      <span className="block text-zinc-400">{formatRelativeTime(note.at)}</span>
+    </span>
+  </span>
+);
+
 interface TaskRowProps {
   task: Task;
   projects: Project[];
@@ -182,6 +208,8 @@ interface TaskRowProps {
   onRestore: (task: Task) => void;
   /** Days on hold before the row shows "Chase?". */
   chaseHoldDays?: number;
+  /** How the latest status note shows: a second line under the title, or an icon. */
+  noteStyle?: 'line' | 'icon';
   /** Drag handle supplied by ReorderableTaskList when manual sorting is active. */
   dragHandle?: React.ReactNode;
   /** Inline title editing, controlled by App so the `e` shortcut can start it. */
@@ -211,6 +239,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   onArchive,
   onRestore,
   chaseHoldDays = 7,
+  noteStyle = 'line',
   dragHandle,
   isEditing,
   onEditingChange: setIsEditing,
@@ -295,6 +324,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const completedSubtasks = subtasks.filter((s) => s.isCompleted).length;
   const hasNotes = Boolean(task.description && task.description.trim().length > 0);
   const notesChecklist = hasNotes ? checklistProgress(task.description) : null;
+  const statusNote = task.latestNote;
+  // A finished task's note stays in the drawer; the row would only repeat it
+  const showNoteLine = noteStyle === 'line' && Boolean(statusNote) && !isDone && !isArchived;
 
   return (
     <div
@@ -318,6 +350,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         {dragHandle}
         <TaskStatusCheckbox task={task} onToggle={onToggle} />
 
+        <div className={`min-w-0 flex flex-col ${isEditing ? 'flex-1' : ''}`}>
+        <div className="min-w-0 flex items-center gap-2.5">
         {isEditing ? (
           <input
             ref={inputRef}
@@ -390,10 +424,28 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               </span>
             )}
 
+            {noteStyle === 'icon' && statusNote && (
+              <StatusNoteBadge note={statusNote} onOpen={() => onSelect?.(task)} />
+            )}
             <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
             <AdoBadge task={task} />
           </>
         )}
+        </div>
+        {showNoteLine && statusNote && !isEditing && (
+          <button
+            type="button"
+            onClick={() => onSelect?.(task)}
+            title={`${statusNote.text}
+
+Click to open details`}
+            className="min-w-0 text-left text-xs truncate text-zinc-500 dark:text-zinc-400 cursor-pointer"
+          >
+            {statusNote.text}
+            <span className="text-zinc-400 dark:text-zinc-500"> · {formatRelativeTime(statusNote.at)}</span>
+          </button>
+        )}
+        </div>
 
         <div className="ml-auto shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
           {isEditing ? (

@@ -180,6 +180,7 @@ export const App: React.FC = () => {
 
   // Selected Task for Detail Drawer & Command Palette state
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [noteFocusRequest, setNoteFocusRequest] = useState<{ taskId: string; n: number } | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   // The note open in the side panel on the Notes page; id null while a new note is still empty.
   // key changes only when another note is opened, so creating a note keeps the editor mounted.
@@ -270,6 +271,7 @@ export const App: React.FC = () => {
   const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
   const inProgressColor = settingsData?.settings.inProgressColor;
   const chaseHoldDays = settingsData?.settings.chaseHoldDays ?? 7;
+  const statusNoteStyle = settingsData?.settings.statusNoteStyle ?? 'line';
   useEffect(() => {
     if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
   }, [inProgressColor]);
@@ -378,6 +380,7 @@ export const App: React.FC = () => {
     createTaskMutation,
     createTaskFromText,
     handleCreateSubtask,
+    handleAddNote,
     handleUpdateSubtask,
     handleDeleteSubtask,
     handleUpdateTask,
@@ -752,6 +755,10 @@ export const App: React.FC = () => {
         projects,
         onOpen: setSelectedTaskId,
         onRename: isListRow ? startEditing : setSelectedTaskId,
+        onAddNote: (taskId) => {
+          setSelectedTaskId(taskId);
+          setNoteFocusRequest((r) => ({ taskId, n: (r?.n ?? 0) + 1 }));
+        },
         onSetStatus: handleSetStatus,
         onUpdate: handleUpdateTask,
         onReschedule: handleRescheduleTask,
@@ -1134,6 +1141,7 @@ export const App: React.FC = () => {
                           renderRow={(task, dragHandle) => (
                             <TaskRow
                               chaseHoldDays={chaseHoldDays}
+                              noteStyle={statusNoteStyle}
                               task={task}
                               projects={projects}
                               showProject={!currentProject}
@@ -1192,6 +1200,7 @@ export const App: React.FC = () => {
                       {completedFilteredTasks.map((task) => (
                         <TaskRow
                           chaseHoldDays={chaseHoldDays}
+                          noteStyle={statusNoteStyle}
                           key={task.id}
                           task={task}
                           projects={projects}
@@ -1255,6 +1264,8 @@ export const App: React.FC = () => {
         onSetStatus={handleSetStatus}
         onDeleteTask={handleDeleteTask}
         onCreateSubtask={handleCreateSubtask}
+        onAddNote={handleAddNote}
+        noteFocusRequest={noteFocusRequest}
         onUpdateSubtask={handleUpdateSubtask}
         onDeleteSubtask={handleDeleteSubtask}
         claudeSessions={claudeSessionsByTaskId.get(selectedTask?.id ?? '') ?? []}

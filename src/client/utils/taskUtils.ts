@@ -200,6 +200,8 @@ export function describeTaskEvent(event: TaskEvent, projects: Project[]): string
       return `Claude session linked: ${to}`;
     case 'session_unlinked':
       return `Claude session unlinked: ${from}`;
+    case 'status_note':
+      return `Note: ${to}`;
   }
 }
 
