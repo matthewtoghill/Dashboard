@@ -227,8 +227,8 @@ export const ViewStateSchema = z.object({
   nav: ActiveNavigationSchema,
   search: z.string().max(200),
   priority: z.union([TaskPrioritySchema, z.literal('all')]),
-  groupBy: z.enum(['none', 'priority', 'project', 'dueDate', 'status']),
-  sortBy: z.enum(['created', 'priority', 'dueDate', 'manual']),
+  groupBy: z.enum(['none', 'priority', 'project', 'dueDate', 'status', 'adoLink', 'age']),
+  sortBy: z.enum(['created', 'oldest', 'updated', 'title', 'heldSince', 'priority', 'dueDate', 'manual']),
   /** Since roadmap 5. Saved views from before it show as a list. */
   layout: z.enum(['list', 'month', 'week']).optional().default('list'),
 });

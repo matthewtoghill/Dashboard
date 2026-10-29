@@ -93,6 +93,20 @@ export function sortTasks(tasks: Task[], sortBy: SortByOption): Task[] {
       }
     } else if (sortBy === 'manual') {
       if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    } else if (sortBy === 'oldest') {
+      return a.createdAt - b.createdAt;
+    } else if (sortBy === 'updated') {
+      if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
+    } else if (sortBy === 'title') {
+      const cmp = a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+    } else if (sortBy === 'heldSince') {
+      // Longest on hold first; tasks not on hold follow.
+      if (a.heldSince !== b.heldSince) {
+        if (a.heldSince === null) return 1;
+        if (b.heldSince === null) return -1;
+        return a.heldSince - b.heldSince;
+      }
     }
     return b.createdAt - a.createdAt;
   });
@@ -116,6 +130,36 @@ export function dueBucket(dueDate: string | null, today: string): DueBucket {
   const day = parseIsoDate(today);
   if (dueDate === toIsoDate(addDays(day, 1))) return 'tomorrow';
   return dueDate <= toIsoDate(addDays(day, 7)) ? 'week' : 'later';
+}
+
+const ADO_LINK_GROUPS = {
+  workitem: { label: 'Work item', order: 1 },
+  pr: { label: 'Pull request', order: 2 },
+  mention: { label: 'Mention', order: 3 },
+  none: { label: 'Not linked', order: 4 },
+} as const;
+
+/** A task's strongest ADO link: work item, then PR, then mention. */
+function adoLinkKind(task: Task): keyof typeof ADO_LINK_GROUPS {
+  for (const kind of ['workitem', 'pr', 'mention'] as const) {
+    if (task.adoLinks.some((l) => l.externalId.startsWith(`${kind}/`))) return kind;
+  }
+  return 'none';
+}
+
+const AGE_GROUPS = {
+  today: { label: 'Added today', order: 1 },
+  week: { label: 'Last 7 days', order: 2 },
+  month: { label: 'Last 30 days', order: 3 },
+  older: { label: 'Older', order: 4 },
+} as const;
+
+function ageBucket(createdAt: number, today: string): keyof typeof AGE_GROUPS {
+  const created = toIsoDate(new Date(createdAt));
+  const day = parseIsoDate(today);
+  if (created >= today) return 'today';
+  if (created > toIsoDate(addDays(day, -7))) return 'week';
+  return created > toIsoDate(addDays(day, -30)) ? 'month' : 'older';
 }
 
 const STATUS_ORDER = { in_progress: 1, todo: 2, on_hold: 3, done: 4, archived: 5 } as const;
@@ -147,6 +191,14 @@ export function groupTasks(
       const bucket = dueBucket(task.dueDate, today);
       key = `due-${bucket}`;
       ({ label, order } = DUE_BUCKETS[bucket]);
+    } else if (groupBy === 'adoLink') {
+      const kind = adoLinkKind(task);
+      key = `ado-${kind}`;
+      ({ label, order } = ADO_LINK_GROUPS[kind]);
+    } else if (groupBy === 'age') {
+      const bucket = ageBucket(task.createdAt, today);
+      key = `age-${bucket}`;
+      ({ label, order } = AGE_GROUPS[bucket]);
     } else {
       key = `status-${task.status}`;
       label = STATUS_LABELS[task.status];

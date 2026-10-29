@@ -170,6 +170,8 @@ export const TaskListToolbar: React.FC<{
               <option value="status">Status</option>
               <option value="priority">Priority</option>
               <option value="project">Project</option>
+              <option value="adoLink">ADO link</option>
+              <option value="age">Age</option>
             </GhostSelect>
 
             {sortBy === 'manual' && groupBy !== 'none' && (
@@ -183,6 +185,10 @@ export const TaskListToolbar: React.FC<{
               onChange={(value) => updateView({ sortBy: value as SortByOption })}
             >
               <option value="created">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="updated">Recently updated</option>
+              <option value="title">Title (A-Z)</option>
+              <option value="heldSince">Longest on hold</option>
               <option value="dueDate">Due date</option>
               <option value="priority">Priority</option>
               <option value="manual">Manual</option>

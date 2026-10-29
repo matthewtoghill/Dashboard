@@ -94,6 +94,44 @@ describe('taskView', () => {
     expect(ids(list)).toEqual(['a', 'b', 'c']); // input not mutated
   });
 
+  it('sorts by oldest, recently updated, title and longest on hold', () => {
+    const a = task({ id: 'a', title: 'beta 10', updatedAt: 50, heldSince: 200 });
+    const b = task({ id: 'b', title: 'Alpha', updatedAt: 90, heldSince: null });
+    const c = task({ id: 'c', title: 'beta 9', updatedAt: 70, heldSince: 100 });
+    const list = [a, b, c];
+
+    expect(ids(sortTasks(list, 'oldest'))).toEqual(['a', 'b', 'c']);
+    expect(ids(sortTasks(list, 'updated'))).toEqual(['b', 'c', 'a']);
+    expect(ids(sortTasks(list, 'title'))).toEqual(['b', 'c', 'a']); // case-insensitive, numeric-aware
+    expect(ids(sortTasks(list, 'heldSince'))).toEqual(['c', 'a', 'b']); // not on hold last
+  });
+
+  it('groups by ADO link and age', () => {
+    const link = (externalId: string) => ({
+      externalId, url: 'https://x.test', title: '', type: '', state: '', linkedAt: 1,
+    });
+    const labels = (groupBy: 'adoLink' | 'age', list: Task[]) =>
+      groupTasks(list, groupBy, projects, TODAY).map((s) => `${s.label}:${ids(s.tasks).join(',')}`);
+
+    expect(
+      labels('adoLink', [
+        task({ id: 'none' }),
+        task({ id: 'pr', adoLinks: [link('pr/1')] }),
+        task({ id: 'both', adoLinks: [link('pr/2'), link('workitem/3')] }),
+      ])
+    ).toEqual(['Work item:both', 'Pull request:pr', 'Not linked:none']);
+
+    const at = (iso: string) => new Date(`${iso}T12:00:00`).getTime();
+    expect(
+      labels('age', [
+        task({ id: 'old', createdAt: at('2026-08-01') }),
+        task({ id: 'new', createdAt: at(TODAY) }),
+        task({ id: 'wk', createdAt: at('2026-10-18') }),
+        task({ id: 'mo', createdAt: at('2026-10-01') }),
+      ])
+    ).toEqual(['Added today:new', 'Last 7 days:wk', 'Last 30 days:mo', 'Older:old']);
+  });
+
   it('groups into ordered sections', () => {
     const labels = (groupBy: Parameters<typeof groupTasks>[1], list: Task[]) =>
       groupTasks(list, groupBy, projects).map((s) => `${s.label}:${ids(s.tasks).join(',')}`);
