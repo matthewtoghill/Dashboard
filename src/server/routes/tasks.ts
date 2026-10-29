@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { eq, desc, asc, and, ne, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
-import { tasks, subtasks, taskAdoLinks, DbTask, DbSubtask, DbTaskAdoLink } from '../db/schema.ts';
+import { tasks, subtasks, taskAdoLinks, taskSourceLinks, DbTask, DbSubtask, DbTaskAdoLink } from '../db/schema.ts';
 import {
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
@@ -79,6 +79,7 @@ function spawnNextOccurrence(
     })
     .run();
   recordTaskEvents(db, id, [{ kind: 'created' }], 'manual', now);
+  setSourceUrls(db, id, listSourceUrls(db, completed.id), now);
 
   for (const sub of db.select().from(subtasks).where(eq(subtasks.taskId, completed.id)).all()) {
     db.insert(subtasks)
@@ -129,7 +130,8 @@ export function serializeTask(
   row: DbTask,
   taskSubtasks: Subtask[] = [],
   adoLinks: TaskAdoLink[] = [],
-  latestNote: Task['latestNote'] = null
+  latestNote: Task['latestNote'] = null,
+  sourceUrls: string[] = []
 ): Task {
   let parsedTags: string[] = [];
   try {
@@ -162,6 +164,7 @@ export function serializeTask(
     latestNote,
     subtasks: taskSubtasks,
     adoLinks,
+    sourceUrls,
   };
 }
 
@@ -185,11 +188,46 @@ export function listTasks(db: AppDatabase): Task[] {
     linksByTask.set(link.taskId, [...(linksByTask.get(link.taskId) ?? []), serializeAdoLink(link)]);
   }
 
+  const sourcesByTask = new Map<string, string[]>();
+  for (const link of db.select().from(taskSourceLinks).orderBy(asc(taskSourceLinks.linkedAt)).all()) {
+    sourcesByTask.set(link.taskId, [...(sourcesByTask.get(link.taskId) ?? []), link.url]);
+  }
+
   const notesByTask = latestNotes(db);
 
   return rows.map((row) =>
-    serializeTask(row, subtasksByTask.get(row.id) ?? [], linksByTask.get(row.id) ?? [], notesByTask.get(row.id) ?? null)
+    serializeTask(
+      row,
+      subtasksByTask.get(row.id) ?? [],
+      linksByTask.get(row.id) ?? [],
+      notesByTask.get(row.id) ?? null,
+      sourcesByTask.get(row.id) ?? []
+    )
   );
+}
+
+/** The task's source links, oldest first. */
+function listSourceUrls(db: AppDatabase, taskId: string): string[] {
+  return db
+    .select({ url: taskSourceLinks.url })
+    .from(taskSourceLinks)
+    .where(eq(taskSourceLinks.taskId, taskId))
+    .orderBy(asc(taskSourceLinks.linkedAt))
+    .all()
+    .map((r) => r.url);
+}
+
+/** Makes `urls` the task's source links. Links already there keep their place; new ones follow in order. */
+function setSourceUrls(db: AppDatabase, taskId: string, urls: string[], now: number): void {
+  const removed = listSourceUrls(db, taskId).filter((url) => !urls.includes(url));
+  if (removed.length) {
+    db.delete(taskSourceLinks)
+      .where(and(eq(taskSourceLinks.taskId, taskId), inArray(taskSourceLinks.url, removed)))
+      .run();
+  }
+  urls.forEach((url, i) => {
+    db.insert(taskSourceLinks).values({ taskId, url, linkedAt: now + i }).onConflictDoNothing().run();
+  });
 }
 
 export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) {
@@ -212,7 +250,8 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       row,
       subRows.map(serializeSubtask),
       links.map(serializeAdoLink),
-      latestNotes(db).get(taskId) ?? null
+      latestNotes(db).get(taskId) ?? null,
+      listSourceUrls(db, taskId)
     );
   };
 
@@ -252,6 +291,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
 
     db.transaction(() => {
       db.insert(tasks).values(newTask).run();
+      setSourceUrls(db, id, input.sourceUrls, now);
       recordTaskEvents(db, id, [{ kind: 'created' }], 'manual', now);
     });
 
@@ -328,6 +368,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
         })
         .where(eq(tasks.id, id))
         .run();
+      if (input.sourceUrls !== undefined) setSourceUrls(db, id, input.sourceUrls, now);
 
       const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()!;
       recordTaskEvents(db, id, diffTask(existing, updated), 'manual', now);

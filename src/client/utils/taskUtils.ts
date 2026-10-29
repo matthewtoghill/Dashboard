@@ -266,6 +266,7 @@ export function resolveDateToken(word: string, today: Date = new Date()): string
  * - `@` dates: see `resolveDateToken` (`@today`, `@fri`, `@+3d`, `@2026-11-01`, ...)
  * - `#projectName` (if matching an existing project name, case-insensitive) or `#tag`
  * - `~` repeats: see `parseRecurrenceToken` (`~daily`, `~weekdays`, `~2w`, `~2w!`, ...)
+ * - `https://` links become source links
  * Unrecognised `@words` and `~words` stay in the title.
  */
 export function parseQuickAddSyntax(
@@ -285,7 +286,9 @@ export function parseQuickAddSyntax(
   dueDate: string | null;
   tags: string[];
   recurrence: Recurrence | null;
+  sourceUrls: string[];
 } {
+  const sourceUrls: string[] = [];
   let priority = defaults.priority;
   let recurrence: Recurrence | null = null;
   let projectId = defaults.projectId;
@@ -338,6 +341,11 @@ export function parseQuickAddSyntax(
       continue;
     }
 
+    if (/^https:\/\/\S+$/.test(token) && URL.canParse(token)) {
+      if (!sourceUrls.includes(token)) sourceUrls.push(token);
+      continue;
+    }
+
     if (token.startsWith('~') && token.length > 1) {
       const rule = parseRecurrenceToken(token.slice(1));
       if (rule) {
@@ -358,7 +366,22 @@ export function parseQuickAddSyntax(
     dueDate,
     tags,
     recurrence,
+    sourceUrls,
   };
+}
+
+export type SourceKind = 'Slack' | 'Teams' | 'Email' | 'Link';
+
+const SOURCE_HOSTS: [SourceKind, RegExp][] = [
+  ['Slack', /(^|\.)slack\.com$/],
+  ['Teams', /^teams\.(microsoft|live)\.com$/],
+  ['Email', /^(outlook\.office(365)?\.com|outlook\.live\.com|mail\.google\.com)$/],
+];
+
+/** What a source link points at, from its host. */
+export function sourceKind(url: string): SourceKind {
+  const host = URL.canParse(url) ? new URL(url).hostname.toLowerCase() : '';
+  return SOURCE_HOSTS.find(([, pattern]) => pattern.test(host))?.[0] ?? 'Link';
 }
 
 /**

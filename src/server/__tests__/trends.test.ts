@@ -31,6 +31,7 @@ const task = (overrides: Partial<Task>): Task => ({
   holdReason: null,
   heldSince: null,
   adoLinks: [],
+  sourceUrls: [],
   subtasks: [],
   ...overrides,
 });

@@ -19,7 +19,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 11 | [Daily plan](#11-daily-plan) | Proposed |
 | 12 | [Task status notes](#12-task-status-notes) | **Done** (branch `roadmap/status-notes`) |
 | 13 | [Dismissed Azure DevOps items](#13-dismissed-azure-devops-items) | **Done** (branch `feat/ado-dismissed`) |
-| 14 | [Source links](#14-source-links) | Proposed |
+| 14 | [Source links](#14-source-links) | **Done** (branch `feat/source-links`) |
 
 ## 1. Claude Session Integration
 
@@ -443,7 +443,7 @@ Stop deleted or unwanted Azure DevOps items from coming back as new. "New" curre
 
 ## 14. Source Links
 
-> **Status:** Proposed
+> **Status:** ✅ **Done** (branch `feat/source-links`)
 
 Record where a task came from for sources other than Azure DevOps, such as a Slack message, a Teams thread or an email.
 
@@ -463,3 +463,13 @@ Record where a task came from for sources other than Azure DevOps, such as a Sla
 
 - Should a pasted link be taken out of the title, or left in it?
 - One source per task, or several?
+
+### Decisions
+
+- Migration 9 had already dropped `external_source` and `external_url`, so links have their own table instead: `task_source_links` (`task_id`, `url`, `linked_at`, keyed on task and url, migration 13).
+- A task can have several source links. The API returns them as `sourceUrls`, oldest first. Create and `PATCH /api/tasks/:id` take a `sourceUrls` array; a PATCH replaces the whole set, and links that stay keep their place. Duplicates are dropped and only `https://` URLs are accepted.
+- Quick-add takes each `https://` token out of the title and stores it as a source. When the text is only a link, the link stays as the title. The preview under the bar shows a chip for each source.
+- The kind comes from the host: Slack is `*.slack.com`; Teams is `teams.microsoft.com` or `teams.live.com`; Email is `outlook.office.com`, `outlook.office365.com`, `outlook.live.com` or `mail.google.com`. Any other host is Link.
+- The row chip shows the first source's kind and "+N" for the rest. The drawer has a Sources section that lists each link with Remove, plus a field for pasting another. With one source, the right-click menu shows "Open source"; with several, a submenu.
+- The next occurrence of a recurring task copies its source links. Export is version 10, and backups from older versions import with no source links.
+

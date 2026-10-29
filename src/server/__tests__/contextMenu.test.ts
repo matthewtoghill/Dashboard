@@ -21,6 +21,7 @@ const base: Task = {
   holdReason: null,
   heldSince: null,
   adoLinks: [],
+  sourceUrls: [],
   subtasks: [],
 };
 
@@ -74,6 +75,16 @@ describe('taskMenuItems', () => {
     expect(a.onReschedule).not.toHaveBeenCalled();
     due.find((i) => i.label === 'Pick a date')!.input!.onSubmit('2026-10-30');
     expect(a.onReschedule).toHaveBeenCalledWith(base, '2026-10-30');
+  });
+
+  it('shows Open source only with source links', () => {
+    expect(labels(base)).not.toContain('Open source');
+    expect(labels({ ...base, sourceUrls: ['https://acme.slack.com/x'] })).toContain('Open source');
+    const two = taskMenuItems({ ...base, sourceUrls: ['https://acme.slack.com/x', 'https://example.com/y'] }, false, actions());
+    expect(two.find((i) => i.label === 'Open source')!.submenu!.map((i) => i.label)).toEqual([
+      'Slack: https://acme.slack.com/x',
+      'Link: https://example.com/y',
+    ]);
   });
 
   it('adds a cleaned tag once', () => {

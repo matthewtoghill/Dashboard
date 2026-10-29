@@ -11,7 +11,9 @@ import {
   formatDayDate,
   getTodayIso,
   parseQuickAddSyntax,
+  sourceKind,
 } from '../utils/taskUtils.ts';
+import { SOURCE_ICONS } from './TaskRow.tsx';
 
 /** Quick-add bar: a title with inline syntax (!high #tag @fri ~weekly) plus metadata pickers. */
 export const QuickAddBar: React.FC<{
@@ -79,6 +81,7 @@ export const QuickAddBar: React.FC<{
       dueDate: parsed.dueDate,
       tags: parsed.tags,
       recurrence: parsed.recurrence,
+      sourceUrls: parsed.sourceUrls,
     });
 
     setNewTitle('');
@@ -272,6 +275,15 @@ export const QuickAddBar: React.FC<{
               {describeRecurrence(newTaskPreview.recurrence)}
             </span>
           )}
+          {newTaskPreview.sourceUrls.map((url) => {
+            const Icon = SOURCE_ICONS[sourceKind(url)];
+            return (
+              <span key={url} title={url} className={NEUTRAL_BADGE_CLASS}>
+                <Icon className="w-[11px] h-[11px]" />
+                {sourceKind(url)}
+              </span>
+            );
+          })}
         </div>
       ) : (
         (newPriority > 0 || newDueDate || newTags.length > 0) && (

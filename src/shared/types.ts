@@ -82,6 +82,10 @@ export const TaskAdoLinkSchema = z.object({
 });
 export type TaskAdoLink = z.infer<typeof TaskAdoLinkSchema>;
 
+/** Where a task came from outside Azure DevOps: a Slack message, Teams thread, email or any page. */
+const SourceUrlSchema = z.string().trim().url().startsWith('https://', 'Source links must start with https://');
+const SourceUrlListSchema = z.array(SourceUrlSchema).transform((urls) => [...new Set(urls)]);
+
 export const TaskSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -108,6 +112,8 @@ export const TaskSchema = z.object({
   subtasks: z.array(SubtaskSchema).optional().default([]),
   /** Linked Azure DevOps items, oldest link first. */
   adoLinks: z.array(TaskAdoLinkSchema).optional().default([]),
+  /** Source links, oldest first. */
+  sourceUrls: z.array(SourceUrlSchema).optional().default([]),
 });
 export type Task = z.infer<typeof TaskSchema>;
 
@@ -159,6 +165,7 @@ export const CreateTaskInputSchema = z.object({
   tags: z.array(z.string()).optional().default([]),
   dueDate: IsoDateSchema.nullable().optional().default(null),
   recurrence: RecurrenceSchema.nullable().optional().default(null),
+  sourceUrls: SourceUrlListSchema.optional().default([]),
 });
 export type CreateTaskInput = z.input<typeof CreateTaskInputSchema>;
 
@@ -175,6 +182,8 @@ export const UpdateTaskInputSchema = z.object({
   holdReason: z.string().trim().nullable().optional(),
   /** Backdates when an on hold task went on hold. Ignored unless the task is on hold. */
   heldSince: z.number().int().optional(),
+  /** Replaces the task's source links; links kept keep their place. */
+  sourceUrls: SourceUrlListSchema.optional(),
 });
 export type UpdateTaskInput = z.input<typeof UpdateTaskInputSchema>;
 
@@ -499,7 +508,7 @@ export const BackupPayloadSchema = z.object({
   version: z.number().optional().default(1),
   exportedAt: z.number().optional(),
   projects: z.array(ProjectSchema).optional().default([]),
-  /** Before version 7 a task held at most one ADO link, in externalId/externalUrl. */
+  /** Before version 7 a task held at most one ADO link, in externalId/externalUrl. Source links since version 10. */
   tasks: z
     .array(
       TaskSchema.extend({

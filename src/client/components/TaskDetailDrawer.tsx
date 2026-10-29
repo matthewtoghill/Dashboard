@@ -24,6 +24,7 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Link2,
 } from 'lucide-react';
 import {
   Task,
@@ -44,6 +45,7 @@ import {
   cleanTag,
   describeTaskEvent,
   STATUS_LABELS,
+  sourceKind,
 } from '../utils/taskUtils.ts';
 import { fetchTaskEvents } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
@@ -51,6 +53,7 @@ import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
 import { DateInput } from './DatePicker.tsx';
 import { LinkedAdoItems } from './AdoImport.tsx';
+import { SOURCE_ICONS } from './TaskRow.tsx';
 import { ClaudeSessionActions, ClaudeSessionItem } from './ClaudeSessions.tsx';
 
 const REPEAT_PRESETS: { key: string; label: string; rule: Recurrence | null }[] = [
@@ -786,6 +789,18 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             </form>
           </div>
 
+          <div className="space-y-1">
+            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <Link2 className="w-3.5 h-3.5" />
+              <span>Sources</span>
+            </label>
+            <SourceLinks
+              key={task.id}
+              urls={task.sourceUrls}
+              onChange={(sourceUrls) => onUpdateTask(task.id, { sourceUrls })}
+            />
+          </div>
+
           {task.adoLinks.length > 0 && (
             <div className="space-y-1">
               <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -906,6 +921,86 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           )}
         </div>
       </aside>
+    </div>
+  );
+};
+
+/** The task's source links, each opening in a new tab, with a field to add more. */
+const SourceLinks: React.FC<{ urls: string[]; onChange: (urls: string[]) => void }> = ({ urls, onChange }) => {
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+
+  const add = () => {
+    const url = draft.trim();
+    if (!url) return;
+    if (!url.startsWith('https://') || !URL.canParse(url)) {
+      setError('Paste a link starting with https://');
+      return;
+    }
+    if (!urls.includes(url)) onChange([...urls, url]);
+    setDraft('');
+    setError('');
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {urls.length > 0 && (
+        <ul className="space-y-1.5">
+          {urls.map((url) => {
+            const kind = sourceKind(url);
+            const Icon = SOURCE_ICONS[kind];
+            return (
+              <li
+                key={url}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40"
+              >
+                <span className="shrink-0 w-16 inline-flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <Icon className="w-3.5 h-3.5" />
+                  {kind}
+                </span>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={url}
+                  className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-100 hover:underline"
+                >
+                  {url}
+                </a>
+                <button
+                  type="button"
+                  aria-label={`Remove ${kind} source`}
+                  title="Remove source"
+                  onClick={() => onChange(urls.filter((u) => u !== url))}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <input
+        type="url"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setError('');
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            add();
+          }
+        }}
+        onBlur={add}
+        placeholder="Paste a Slack, Teams, email or other https:// link"
+        aria-label="Add source link"
+        aria-invalid={Boolean(error)}
+        className="w-full text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-primary-500"
+      />
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 };

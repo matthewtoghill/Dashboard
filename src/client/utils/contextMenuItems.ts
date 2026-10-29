@@ -28,6 +28,7 @@ import {
   getTodayIso,
   getTomorrowIso,
   resolveDateToken,
+  sourceKind,
 } from './taskUtils.ts';
 
 export interface TaskMenuActions {
@@ -147,6 +148,19 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
             label: 'Open in Azure DevOps',
             icon: ExternalLink,
             submenu: task.adoLinks.map((l) => ({ label: l.title || l.externalId, onSelect: open(l.url) })),
+          }
+    );
+  }
+
+  if (task.sourceUrls.length > 0) {
+    const open = (url: string) => () => window.open(url, '_blank', 'noreferrer');
+    items.push(
+      task.sourceUrls.length === 1
+        ? { label: 'Open source', icon: ExternalLink, onSelect: open(task.sourceUrls[0]) }
+        : {
+            label: 'Open source',
+            icon: ExternalLink,
+            submenu: task.sourceUrls.map((url) => ({ label: `${sourceKind(url)}: ${url}`, onSelect: open(url) })),
           }
     );
   }

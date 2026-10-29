@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
 import { TASK_EVENT_KINDS, TASK_EVENT_SOURCES } from '../../shared/types.ts';
 
 export const projects = sqliteTable('projects', {
@@ -98,6 +98,18 @@ export const taskAdoLinks = sqliteTable('task_ado_links', {
   state: text('state').notNull().default(''),
   linkedAt: integer('linked_at').notNull(),
 });
+
+export const taskSourceLinks = sqliteTable(
+  'task_source_links',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    linkedAt: integer('linked_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.url] })]
+);
 
 export const taskEvents = sqliteTable('task_events', {
   id: text('id').primaryKey(),

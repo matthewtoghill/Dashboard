@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseQuickAddSyntax, resolveDateToken } from '../../client/utils/taskUtils.ts';
+import { parseQuickAddSyntax, resolveDateToken, sourceKind } from '../../client/utils/taskUtils.ts';
 
 const thursday = new Date(2026, 9, 22); // Thu 22 Oct 2026
 const monday = new Date(2026, 9, 19); // Mon 19 Oct 2026
@@ -59,5 +59,27 @@ describe('quick-add dates', () => {
 
     // Only tokens: fall back to the raw text as the title
     expect(parseQuickAddSyntax('@today', [], defaults, thursday).title).toBe('@today');
+  });
+});
+
+describe('source links', () => {
+  const defaults = { priority: 0 as const, projectId: null, dueDate: null, tags: [] };
+
+  it('takes https links out of the title as sources', () => {
+    const slack = 'https://acme.slack.com/archives/C1/p1';
+    const parsed = parseQuickAddSyntax(`Reply to Sam ${slack} ${slack} http://plain.example.com`, [], defaults, thursday);
+    expect(parsed.title).toBe('Reply to Sam http://plain.example.com');
+    expect(parsed.sourceUrls).toEqual([slack]);
+    // A bare link keeps the link as the title
+    expect(parseQuickAddSyntax(slack, [], defaults, thursday)).toMatchObject({ title: slack, sourceUrls: [slack] });
+  });
+
+  it('infers the kind from the host', () => {
+    expect(sourceKind('https://acme.slack.com/archives/C1')).toBe('Slack');
+    expect(sourceKind('https://teams.microsoft.com/l/message/1')).toBe('Teams');
+    expect(sourceKind('https://outlook.office365.com/mail/1')).toBe('Email');
+    expect(sourceKind('https://mail.google.com/mail/u/0')).toBe('Email');
+    expect(sourceKind('https://notslack.com/x')).toBe('Link');
+    expect(sourceKind('https://example.com/slack.com')).toBe('Link');
   });
 });

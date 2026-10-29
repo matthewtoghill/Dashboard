@@ -13,6 +13,10 @@ import {
   Bot,
   Pause,
   MessageSquare,
+  Hash,
+  Users,
+  Mail,
+  Link2,
 } from 'lucide-react';
 import {
   Task,
@@ -31,6 +35,8 @@ import {
   heldDays,
   needsChase,
   formatRelativeTime,
+  sourceKind,
+  SourceKind,
 } from '../utils/taskUtils.ts';
 import { externalLinkLabel, typeStyle } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
@@ -161,6 +167,31 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
     >
       <Icon className={`w-[11px] h-[11px] ${iconColour}`} />
       <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
+      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+    </a>
+  );
+};
+
+export const SOURCE_ICONS: Record<SourceKind, typeof Link2> = { Slack: Hash, Teams: Users, Email: Mail, Link: Link2 };
+
+/** "Slack" for the first source link, opening it, and "+2" for more. */
+export const SourceBadge: React.FC<{ task: Task }> = ({ task }) => {
+  const [first, ...more] = task.sourceUrls;
+  if (!first) return null;
+  const kind = sourceKind(first);
+  const Icon = SOURCE_ICONS[kind];
+  return (
+    <a
+      href={first}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`Open ${kind} source`}
+      title={task.sourceUrls.join('\n')}
+      className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}
+    >
+      <Icon className="w-[11px] h-[11px]" />
+      <span>{kind}</span>
       {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
     </a>
   );
@@ -427,6 +458,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             )}
             <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
             <AdoBadge task={task} />
+            <SourceBadge task={task} />
           </>
         )}
         </div>

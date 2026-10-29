@@ -53,6 +53,30 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     expect(resumed.heldSince).toBeNull();
   });
 
+  it('keeps source links in order through updates, export and import', async () => {
+    const slack = 'https://acme.slack.com/archives/C1/p1';
+    const mail = 'https://outlook.office.com/mail/id/1';
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Reply', sourceUrls: [slack, slack] },
+    });
+    const { id, sourceUrls } = create.json().task;
+    expect(sourceUrls).toEqual([slack]);
+
+    const patch = (payload: object) => app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, payload });
+    expect((await patch({ sourceUrls: [mail, slack] })).json().task.sourceUrls).toEqual([slack, mail]);
+    expect((await patch({ sourceUrls: ['http://insecure.example.com'] })).statusCode).toBe(400);
+    expect((await patch({ title: 'Reply to Sam' })).json().task.sourceUrls).toEqual([slack, mail]);
+
+    const backup = (await app.inject({ method: 'GET', url: '/api/export' })).json();
+    expect((await patch({ sourceUrls: [mail] })).json().task.sourceUrls).toEqual([mail]);
+
+    await app.inject({ method: 'DELETE', url: `/api/tasks/${id}` });
+    expect((await app.inject({ method: 'POST', url: '/api/import', payload: backup })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks[0].sourceUrls).toEqual([slack, mail]);
+  });
+
   it('creates, lists, updates, toggles completion, and deletes tasks', async () => {
     const emptyRes = await app.inject({
       method: 'GET',
@@ -525,6 +549,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         holdReason: null,
         heldSince: null,
         adoLinks: [],
+        sourceUrls: [],
         subtasks: [],
       },
     ];

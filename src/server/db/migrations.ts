@@ -184,6 +184,16 @@ export const MIGRATIONS: string[] = [
       dismissed_at INTEGER NOT NULL
     );
   `,
+
+  // 13: Source links. A task can point at several Slack, Teams, email or other https links.
+  `
+    CREATE TABLE task_source_links (
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      linked_at INTEGER NOT NULL,
+      PRIMARY KEY (task_id, url)
+    );
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

@@ -121,6 +121,7 @@ export function useTaskMutations({
       dueDate: parsed.dueDate,
       tags: parsed.tags,
       recurrence: parsed.recurrence,
+      sourceUrls: parsed.sourceUrls,
     });
   };
 

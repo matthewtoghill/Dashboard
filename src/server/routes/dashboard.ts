@@ -19,6 +19,7 @@ import {
   adoProjectLinks,
   adoDismissed,
   taskAdoLinks,
+  taskSourceLinks,
   taskEvents,
   notes,
   DbQuickLink,
@@ -250,7 +251,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 9,
+      version: 10,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -365,6 +366,9 @@ export async function registerDashboardRoutes(
             // An item already linked to another task stays there
             tx.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
           }
+          t.sourceUrls.forEach((url, i) => {
+            tx.insert(taskSourceLinks).values({ taskId: t.id, url, linkedAt: t.createdAt + i }).onConflictDoNothing().run();
+          });
         }
 
         for (const link of payload.quickLinks) {
