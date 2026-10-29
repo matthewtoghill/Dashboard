@@ -196,10 +196,10 @@ export function buildTaskList(
       ? (a.heldSince ?? 0) - (b.heldSince ?? 0) // oldest hold first
       : Number(a.status === 'on_hold') - Number(b.status === 'on_hold')
   );
-  const completed = sortTasks(
-    filtered.filter((t) => t.status === 'done'),
-    view.sortBy
-  );
+  // Most recently completed first, regardless of the chosen sort.
+  const completed = filtered
+    .filter((t) => t.status === 'done')
+    .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
 
   const isCompletedView = isSmart(view.nav, 'completed');
   const source = isCompletedView
