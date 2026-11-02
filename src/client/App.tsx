@@ -21,6 +21,7 @@ import {
   deleteProject,
   fetchDashboardState,
   fetchClaudeSessions,
+  fetchHealth,
   updateClaudeSession,
   saveScratchpad,
   saveWidgetConfig,
@@ -315,6 +316,27 @@ export const App: React.FC = () => {
     queryKey: ['dashboard'],
     queryFn: fetchDashboardState,
   });
+
+  // Without this, an unreachable server just looks like empty lists and saves that vanish
+  const { isError: serverDown } = useQuery({
+    queryKey: ['health'],
+    queryFn: fetchHealth,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+  const wasDown = useRef(false);
+  useEffect(() => {
+    // Back up: reload everything that failed while it was down
+    if (wasDown.current && !serverDown) queryClient.invalidateQueries();
+    wasDown.current = serverDown;
+  }, [serverDown, queryClient]);
+
+  // Midnight passes while the app stays open: re-render so "today", overdue and due buckets move on
+  const [today, setToday] = useState(getTodayIso);
+  useEffect(() => {
+    const timer = setInterval(() => setToday(getTodayIso()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Hooks push session events to the server; poll so state changes show up promptly
   const { data: claudeSessions = [] } = useQuery({
@@ -626,7 +648,6 @@ export const App: React.FC = () => {
     });
   };
 
-  const today = getTodayIso();
   const isCompletedView = activeNav.type === 'smart' && activeNav.id === 'completed';
   const isArchiveView = activeNav.type === 'smart' && activeNav.id === 'archived';
 
@@ -842,6 +863,15 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      {serverDown && (
+        <div
+          role="alert"
+          className="shrink-0 px-5 py-1.5 flex items-center gap-2 text-sm bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300"
+        >
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          Can't reach the Dashboard server, so changes won't be saved. Retrying…
+        </div>
+      )}
       {/* Top Header */}
       <header
         inert={backgroundInert}

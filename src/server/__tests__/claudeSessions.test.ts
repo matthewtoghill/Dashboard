@@ -92,7 +92,7 @@ describe('readHostSessionId', () => {
 });
 
 describe('readTranscriptTitle', () => {
-  it('prefers the latest rename over the auto title, and only reads transcripts under the projects folder', () => {
+  it('prefers the latest rename over the auto title, and only reads transcripts under the projects folder', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-projects-'));
     const write = (name: string, entries: (object | string)[]) => {
       const file = path.join(dir, name);
@@ -102,12 +102,12 @@ describe('readTranscriptTitle', () => {
     const ai = { type: 'ai-title', aiTitle: 'Auto title' };
     const renamed = (customTitle: string) => ({ type: 'custom-title', customTitle });
     try {
-      expect(readTranscriptTitle(write('a.jsonl', [ai, { type: 'user' }]), dir)).toBe('Auto title');
-      expect(readTranscriptTitle(write('b.jsonl', [renamed('Old'), ai, renamed('New'), '{"type":"ai-title']), dir)).toBe('New');
-      expect(readTranscriptTitle(write('c.jsonl', [{ type: 'user' }]), dir)).toBe('');
-      expect(readTranscriptTitle(write('d.txt', [ai]), dir)).toBe('');
-      expect(readTranscriptTitle(path.join(dir, 'missing.jsonl'), dir)).toBe('');
-      expect(readTranscriptTitle(path.join(dir, 'a.jsonl'), path.join(dir, 'sub'))).toBe('');
+      expect(await readTranscriptTitle(write('a.jsonl', [ai, { type: 'user' }]), dir)).toBe('Auto title');
+      expect(await readTranscriptTitle(write('b.jsonl', [renamed('Old'), ai, renamed('New'), '{"type":"ai-title']), dir)).toBe('New');
+      expect(await readTranscriptTitle(write('c.jsonl', [{ type: 'user' }]), dir)).toBe('');
+      expect(await readTranscriptTitle(write('d.txt', [ai]), dir)).toBe('');
+      expect(await readTranscriptTitle(path.join(dir, 'missing.jsonl'), dir)).toBe('');
+      expect(await readTranscriptTitle(path.join(dir, 'a.jsonl'), path.join(dir, 'sub'))).toBe('');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

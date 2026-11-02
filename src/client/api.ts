@@ -339,6 +339,12 @@ export async function importDashboardData(payload: BackupPayload): Promise<Impor
   return (await res.json()) as ImportResult;
 }
 
+export async function fetchHealth(): Promise<null> {
+  const res = await fetch('/api/health');
+  if (!res.ok) throw new Error(`Server unavailable: ${res.statusText}`);
+  return null;
+}
+
 export async function fetchClaudeSessions(): Promise<ClaudeSession[]> {
   const res = await fetch('/api/claude/sessions');
   if (!res.ok) {

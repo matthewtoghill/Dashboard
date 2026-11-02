@@ -58,6 +58,18 @@ export const PomodoroTimer: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
+  // Follow changes made in other tabs, so they share one timer. Writing back the same value
+  // fires no further event.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      setState(load());
+      setNow(Date.now());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setNow(Date.now()), 500);

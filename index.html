@@ -8,6 +8,15 @@
     <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      // Before first paint, so dark mode doesn't flash light; App keeps it in sync after.
+      // Same rule as App: 'light' or 'dark' in localStorage, else follow the system.
+      {
+        const theme = localStorage.getItem('dashboard_theme');
+        const dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+      }
+    </script>
   </head>
   <body class="bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 antialiased selection:bg-primary-500/20">
     <div id="root"></div>

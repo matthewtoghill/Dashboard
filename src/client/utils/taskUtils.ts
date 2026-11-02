@@ -593,8 +593,10 @@ export function tasksToCsv(tasks: Task[], projects: Project[]): string {
     'Completed At',
   ];
 
-  const escapeCsv = (val: string) => {
-    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+  const escapeCsv = (raw: string) => {
+    // Excel runs a cell starting with = + - @ (or tab/CR) as a formula; a leading ' keeps it text
+    const val = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+    if (/[",\n\r]/.test(val)) {
       return `"${val.replace(/"/g, '""')}"`;
     }
     return val;

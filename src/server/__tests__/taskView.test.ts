@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Project, Task } from '../../shared/types.ts';
-import { getTodayIso, getTomorrowIso, heldDays, needsChase } from '../../client/utils/taskUtils.ts';
+import { getTodayIso, getTomorrowIso, heldDays, needsChase, tasksToCsv } from '../../client/utils/taskUtils.ts';
 import {
   DEFAULT_VIEW_STATE,
   ViewState,
@@ -217,5 +217,25 @@ describe('taskView', () => {
     expect(viewTitle({ type: 'project', id: 'home' }, projects)).toBe('Home');
     expect(viewTitle({ type: 'project', id: 'gone' }, projects)).toBe('Project');
     expect(viewTitle({ type: 'tag', id: 'auth' }, projects)).toBe('#auth');
+  });
+});
+
+describe('tasksToCsv', () => {
+  it('keeps formula-like cells as text and quotes separators', () => {
+    const csv = tasksToCsv(
+      [
+        task({ title: '=HYPERLINK("http://x","click")' }),
+        task({ title: '+1', tags: ['@team'] }),
+        task({ title: '-2, then 3' }),
+        task({ title: 'Plain' }),
+      ],
+      projects
+    );
+    const titles = csv.split('\n').slice(1).map((row) => row.split(',').slice(1, 2)[0]);
+    expect(csv).toContain(`"'=HYPERLINK(""http://x"",""click"")"`);
+    expect(titles[1]).toBe("'+1");
+    expect(csv).toContain("'@team");
+    expect(csv).toContain(`"'-2, then 3"`);
+    expect(titles[3]).toBe('Plain');
   });
 });

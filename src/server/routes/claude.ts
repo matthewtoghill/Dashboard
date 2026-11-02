@@ -3,6 +3,7 @@ import { and, desc, eq, isNull, lt } from 'drizzle-orm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { AppDatabase } from '../db/index.ts';
 import { claudeSessions, tasks } from '../db/schema.ts';
 import { readSettings } from '../settings.ts';
@@ -91,15 +92,20 @@ const claudeDir = () => process.env.CLAUDE_CONFIG_DIR ?? path.join(os.homedir(),
  * The title Claude shows for a session, from its transcript (~/.claude/projects/.../<id>.jsonl):
  * the latest /rename (custom-title) beats the latest auto title (ai-title). Undocumented format,
  * so any surprise just means no title. Only reads .jsonl files under the projects folder.
+ * Streamed line by line: transcripts run to megabytes and the hook shouldn't block the server.
  */
-export function readTranscriptTitle(transcriptPath: string, dir = path.join(claudeDir(), 'projects')): string {
+export async function readTranscriptTitle(
+  transcriptPath: string,
+  dir = path.join(claudeDir(), 'projects')
+): Promise<string> {
   const file = path.resolve(transcriptPath);
   const rel = path.relative(path.resolve(dir), file);
   if (!file.endsWith('.jsonl') || !rel || rel.startsWith('..') || path.isAbsolute(rel)) return '';
   let custom = '';
   let ai = '';
   try {
-    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const lines = readline.createInterface({ input: fs.createReadStream(file, 'utf8'), crlfDelay: Infinity });
+    for await (const line of lines) {
       if (!line.includes('-title"')) continue;
       try {
         const entry = JSON.parse(line);
@@ -166,7 +172,7 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     // turn and on resume rather than on every tool event, as transcripts run to megabytes
     const claudeTitle =
       (event.hook_event_name === 'Stop' || event.hook_event_name === 'SessionStart') && event.transcript_path
-        ? readTranscriptTitle(event.transcript_path)
+        ? await readTranscriptTitle(event.transcript_path)
         : '';
     const header = (name: string) => {
       const value = request.headers[name];

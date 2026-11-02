@@ -1029,6 +1029,8 @@ const TaskActivity: React.FC<{
     // Session links don't touch updatedAt, so they're part of the key too
     queryKey: ['taskEvents', task.id, task.updatedAt, linkedSessionIds],
     queryFn: () => fetchTaskEvents(task.id),
+    // Each edit is a new key: keep showing this task's events until the refetch lands
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === task.id ? previous : undefined),
   });
 
   useEffect(() => setDraft(''), [task.id]);
