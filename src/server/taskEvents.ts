@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { AppDatabase } from './db/index.ts';
 import { DbTask, taskEvents } from './db/schema.ts';
 import { TaskEvent, TaskEventKind, TaskEventSource } from '../shared/types.ts';
@@ -62,13 +62,13 @@ export function listTaskEvents(db: AppDatabase, taskId?: string): TaskEvent[] {
     .all();
 }
 
-/** The newest status note of each task that has one. */
-export function latestNotes(db: AppDatabase): Map<string, { text: string; at: number }> {
+/** The newest status note of each task that has one, or of just `taskId` (uses its index). */
+export function latestNotes(db: AppDatabase, taskId?: string): Map<string, { text: string; at: number }> {
   const notes = new Map<string, { text: string; at: number }>();
   const rows = db
     .select({ taskId: taskEvents.taskId, text: taskEvents.to, at: taskEvents.at })
     .from(taskEvents)
-    .where(eq(taskEvents.kind, 'status_note'))
+    .where(and(eq(taskEvents.kind, 'status_note'), taskId ? eq(taskEvents.taskId, taskId) : undefined))
     .orderBy(asc(taskEvents.at), asc(sql`rowid`)) // later rows overwrite earlier ones
     .all();
   for (const row of rows) notes.set(row.taskId, { text: row.text ?? '', at: row.at });

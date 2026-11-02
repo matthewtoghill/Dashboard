@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RecurrenceSchema } from './recurrence.ts';
+import { parseIsoDate, toIsoDate } from './dates.ts';
 
 export const TaskStatusSchema = z.enum(['todo', 'in_progress', 'on_hold', 'done', 'archived']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
@@ -14,7 +15,11 @@ export const TaskPrioritySchema = z.union([
 ]);
 export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
 
-const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date');
+const IsoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date')
+  // parseIsoDate rolls 2026-02-31 over to 3 March, so a real date round-trips unchanged
+  .refine((iso) => toIsoDate(parseIsoDate(iso)) === iso, 'Not a calendar date');
 const HexColorSchema = z.string().trim().regex(/^#[0-9a-f]{6}$/i, 'Expected a #rrggbb colour');
 
 /** Prefixes bare hosts with https:// so only http(s) or relative links are ever stored. */

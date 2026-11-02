@@ -177,6 +177,13 @@ describe('Status notes', () => {
       ['Receipts collected, form half done', 'manual'],
       ['Waiting on receipts', 'manual'],
     ]);
+
+    // A single task's response carries its own note, not another task's
+    const other = await createTask();
+    await note(other, 'Other task note');
+    expect((await note(id, 'Form sent')).json().task.latestNote.text).toBe('Form sent');
+    const patched = await app.inject({ method: 'PATCH', url: `/api/tasks/${other}`, payload: { priority: 1 } });
+    expect(patched.json().task.latestNote.text).toBe('Other task note');
   });
 
   it('rejects empty and over-long notes and unknown tasks', async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
-import { AzError, AzRunner, describeAzFailure, openWorkItemsWiql } from '../routes/ado.ts';
+import { AzError, AzRunner, describeAzFailure, inBatches, openWorkItemsWiql } from '../routes/ado.ts';
 import { externalLinkLabel, externalShortLabel } from '../../client/components/AdoImport.tsx';
 import { arrangeAdoItems } from '../../client/components/AdoProjectPanel.tsx';
 import { AdoSyncResult, Task } from '../../shared/types.ts';
@@ -54,6 +54,20 @@ describe('describeAzFailure', () => {
     );
     expect(describeAzFailure("ERROR: Please run 'az login' to setup account.")).toMatch(/Run az login/);
     expect(describeAzFailure('WARNING: x\nERROR: TF401180: not found')).toBe('Azure CLI: TF401180: not found');
+  });
+
+  it('runs az calls a few at a time', async () => {
+    let running = 0;
+    let most = 0;
+    const done: number[] = [];
+    await inBatches([...Array(14).keys()], async (n) => {
+      most = Math.max(most, ++running);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      running--;
+      done.push(n);
+    });
+    expect(most).toBe(6);
+    expect(done.sort((a, b) => a - b)).toEqual([...Array(14).keys()]);
   });
 
   it('quotes project names in WIQL', () => {
@@ -380,6 +394,21 @@ describe('Azure DevOps import', () => {
     expect(body.items).toHaveLength(2);
     expect(body.error).toMatch(/az login/);
     expect(body.lastErrorAt).toEqual(expect.any(Number));
+  });
+
+  it('does not re-run a failed first check on every read', async () => {
+    responses['boards query'] = new AzError('Not signed in to Azure DevOps. Run az login, then try again.');
+    expect((await fetchItems(true)).status).toBe(502);
+    const before = calls.length;
+
+    const { status, body } = await fetchItems(true);
+    expect(status).toBe(200);
+    expect(body.error).toMatch(/az login/);
+    expect(calls.length).toBe(before);
+
+    // An explicit refresh still checks
+    responses['boards query'] = [workItem(1, 'Task')];
+    expect((await fetchItems()).body.error).toBeNull();
   });
 
   it('moves dismissed items out of the list until restored, and exports them', async () => {

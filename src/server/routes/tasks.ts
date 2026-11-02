@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { eq, desc, asc, and, ne, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
-import { tasks, subtasks, taskAdoLinks, taskSourceLinks, DbTask, DbSubtask, DbTaskAdoLink } from '../db/schema.ts';
+import { tasks, projects, subtasks, taskAdoLinks, taskSourceLinks, DbTask, DbSubtask, DbTaskAdoLink } from '../db/schema.ts';
 import {
   CreateTaskInputSchema,
   UpdateTaskInputSchema,
@@ -250,10 +250,14 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       row,
       subRows.map(serializeSubtask),
       links.map(serializeAdoLink),
-      latestNotes(db).get(taskId) ?? null,
+      latestNotes(db, taskId).get(taskId) ?? null,
       listSourceUrls(db, taskId)
     );
   };
+
+  /** No project (or none given) counts as existing; checked so a stale id is a 400, not a 500. */
+  const projectExists = (projectId: string | null | undefined) =>
+    !projectId || !!db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).get();
 
   // GET /api/tasks
   app.get('/api/tasks', async () => ({ tasks: listTasks(db) }));
@@ -269,6 +273,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     }
 
     const input = parseResult.data;
+    if (!projectExists(input.projectId)) return reply.status(400).send({ error: 'Unknown project' });
     const now = Date.now();
     const id = crypto.randomUUID();
     const isDone = input.status === 'done';
@@ -316,6 +321,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     }
 
     const input = parseResult.data;
+    if (!projectExists(input.projectId)) return reply.status(400).send({ error: 'Unknown project' });
     const now = Date.now();
 
     // Archiving keeps completedAt so restored tasks return to their previous state

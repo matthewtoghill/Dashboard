@@ -372,6 +372,20 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     expect(devProxy.statusCode).toBe(200);
   });
 
+  it('rejects impossible calendar dates and unknown projects with 400', async () => {
+    const post = (payload: object) => app.inject({ method: 'POST', url: '/api/tasks', payload });
+    expect((await post({ title: 'x', dueDate: '2026-02-31' })).statusCode).toBe(400);
+    expect((await post({ title: 'x', dueDate: '2027-02-29' })).statusCode).toBe(400);
+    expect((await post({ title: 'x', dueDate: '2028-02-29' })).statusCode).toBe(201);
+
+    // A project deleted elsewhere is a 400, not a foreign key 500
+    expect((await post({ title: 'x', projectId: 'gone' })).statusCode).toBe(400);
+    const taskId = (await post({ title: 'x' })).json().task.id;
+    const patch = (payload: object) => app.inject({ method: 'PATCH', url: `/api/tasks/${taskId}`, payload });
+    expect((await patch({ projectId: 'gone' })).statusCode).toBe(400);
+    expect((await patch({ projectId: null })).statusCode).toBe(200);
+  });
+
   it('validates dates, colours and URLs, and imports all-or-nothing', async () => {
     const badDate = await app.inject({
       method: 'POST',

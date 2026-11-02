@@ -84,7 +84,8 @@ export function parseRecurrenceToken(word: string): Recurrence | null {
     return { every: 1, unit: unit ?? 'weekday', from };
   }
   const every = Number(count);
-  if (every < 1) return null;
+  // Same range as the schema, so a parsed token is never rejected on save
+  if (!RecurrenceSchema.shape.every.safeParse(every).success) return null;
   const unit = ({ d: 'day', w: 'week', m: 'month' } as const)[
     letter.toLowerCase() as 'd' | 'w' | 'm'
   ];

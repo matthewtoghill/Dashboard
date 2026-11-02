@@ -55,6 +55,9 @@ describe('recurrence rules', () => {
     expect(parseRecurrenceToken('2w!')).toEqual(rule(2, 'week', 'completion'));
     expect(parseRecurrenceToken('10d')).toEqual(rule(10, 'day'));
     expect(parseRecurrenceToken('0d')).toBeNull();
+    // Beyond the schema's 365, which the server would reject with the whole task
+    expect(parseRecurrenceToken('365d')).toEqual(rule(365, 'day'));
+    expect(parseRecurrenceToken('400d')).toBeNull();
     expect(parseRecurrenceToken('fortnightly')).toBeNull();
   });
 });
