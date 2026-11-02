@@ -212,7 +212,7 @@ az login
 az devops configure --defaults organization=https://dev.azure.com/<your-org>
 ```
 
-Instead of the `az devops configure` default, you can set the organisation in **Settings > Integrations**.
+Instead of the `az devops configure` default, you can set the organisation in **Settings > Integrations**. It must be `https://dev.azure.com/<org>` or `https://<org>.visualstudio.com`, because `az` sends your sign-in token to that address.
 
 ### How it works
 

@@ -22,7 +22,8 @@ export const QuickAddBar: React.FC<{
   /** Owned by the caller, which also uses it for calendar quick-add. */
   projectId: string;
   onProjectIdChange: (id: string) => void;
-  onCreate: (input: CreateTaskInput) => void;
+  /** Calls onCreated once saved; on failure the typed text stays for another try. */
+  onCreate: (input: CreateTaskInput, onCreated: () => void) => void;
   isCreating: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
 }> = ({
@@ -82,11 +83,11 @@ export const QuickAddBar: React.FC<{
       tags: parsed.tags,
       recurrence: parsed.recurrence,
       sourceUrls: parsed.sourceUrls,
+    }, () => {
+      setNewTitle('');
+      setNewTagInput('');
+      setNewTags([]);
     });
-
-    setNewTitle('');
-    setNewTagInput('');
-    setNewTags([]);
   };
 
   const isProjectView = activeNav.type === 'project';

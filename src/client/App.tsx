@@ -408,6 +408,7 @@ export const App: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
+    onError: (err) => showToast(errorMessage(err, 'Adding project failed')),
   });
 
   const updateProjectMutation = useMutation({
@@ -446,6 +447,7 @@ export const App: React.FC = () => {
         old ? { ...old, scratchpad: content } : old
       );
     },
+    onError: (err) => showToast(errorMessage(err, 'Saving scratchpad failed')),
   });
 
   const saveWidgetConfigMutation = useMutation({
@@ -453,6 +455,7 @@ export const App: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
+    onError: (err) => showToast(errorMessage(err, 'Saving widgets failed')),
   });
 
   const createQuickLinkMutation = useMutation({
@@ -460,6 +463,7 @@ export const App: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
+    onError: (err) => showToast(errorMessage(err, 'Adding link failed')),
   });
 
   const updateQuickLinkMutation = useMutation({
@@ -795,7 +799,7 @@ export const App: React.FC = () => {
     scratchpad,
     quickLinks,
     staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
-    onSaveScratchpad: (content) => saveScratchpadMutation.mutate(content),
+    onSaveScratchpad: (content) => saveScratchpadMutation.mutateAsync(content),
     onConvertLineToTask: handleConvertScratchpadLineToTask,
     onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
     onUpdateQuickLink: (id, title, url, category) =>
@@ -1066,7 +1070,7 @@ export const App: React.FC = () => {
                   activeNav={activeNav}
                   projectId={newProjectId}
                   onProjectIdChange={setNewProjectId}
-                  onCreate={(input) => createTaskMutation.mutate(input)}
+                  onCreate={(input, onCreated) => createTaskMutation.mutate(input, { onSuccess: onCreated })}
                   isCreating={createTaskMutation.isPending}
                   inputRef={quickAddRef}
                 />

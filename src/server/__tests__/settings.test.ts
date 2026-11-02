@@ -4,14 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildApp } from '../index.ts';
+import { readSettings, writeSettings } from '../settings.ts';
 
 describe('settings', () => {
   let dir: string;
   let app: FastifyInstance;
+  let db: Awaited<ReturnType<typeof buildApp>>['db'];
 
   beforeEach(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-settings-'));
-    ({ app } = await buildApp({ dbPath: path.join(dir, 'test.db') }));
+    ({ app, db } = await buildApp({ dbPath: path.join(dir, 'test.db') }));
   });
 
   afterEach(async () => {
@@ -99,5 +101,26 @@ describe('settings', () => {
     await fresh.inject({ method: 'POST', url: '/api/import', payload: exported });
     expect((await fresh.inject({ method: 'GET', url: '/api/settings' })).json().settings.backupKeep).toBe(9);
     await fresh.close();
+  });
+
+  it('only accepts Azure DevOps hosts as the organization, since az sends a token there', async () => {
+    for (const org of ['https://dev.azure.com/acme', 'https://dev.azure.com/acme/', 'https://acme.visualstudio.com']) {
+      expect((await put({ adoOrganization: org })).statusCode).toBe(200);
+    }
+    for (const org of [
+      'https://attacker.example/',
+      'https://dev.azure.com.attacker.example/acme',
+      'https://attacker.example/dev.azure.com/acme',
+      'http://dev.azure.com/acme',
+    ]) {
+      expect((await put({ adoOrganization: org })).statusCode).toBe(400);
+    }
+  });
+
+  it('keeps the other settings when a stored value no longer passes validation', async () => {
+    await put({ backupKeep: 5 });
+    // e.g. saved before the organization rule was tightened
+    writeSettings(db.$client, { ...readSettings(db.$client), adoOrganization: 'https://attacker.example/' });
+    expect(readSettings(db.$client)).toMatchObject({ backupKeep: 5, adoOrganization: '' });
   });
 });

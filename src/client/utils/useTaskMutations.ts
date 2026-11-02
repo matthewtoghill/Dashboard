@@ -53,6 +53,7 @@ export function useTaskMutations({
   const createTaskMutation = useMutation({
     mutationFn: createTask,
     onSuccess: () => invalidateTasks(),
+    onError: (err) => showToast(errorMessage(err, 'Adding task failed')),
   });
 
   const updateTaskMutation = useMutation({
@@ -77,10 +78,11 @@ export function useTaskMutations({
       }
       return { previous };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(['tasks'], context.previous);
       }
+      showToast(errorMessage(err, 'Saving task failed'));
     },
     onSuccess: (result) => {
       if (result.keptOccurrenceId) {
@@ -94,6 +96,7 @@ export function useTaskMutations({
     mutationFn: ({ taskId, title }: { taskId: string; title: string }) =>
       createSubtask(taskId, { title }),
     onSuccess: () => invalidateTasks(),
+    onError: (err) => showToast(errorMessage(err, 'Adding subtask failed')),
   });
 
   const addNoteMutation = useMutation({
@@ -109,6 +112,7 @@ export function useTaskMutations({
     mutationFn: ({ subtaskId, ...input }: { subtaskId: string } & UpdateSubtaskInput) =>
       updateSubtask(subtaskId, input),
     onSuccess: () => invalidateTasks(),
+    onError: (err) => showToast(errorMessage(err, 'Saving subtask failed')),
   });
 
   /** Creates a task from quick-add text; typed tokens win over the given project and due date. */

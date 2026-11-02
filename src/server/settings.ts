@@ -12,7 +12,14 @@ export function readSettings(sqlite: Database.Database): Settings {
     const row = sqlite.prepare('SELECT value FROM key_value_store WHERE key = ?').get(SETTINGS_KEY) as
       | { value: string }
       | undefined;
-    if (row) return SettingsSchema.parse(JSON.parse(row.value));
+    if (row) {
+      const raw = JSON.parse(row.value) as Record<string, unknown>;
+      const parsed = SettingsSchema.safeParse(raw);
+      if (parsed.success) return parsed.data;
+      // Drop only the fields that no longer pass (e.g. a rule was tightened), keep the rest
+      const invalid = new Set(parsed.error.issues.map((issue) => issue.path[0]));
+      return SettingsSchema.parse(Object.fromEntries(Object.entries(raw).filter(([key]) => !invalid.has(key))));
+    }
   } catch {
     // Missing table (brand-new database) or unreadable value: fall back to defaults
   }

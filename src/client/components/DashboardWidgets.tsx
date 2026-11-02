@@ -39,7 +39,7 @@ export interface HomeDrawerProps {
   widgetConfig: WidgetConfig;
   taskWidgetActions: TaskWidgetActions;
   staleTaskDays: number;
-  onSaveScratchpad: (content: string) => void;
+  onSaveScratchpad: (content: string) => Promise<unknown>;
   onConvertLineToTask: (lineText: string) => void;
   onCreateQuickLink: (title: string, url: string, category?: string) => void;
   onUpdateQuickLink: (id: string, title: string, url: string, category: string) => void;
@@ -450,7 +450,7 @@ const ClaudeProjectsPanel: React.FC<{
 /** The scratchpad: autosaves while typing; the top line can become a task. */
 const ScratchpadPanel: React.FC<{
   scratchpad: string;
-  onSave: (content: string) => void;
+  onSave: (content: string) => Promise<unknown>;
   onConvertLineToTask: (lineText: string) => void;
 }> = ({ scratchpad, onSave, onConvertLineToTask }) => {
   const [localScratchpad, setLocalScratchpad] = useState(scratchpad);
@@ -471,12 +471,22 @@ const ScratchpadPanel: React.FC<{
     }
   }, [scratchpad]);
 
+  // A failed save leaves the text unsaved, so the next edit or blur sends it again
+  const failedRef = useRef(false);
   const flush = () => {
-    if (latestRef.current === savedRef.current) return;
-    savedRef.current = latestRef.current;
-    onSaveRef.current(latestRef.current);
-    setSavedIndicator(true);
-    setTimeout(() => setSavedIndicator(false), 1800);
+    const content = latestRef.current;
+    if (content === savedRef.current && !failedRef.current) return;
+    savedRef.current = content;
+    failedRef.current = false;
+    onSaveRef.current(content).then(
+      () => {
+        setSavedIndicator(true);
+        setTimeout(() => setSavedIndicator(false), 1800);
+      },
+      () => {
+        if (savedRef.current === content) failedRef.current = true;
+      }
+    );
   };
 
   useEffect(() => {

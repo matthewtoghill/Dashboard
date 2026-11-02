@@ -441,7 +441,8 @@ export async function registerDashboardRoutes(
           writeSettings(db.$client, { ...payload.settings, backupDir: '' });
         }
 
-        if (payload.scratchpad !== undefined) {
+        // Like every other record, existing scratchpad text wins
+        if (payload.scratchpad && !getScratchpad().trim()) {
           setKeyValue(SCRATCHPAD_KEY, payload.scratchpad);
         }
 

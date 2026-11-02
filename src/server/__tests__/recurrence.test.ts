@@ -114,6 +114,18 @@ describe('recurring tasks API', () => {
     expect(await allTasks()).toHaveLength(2);
   });
 
+  it('restoring a task archived while done does not spawn another occurrence', async () => {
+    const task = await createRecurring();
+    const done = await json('PATCH', `/api/tasks/${task.id}`, { status: 'done' });
+    await json('PATCH', `/api/tasks/${task.id}`, { status: 'archived' });
+    // Stop the series by deleting the next occurrence, then restore the archived one
+    await app.inject({ method: 'DELETE', url: `/api/tasks/${done.spawnedTaskId}` });
+    const restored = await json('PATCH', `/api/tasks/${task.id}`, { status: 'done' });
+    expect(restored.spawnedTaskId).toBeUndefined();
+    expect(restored.task.status).toBe('done');
+    expect(await allTasks()).toHaveLength(1);
+  });
+
   it('reopening removes an untouched next occurrence but keeps an edited one', async () => {
     const task = await createRecurring();
     const first = await json('PATCH', `/api/tasks/${task.id}`, { status: 'done' });

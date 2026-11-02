@@ -203,11 +203,13 @@ export async function fetchDashboardState(): Promise<DashboardState> {
 }
 
 export async function saveScratchpad(content: string): Promise<{ scratchpad: string }> {
+  const body = JSON.stringify({ content });
   const res = await fetch('/api/dashboard/scratchpad', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-    keepalive: true,
+    body,
+    // Lets a save on page hide finish; browsers refuse keepalive bodies over 64 KiB
+    keepalive: new TextEncoder().encode(body).length < 60_000,
   });
   if (!res.ok) {
     throw new Error(`Failed to save scratchpad: ${res.statusText}`);

@@ -428,6 +428,22 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     expect(state.quickLinks[0].url).toBe('https://javascript:alert(1)');
   });
 
+  it('imports the scratchpad only when the current one is empty', async () => {
+    const setScratchpad = (content: string) =>
+      app.inject({ method: 'PUT', url: '/api/dashboard/scratchpad', payload: { content } });
+    const scratchpad = async () => (await app.inject({ method: 'GET', url: '/api/dashboard' })).json().scratchpad;
+    const importScratchpad = (content: string) =>
+      app.inject({ method: 'POST', url: '/api/import', payload: { tasks: [], projects: [], scratchpad: content } });
+
+    await setScratchpad('Today');
+    expect((await importScratchpad('Old backup')).statusCode).toBe(200);
+    expect(await scratchpad()).toBe('Today');
+
+    await setScratchpad('  ');
+    await importScratchpad('Old backup');
+    expect(await scratchpad()).toBe('Old backup');
+  });
+
   it('manages scratchpad, quick links, widget config, and JSON export/import', async () => {
     // 1. Update scratchpad
     const scratchRes = await app.inject({

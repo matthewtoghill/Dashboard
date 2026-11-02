@@ -316,11 +316,17 @@ export const SettingsSchema = z.object({
   backupDir: z.string().trim().max(1000).default(''),
   /** Unlinked Claude sessions are deleted this many days after their last event. */
   claudeSessionTtlDays: z.number().int().min(1).max(365).default(7),
-  /** Organization URL; empty means the `az devops configure` default. */
+  /**
+   * Organization URL; empty means the `az devops configure` default. Only Azure DevOps hosts,
+   * since az sends an Entra token to whatever URL this is.
+   */
   adoOrganization: z
     .string()
     .trim()
-    .regex(/^(https:\/\/[^\s"%]+)?$/, 'Expected an https:// organization URL')
+    .regex(
+      /^(https:\/\/(dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com)\/?)?$/i,
+      'Expected https://dev.azure.com/<org> or https://<org>.visualstudio.com'
+    )
     .default(''),
   /** Work item types fetched for projects without their own list. */
   adoWorkItemTypes: z

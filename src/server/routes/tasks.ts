@@ -341,7 +341,9 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       statusBeforeArchive = null;
     }
 
-    const completing = input.status === 'done' && existing.status !== 'done';
+    // Restoring a task archived while done is not a new completion: its next occurrence
+    // was spawned when it was first completed (archiving keeps completedAt).
+    const completing = input.status === 'done' && existing.status !== 'done' && existing.completedAt === null;
     const reopening =
       (input.status === 'todo' || input.status === 'in_progress' || input.status === 'on_hold') &&
       existing.status === 'done';
