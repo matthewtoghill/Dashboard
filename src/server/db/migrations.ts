@@ -194,6 +194,15 @@ export const MIGRATIONS: string[] = [
       PRIMARY KEY (task_id, url)
     );
   `,
+
+  // 14: Claude session folders mapped to projects; a folder covers its subfolders.
+  `
+    CREATE TABLE claude_folder_links (
+      path TEXT PRIMARY KEY COLLATE NOCASE,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      created_at INTEGER NOT NULL
+    );
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

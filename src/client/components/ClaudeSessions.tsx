@@ -14,8 +14,12 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  FolderInput,
 } from 'lucide-react';
-import { ClaudeSession, ClaudeSessionState, Task } from '../../shared/types.ts';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ClaudeFolderLink, ClaudeSession, ClaudeSessionState, Project, Task } from '../../shared/types.ts';
+import { matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
+import { deleteClaudeFolder, fetchClaudeFolders, saveClaudeFolder } from '../api.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
 import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
@@ -85,13 +89,73 @@ export function sessionLink(session: ClaudeSession): { url: string; label: strin
       };
 }
 
-/** Title and notes for a task created from a session. */
-export function taskFromSession(session: ClaudeSession): { title: string; description: string } {
+/** Title, notes and project (from the session's folder mapping) for a task created from a session. */
+export function taskFromSession(session: ClaudeSession): {
+  title: string;
+  description: string;
+  projectId: string | null;
+} {
   return {
     title: session.title || `Claude session in ${folderName(session.cwd)}`,
     description: `Started from a Claude session in \`${session.cwd}\`.\n\nResume: \`${resumeCommand(session)}\``,
+    projectId: session.projectId,
   };
 }
+
+/** Folder-to-project mappings; saving or removing one also refreshes each session's project. */
+export function useClaudeFolders() {
+  const queryClient = useQueryClient();
+  const { data: links = [] } = useQuery({ queryKey: ['claudeFolders'], queryFn: fetchClaudeFolders });
+  const onSuccess = (next: ClaudeFolderLink[]) => {
+    queryClient.setQueryData(['claudeFolders'], next);
+    queryClient.invalidateQueries({ queryKey: ['claudeSessions'] });
+  };
+  const save = useMutation({ mutationFn: saveClaudeFolder, onSuccess });
+  const remove = useMutation({ mutationFn: deleteClaudeFolder, onSuccess });
+  return { links, save, remove };
+}
+
+/**
+ * The project this session's folder maps to. Changing it edits the mapping that covers the
+ * folder (possibly a parent's), or maps this folder if none does.
+ */
+const FolderProjectPicker: React.FC<{ session: ClaudeSession; projects: Project[] }> = ({ session, projects }) => {
+  const { links, save, remove } = useClaudeFolders();
+  const match = matchFolderLink(session.cwd, links);
+  const error = save.error ?? remove.error;
+  const linkedTaskProject = session.taskId !== null && session.projectId !== (match?.projectId ?? null);
+  return (
+    <div className="space-y-1.5">
+      <select
+        value={match?.projectId ?? ''}
+        disabled={save.isPending || remove.isPending}
+        onChange={(e) => {
+          const projectId = e.target.value;
+          if (projectId) save.mutate({ path: match?.path ?? session.cwd, projectId });
+          else if (match) remove.mutate(match.path);
+        }}
+        aria-label="Project for this folder"
+        className={inputClass}
+      >
+        <option value="">No project</option>
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <p className="text-xs text-zinc-500">
+        {!match
+          ? 'Sessions in this folder and its subfolders go to the chosen project.'
+          : sameFolder(match.path, session.cwd)
+          ? 'Covers this folder and its subfolders.'
+          : `Mapped through ${match.path}, which covers this folder.`}
+        {linkedTaskProject && " This session uses its linked task's project."}
+      </p>
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error.message}</p>}
+    </div>
+  );
+};
 
 export const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
 
@@ -620,9 +684,10 @@ export const ClaudeSessionPanel: React.FC<
   {
     session: ClaudeSession | null;
     tasks: Task[];
+    projects: Project[];
     onClose: () => void;
   } & Omit<ClaudeSessionActions, 'onOpen'>
-> = ({ session, tasks, onClose, onOpenTask, onLink, onCreateTask, onToggleCleared }) => {
+> = ({ session, tasks, projects, onClose, onOpenTask, onLink, onCreateTask, onToggleCleared }) => {
   const asideRef = useRef<HTMLElement>(null);
   const isOpen = session !== null;
 
@@ -725,6 +790,15 @@ export const ClaudeSessionPanel: React.FC<
             </div>
           </div>
 
+          {session.cwd && (
+            <div className="space-y-2">
+              <span className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                Folder's project
+              </span>
+              <FolderProjectPicker session={session} projects={projects} />
+            </div>
+          )}
+
           <dl className="space-y-3">
             {session.lastPrompt && (
               <Detail label="Last prompt">
@@ -786,9 +860,10 @@ const CARD_STYLES: Record<ClaudeSessionState, { card: string; dot: string; label
 };
 
 /** One session in the side panel: state, time, title, folder, attention message or last prompt, actions. */
-const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSessionActions> = ({
+const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[]; projects: Project[] } & ClaudeSessionActions> = ({
   session: s,
   tasks,
+  projects,
   onOpen,
   onToggleCleared,
   ...linkActions
@@ -796,6 +871,7 @@ const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSe
   const style = CARD_STYLES[s.state];
   const attention = s.state === 'needs_attention';
   const detail = attention ? s.attentionMessage || 'Waiting for your input' : s.lastPrompt;
+  const project = projects.find((p) => p.id === s.projectId);
   return (
     <li className={`rounded-xl border p-3 space-y-2 transition-opacity duration-150 ${style.card}`}>
       <div className="flex items-center gap-2 text-[11px]">
@@ -819,6 +895,7 @@ const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSe
         </span>
         <span className="block truncate text-[11px] text-zinc-500 dark:text-zinc-400" title={s.cwd}>
           {folderName(s.cwd)}
+          {project && ` · ${project.name}`}
           {CLIENT_LABELS[s.entrypoint] && ` · ${CLIENT_LABELS[s.entrypoint]}`}
         </span>
       </button>
@@ -836,6 +913,17 @@ const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSe
       <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-zinc-200/70 dark:border-zinc-800/70">
         <TaskLinkControls session={s} tasks={tasks} {...linkActions} />
         <span className="ml-auto flex items-center">
+          {!project && s.cwd && (
+            <button
+              type="button"
+              aria-label="Map this folder to a project"
+              title="Map this folder to a project"
+              onClick={() => onOpen(s.sessionId)}
+              className={iconButtonClass}
+            >
+              <FolderInput className="w-3.5 h-3.5" />
+            </button>
+          )}
           <OpenSessionLink session={s} />
           <CopyResumeButton session={s} />
           <button
@@ -853,6 +941,15 @@ const SessionCard: React.FC<{ session: ClaudeSession; tasks: Task[] } & ClaudeSe
   );
 };
 
+/** The side panel's filter: a project (by id) or a folder (by its last segment, as shown). */
+export interface ClaudeSessionFilter {
+  type: 'project' | 'folder';
+  value: string;
+}
+
+export const matchesSessionFilter = (s: ClaudeSession, filter: ClaudeSessionFilter | null) =>
+  !filter || (filter.type === 'project' ? s.projectId === filter.value : folderName(s.cwd) === filter.value);
+
 /** Sessions needing the user first, then the rest by latest activity; cleared ones kept apart. */
 export function groupSessionsForPanel(sessions: ClaudeSession[]) {
   const byActivity = [...sessions].sort((a, b) => b.lastEventAt - a.lastEventAt);
@@ -869,17 +966,25 @@ export const ClaudeSessionsSidePanel: React.FC<
   {
     sessions: ClaudeSession[];
     tasks: Task[];
-    /** Formatted folder name to show only, or null for all. */
-    folder: string | null;
-    onFolderChange: (folder: string | null) => void;
+    projects: Project[];
+    /** The project in view, offered as a one-click filter. */
+    currentProject?: Project;
+    /** Sessions to show, or null for all. */
+    filter: ClaudeSessionFilter | null;
+    onFilterChange: (filter: ClaudeSessionFilter | null) => void;
     onClose: () => void;
   } & ClaudeSessionActions
-> = ({ sessions: allSessions, tasks, folder, onFolderChange, onClose, ...actions }) => {
+> = ({ sessions: allSessions, tasks, projects, currentProject, filter, onFilterChange, onClose, ...actions }) => {
   const folderCounts = new Map<string, number>();
   for (const s of allSessions) folderCounts.set(folderName(s.cwd), (folderCounts.get(folderName(s.cwd)) ?? 0) + 1);
-  if (folder && !folderCounts.has(folder)) folderCounts.set(folder, 0);
+  if (filter?.type === 'folder' && !folderCounts.has(filter.value)) folderCounts.set(filter.value, 0);
   const folders = [...folderCounts].sort(([a], [b]) => a.localeCompare(b));
-  const sessions = folder ? allSessions.filter((s) => folderName(s.cwd) === folder) : allSessions;
+  const projectCounts = new Map<string, number>();
+  for (const s of allSessions) if (s.projectId) projectCounts.set(s.projectId, (projectCounts.get(s.projectId) ?? 0) + 1);
+  const filterProjects = projects.filter(
+    (p) => projectCounts.has(p.id) || (filter?.type === 'project' && filter.value === p.id)
+  );
+  const sessions = allSessions.filter((s) => matchesSessionFilter(s, filter));
   const { attention, rest, cleared } = groupSessionsForPanel(sessions);
   const count = (state: ClaudeSessionState) => rest.filter((s) => s.state === state).length;
   const summary = [
@@ -891,7 +996,7 @@ export const ClaudeSessionsSidePanel: React.FC<
   const cards = (list: ClaudeSession[]) => (
     <ul className="space-y-2">
       {list.map((s) => (
-        <SessionCard key={s.sessionId} session={s} tasks={tasks} {...actions} />
+        <SessionCard key={s.sessionId} session={s} tasks={tasks} projects={projects} {...actions} />
       ))}
     </ul>
   );
@@ -906,18 +1011,70 @@ export const ClaudeSessionsSidePanel: React.FC<
           </p>
         ) : (
           <>
+            {(filter || currentProject) && (
+              <div
+                role="group"
+                aria-label="Session scope"
+                className="flex p-0.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs"
+              >
+                {(
+                  [
+                    ['All', null],
+                    currentProject && [currentProject.name, { type: 'project', value: currentProject.id }],
+                    filter &&
+                      !(filter.type === 'project' && filter.value === currentProject?.id) && [
+                        filter.type === 'project'
+                          ? (projects.find((p) => p.id === filter.value)?.name ?? 'Project')
+                          : filter.value,
+                        filter,
+                      ],
+                  ].filter(Boolean) as [string, ClaudeSessionFilter | null][]
+                ).map(([text, option]) => {
+                  const active = option ? filter?.type === option.type && filter.value === option.value : !filter;
+                  return (
+                    <button
+                      key={option ? `${option.type}:${option.value}` : ''}
+                      type="button"
+                      onClick={() => onFilterChange(option)}
+                      aria-pressed={active}
+                      className={`flex-1 min-w-0 truncate px-2 py-1 rounded-md transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium'
+                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                      }`}
+                    >
+                      {text}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <select
-              value={folder ?? ''}
-              onChange={(e) => onFolderChange(e.target.value || null)}
-              aria-label="Filter by folder"
+              value={filter ? `${filter.type}:${filter.value}` : ''}
+              onChange={(e) => {
+                const [type, ...rest] = e.target.value.split(':');
+                onFilterChange(type ? { type: type as ClaudeSessionFilter['type'], value: rest.join(':') } : null);
+              }}
+              aria-label="Filter by project or folder"
               className={inputClass}
             >
-              <option value="">All folders</option>
-              {folders.map(([name, n]) => (
-                <option key={name} value={name}>
-                  {name} ({n})
-                </option>
-              ))}
+              <option value="">All sessions</option>
+              {filterProjects.length > 0 && (
+                <optgroup label="Projects">
+                  {filterProjects.map((p) => (
+                    <option key={p.id} value={`project:${p.id}`}>
+                      {p.name} ({projectCounts.get(p.id) ?? 0})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Folders">
+                {folders.map(([name, n]) => (
+                  <option key={name} value={`folder:${name}`}>
+                    {name} ({n})
+                  </option>
+                ))}
+              </optgroup>
             </select>
             {summary.length > 0 && <p className="px-1 text-xs text-zinc-500">{summary.join(' · ')}</p>}
             {attention.length > 0 && (

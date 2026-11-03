@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { AppDatabase } from '../db/index.ts';
 import { listTasks } from './tasks.ts';
 import { serializeProject } from './projects.ts';
-import { listClaudeSessions } from './claude.ts';
+import { listClaudeFolderLinks, listClaudeSessions } from './claude.ts';
 import { listAdoProjectLinks } from './ado.ts';
 import { listNotes } from './notes.ts';
 import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
@@ -16,6 +16,7 @@ import {
   tasks,
   subtasks,
   claudeSessions,
+  claudeFolderLinks,
   adoProjectLinks,
   adoDismissed,
   taskAdoLinks,
@@ -251,7 +252,7 @@ export async function registerDashboardRoutes(
       .map(serializeQuickLink);
 
     return {
-      version: 10,
+      version: 11,
       exportedAt: Date.now(),
       projects: allProjects,
       tasks: allTasks,
@@ -264,6 +265,7 @@ export async function registerDashboardRoutes(
       taskEvents: listTaskEvents(db),
       notes: listNotes(db),
       adoDismissed: db.select().from(adoDismissed).orderBy(asc(adoDismissed.dismissedAt)).all(),
+      claudeFolderLinks: listClaudeFolderLinks(db),
     };
   });
 
@@ -433,6 +435,12 @@ export async function registerDashboardRoutes(
 
         for (const dismissed of payload.adoDismissed) {
           tx.insert(adoDismissed).values(dismissed).onConflictDoNothing().run();
+        }
+
+        // Existing mappings win; skip a mapping to a project in neither the backup nor the database
+        for (const link of payload.claudeFolderLinks) {
+          if (!tx.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get()) continue;
+          tx.insert(claudeFolderLinks).values({ ...link, createdAt: Date.now() }).onConflictDoNothing().run();
         }
 
         // Only into a database with no saved settings, so an import never changes them.

@@ -217,14 +217,19 @@ export const TaskListToolbar: React.FC<{
   );
 };
 
-/** Project view: progress bar in the project colour, overdue count, and a link to a waiting Claude session. */
+/**
+ * Project view: progress bar in the project colour, overdue count, the project's Claude sessions
+ * (opens them in the side panel), and a link to a waiting one.
+ */
 export const ProjectProgressStrip: React.FC<{
   color: string;
   done: number;
   total: number;
   overdue: number;
+  sessionCount: number;
+  onOpenSessions: () => void;
   onOpenWaitingSession?: () => void;
-}> = ({ color, done, total, overdue, onOpenWaitingSession }) => (
+}> = ({ color, done, total, overdue, sessionCount, onOpenSessions, onOpenWaitingSession }) => (
   <div className="flex flex-wrap items-center gap-[18px] text-xs text-zinc-500 dark:text-zinc-400">
     <span className="flex items-center gap-2.5">
       <span
@@ -251,6 +256,14 @@ export const ProjectProgressStrip: React.FC<{
       <>
         <Divider />
         <span className="text-red-600 dark:text-red-400">{overdue} overdue</span>
+      </>
+    )}
+    {sessionCount > 0 && (
+      <>
+        <Divider />
+        <button type="button" onClick={onOpenSessions} className="hover:underline cursor-pointer">
+          {sessionCount} Claude {sessionCount === 1 ? 'session' : 'sessions'}
+        </button>
       </>
     )}
     {onOpenWaitingSession && (

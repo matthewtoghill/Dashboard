@@ -283,7 +283,17 @@ export const ClaudeSessionSchema = z.object({
   /** Set when cleared from the Overview; cleared again when the session becomes active. */
   dismissedAt: z.number().nullable().optional().default(null),
 });
-export type ClaudeSession = z.infer<typeof ClaudeSessionSchema>;
+export type ClaudeSession = z.infer<typeof ClaudeSessionSchema> & {
+  /** Derived, not stored: the linked task's project, else the project its folder is mapped to. */
+  projectId: string | null;
+};
+
+/** A folder Claude sessions run in, mapped to a project; covers its subfolders. */
+export const ClaudeFolderLinkSchema = z.object({
+  path: z.string().trim().min(1).max(1000),
+  projectId: z.string().min(1),
+});
+export type ClaudeFolderLink = z.infer<typeof ClaudeFolderLinkSchema>;
 
 /** The fields we use from a Claude Code hook's stdin JSON; the rest is ignored. */
 export const ClaudeHookEventSchema = z.object({
@@ -545,5 +555,7 @@ export const BackupPayloadSchema = z.object({
   notes: z.array(NoteSchema).optional().default([]),
   /** Since version 9. */
   adoDismissed: z.array(AdoDismissedSchema).optional().default([]),
+  /** Since version 11. */
+  claudeFolderLinks: z.array(ClaudeFolderLinkSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;

@@ -186,6 +186,8 @@ How events map to states:
 | `PermissionRequest`, `PreToolUse` for `AskUserQuestion`, `Notification` (except `idle_prompt` and `auth_success`) | Needs attention |
 | `SessionEnd` | Ended |
 
+To give sessions a project without linking each one to a task, map their folder in **Project settings > Claude folders**, or pick a project under **Folder's project** in a session's side panel (or from the folder button on a session card). A mapped folder covers its subfolders, and the longest matching folder wins; matching ignores case and `/` versus `\`. A session's project is its linked task's project if that task has one, otherwise its folder's. The project then shows its session count and any session waiting on you, new tasks created from the session go into it, Home's "Claude by project" widget counts it, and the Claude Sessions panel can filter by it. Mappings are included in JSON export and import.
+
 The session title is the first line of its first prompt. Sessions with no linked task are deleted a week after their last event (configurable in Settings); linked sessions are kept as task history and included in JSON export and import. Deleting a task unlinks its sessions.
 
 ### Opening sessions

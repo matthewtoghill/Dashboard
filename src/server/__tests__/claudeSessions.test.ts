@@ -12,10 +12,12 @@ import {
   titleFromPrompt,
 } from '../routes/claude.ts';
 import { ClaudeSession, ClaudeSessionSchema } from '../../shared/types.ts';
+import { matchFolderLink } from '../../shared/claudeFolders.ts';
 import {
   groupSessionsForPanel,
   primaryClaudeSession,
   sessionLink,
+  matchesSessionFilter,
   taskFromSession,
 } from '../../client/components/ClaudeSessions.tsx';
 
@@ -115,15 +117,18 @@ describe('readTranscriptTitle', () => {
 });
 
 describe('session links and tasks', () => {
-  const session = ClaudeSessionSchema.parse({
-    sessionId: '0f8e3c1a-2b4d-4e6f-8a9b-1c2d3e4f5a6b',
-    cwd: 'C:\\Repos\\Dashboard',
-    title: '',
-    state: 'idle',
-    taskId: null,
-    startedAt: 1,
-    lastEventAt: 1,
-  });
+  const session: ClaudeSession = {
+    ...ClaudeSessionSchema.parse({
+      sessionId: '0f8e3c1a-2b4d-4e6f-8a9b-1c2d3e4f5a6b',
+      cwd: 'C:\\Repos\\Dashboard',
+      title: '',
+      state: 'idle',
+      taskId: null,
+      startedAt: 1,
+      lastEventAt: 1,
+    }),
+    projectId: null,
+  };
 
   it('opens desktop sessions in the desktop app and others through the terminal handler', () => {
     expect(sessionLink({ ...session, entrypoint: 'claude-desktop', hostSessionId: 'local_abc' }).url).toBe(
@@ -139,6 +144,15 @@ describe('session links and tasks', () => {
     expect(taskFromSession(session).title).toBe('Claude session in Dashboard');
     expect(taskFromSession({ ...session, title: 'Fix login' }).title).toBe('Fix login');
     expect(taskFromSession(session).description).toContain(`claude --resume ${session.sessionId}`);
+    // A task created from a session lands in the session's project
+    expect(taskFromSession({ ...session, projectId: 'p1' }).projectId).toBe('p1');
+
+    const inProject = { ...session, projectId: 'p1' };
+    expect(matchesSessionFilter(inProject, null)).toBe(true);
+    expect(matchesSessionFilter(inProject, { type: 'project', value: 'p1' })).toBe(true);
+    expect(matchesSessionFilter(session, { type: 'project', value: 'p1' })).toBe(false);
+    expect(matchesSessionFilter(session, { type: 'folder', value: 'Dashboard' })).toBe(true);
+    expect(matchesSessionFilter(session, { type: 'folder', value: 'Other' })).toBe(false);
   });
 
   it('picks the most urgent and most recent session for a task row badge', () => {
@@ -308,7 +322,7 @@ describe('Claude sessions API', () => {
     const taskId = await createTask();
     await app.inject({ method: 'PATCH', url: '/api/claude/sessions/s1', payload: { taskId } });
     const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
-    expect(exported.version).toBe(10);
+    expect(exported.version).toBe(11);
     expect(exported.claudeSessions).toHaveLength(1);
 
     const { app: fresh } = await buildApp({ dbPath: ':memory:' });
@@ -322,6 +336,106 @@ describe('Claude sessions API', () => {
     const sessions = (await fresh.inject({ method: 'GET', url: '/api/claude/sessions' })).json()
       .sessions as ClaudeSession[];
     expect(Object.fromEntries(sessions.map((s) => [s.sessionId, s.taskId]))).toEqual({ s1: taskId, s2: null });
+    await fresh.close();
+  });
+});
+
+describe('matchFolderLink', () => {
+  const links = [{ path: 'C:\\Repos' }, { path: 'C:/Repos/Dashboard/' }, { path: '/home/me/app' }];
+
+  it('matches the folder and its subfolders, longest first, ignoring case and separators', () => {
+    expect(matchFolderLink('c:\\repos\\dashboard\\src', links)?.path).toBe('C:/Repos/Dashboard/');
+    expect(matchFolderLink('C:\\Repos\\Dashboard', links)?.path).toBe('C:/Repos/Dashboard/');
+    expect(matchFolderLink('C:\\Repos\\Other', links)?.path).toBe('C:\\Repos');
+    expect(matchFolderLink('/home/me/app/web', links)?.path).toBe('/home/me/app');
+    // A sibling that only shares the prefix is not a subfolder
+    expect(matchFolderLink('C:\\Repos2', links)).toBeNull();
+    expect(matchFolderLink('/home/me/application', links)).toBeNull();
+  });
+});
+
+describe('Claude folder mappings API', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    ({ app } = await buildApp({ dbPath: ':memory:' }));
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const project = async (name: string) =>
+    (await app.inject({ method: 'POST', url: '/api/projects', payload: { name } })).json().project.id as string;
+  const map = (path: string, projectId: string) =>
+    app.inject({ method: 'PUT', url: '/api/claude/folders', payload: { path, projectId } });
+  const sessionProjects = async () =>
+    Object.fromEntries(
+      ((await app.inject({ method: 'GET', url: '/api/claude/sessions' })).json().sessions as ClaudeSession[]).map(
+        (s) => [s.sessionId, s.projectId]
+      )
+    );
+  const start = (session_id: string, cwd: string) =>
+    app.inject({ method: 'POST', url: '/api/claude/events', payload: { session_id, cwd, hook_event_name: 'SessionStart' } });
+
+  it('gives sessions the project of their folder, unless a linked task has one', async () => {
+    const work = await project('Work');
+    const home = await project('Home');
+    await start('repo', 'C:\\Repos\\Dashboard\\src');
+    await start('other', 'D:\\Elsewhere');
+    expect(await sessionProjects()).toEqual({ repo: null, other: null });
+
+    expect((await map('C:\\Repos\\Dashboard\\', work)).statusCode).toBe(200);
+    expect(await sessionProjects()).toEqual({ repo: work, other: null });
+
+    // A linked task's project wins; a linked task without one falls back to the folder
+    const taskId = (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 'T', projectId: home } }))
+      .json().task.id;
+    const linked = await app.inject({ method: 'PATCH', url: '/api/claude/sessions/repo', payload: { taskId } });
+    expect(linked.json().session.projectId).toBe(home);
+    await app.inject({ method: 'PATCH', url: `/api/tasks/${taskId}`, payload: { projectId: null } });
+    expect((await sessionProjects()).repo).toBe(work);
+  });
+
+  it('replaces a mapping written differently, validates input, and removes mappings', async () => {
+    const work = await project('Work');
+    const home = await project('Home');
+    await map('C:\\Repos\\Dashboard', work);
+    const remapped = await map('c:/repos/dashboard/', home);
+    expect(remapped.json().links).toEqual([{ path: 'c:/repos/dashboard', projectId: home }]);
+
+    expect((await map('relative\\folder', work)).statusCode).toBe(400);
+    expect((await map('C:\\X', 'gone')).statusCode).toBe(400);
+    expect((await map('   ', work)).statusCode).toBe(400);
+
+    const del = (path: string) =>
+      app.inject({ method: 'DELETE', url: `/api/claude/folders?path=${encodeURIComponent(path)}` });
+    expect((await del('C:\\Repos\\Dashboard')).json().links).toEqual([]);
+    expect((await del('C:\\Repos\\Dashboard')).statusCode).toBe(404);
+
+    // Deleting the project removes its mappings
+    await map('C:\\Repos', work);
+    await app.inject({ method: 'DELETE', url: `/api/projects/${work}` });
+    expect((await app.inject({ method: 'GET', url: '/api/claude/folders' })).json().links).toEqual([]);
+  });
+
+  it('exports mappings and imports them without replacing existing ones', async () => {
+    const work = await project('Work');
+    await map('C:\\Repos', work);
+    const exported = (await app.inject({ method: 'GET', url: '/api/export' })).json();
+    expect(exported.claudeFolderLinks).toEqual([{ path: 'C:\\Repos', projectId: work }]);
+
+    const { app: fresh } = await buildApp({ dbPath: ':memory:' });
+    const orphan = { path: 'D:\\Gone', projectId: 'missing' };
+    const res = await fresh.inject({
+      method: 'POST',
+      url: '/api/import',
+      payload: { ...exported, claudeFolderLinks: [...exported.claudeFolderLinks, orphan] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((await fresh.inject({ method: 'GET', url: '/api/claude/folders' })).json().links).toEqual([
+      { path: 'C:\\Repos', projectId: work },
+    ]);
     await fresh.close();
   });
 });

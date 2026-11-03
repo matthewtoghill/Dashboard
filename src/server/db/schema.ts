@@ -74,6 +74,15 @@ export const claudeSessions = sqliteTable('claude_sessions', {
   dismissedAt: integer('dismissed_at'),
 });
 
+/** A folder Claude sessions run in, and the project they belong to; covers its subfolders. */
+export const claudeFolderLinks = sqliteTable('claude_folder_links', {
+  path: text('path').primaryKey(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at').notNull(),
+});
+
 export const adoProjectLinks = sqliteTable('ado_project_links', {
   adoProject: text('ado_project').primaryKey(),
   projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),

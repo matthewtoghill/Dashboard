@@ -15,6 +15,7 @@ import {
   BackupPayload,
   SavedView,
   ClaudeSession,
+  ClaudeFolderLink,
   UpdateClaudeSessionInput,
   SettingsResponse,
   UpdateSettingsInput,
@@ -393,6 +394,29 @@ export async function updateSettings(input: UpdateSettingsInput): Promise<Settin
 async function failWith(res: Response, fallback: string): Promise<never> {
   const body = (await res.json().catch(() => null)) as { error?: string } | null;
   throw new Error(body?.error ?? `${fallback}: ${res.statusText}`);
+}
+
+export async function fetchClaudeFolders(): Promise<ClaudeFolderLink[]> {
+  const res = await fetch('/api/claude/folders');
+  if (!res.ok) return failWith(res, 'Failed to load Claude folders');
+  return ((await res.json()) as { links: ClaudeFolderLink[] }).links;
+}
+
+/** Maps a folder (and its subfolders) to a project, replacing its earlier mapping. */
+export async function saveClaudeFolder(link: ClaudeFolderLink): Promise<ClaudeFolderLink[]> {
+  const res = await fetch('/api/claude/folders', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(link),
+  });
+  if (!res.ok) return failWith(res, 'Failed to map folder');
+  return ((await res.json()) as { links: ClaudeFolderLink[] }).links;
+}
+
+export async function deleteClaudeFolder(path: string): Promise<ClaudeFolderLink[]> {
+  const res = await fetch(`/api/claude/folders?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
+  if (!res.ok) return failWith(res, 'Failed to remove folder');
+  return ((await res.json()) as { links: ClaudeFolderLink[] }).links;
 }
 
 /** The last background check's result; `refresh` checks Azure DevOps now. */

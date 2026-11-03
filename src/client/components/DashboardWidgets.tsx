@@ -160,7 +160,6 @@ const WidgetBody: React.FC<HomeDrawerProps & { id: HomeDrawerTab }> = ({ id, ...
       return (
         <ClaudeProjectsPanel
           sessions={props.claudeSessions}
-          tasks={tasks}
           projects={props.projects}
           onSelectProject={props.onSelectProject}
         />
@@ -419,18 +418,15 @@ const ClaudeFoldersPanel: React.FC<{ sessions: ClaudeSession[]; onSelectFolder: 
   return <CountRows rows={rows} />;
 };
 
-/** Sessions linked (through their task) to each project, most first; a row opens the project. */
+/** Sessions per project (through a linked task or a mapped folder), most first; a row opens the project. */
 const ClaudeProjectsPanel: React.FC<{
   sessions: ClaudeSession[];
-  tasks: Task[];
   projects: Project[];
   onSelectProject: (projectId: string) => void;
-}> = ({ sessions, tasks, projects, onSelectProject }) => {
-  const projectByTask = new Map(tasks.map((t) => [t.id, t.projectId]));
+}> = ({ sessions, projects, onSelectProject }) => {
   const counts = new Map<string, number>();
   for (const s of sessions) {
-    const projectId = s.taskId && !s.dismissedAt ? projectByTask.get(s.taskId) : null;
-    if (projectId) counts.set(projectId, (counts.get(projectId) ?? 0) + 1);
+    if (s.projectId && !s.dismissedAt) counts.set(s.projectId, (counts.get(s.projectId) ?? 0) + 1);
   }
   const rows = projects
     .filter((p) => counts.has(p.id))
@@ -441,9 +437,9 @@ const ClaudeProjectsPanel: React.FC<{
       color: p.color,
       count: counts.get(p.id)!,
       onSelect: () => onSelectProject(p.id),
-      label: `${p.name}: ${counts.get(p.id)} linked ${counts.get(p.id) === 1 ? 'session' : 'sessions'}. Open project`,
+      label: `${p.name}: ${counts.get(p.id)} ${counts.get(p.id) === 1 ? 'session' : 'sessions'}. Open project`,
     }));
-  if (rows.length === 0) return <EmptyNote>No Claude sessions linked to a project's tasks yet.</EmptyNote>;
+  if (rows.length === 0) return <EmptyNote>No Claude sessions in a project yet. Link one to a task, or map its folder in Project settings.</EmptyNote>;
   return <CountRows rows={rows} />;
 };
 

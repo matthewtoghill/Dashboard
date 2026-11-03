@@ -65,9 +65,11 @@ import { NOTE_TAG_LIST_ID, NotePanel, NotesView, copyNote, noteTags, upsertNote 
 import {
   ClaudeIcon,
   ClaudeSessionActions,
+  ClaudeSessionFilter,
   ClaudeSessionPanel,
   ClaudeSessionsSidePanel,
   taskFromSession,
+  useClaudeFolders,
 } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { CalendarView } from './components/CalendarView.tsx';
@@ -165,7 +167,11 @@ export const App: React.FC = () => {
     else localStorage.removeItem(SIDE_PANEL_KEY);
     setSidePanel(next);
   };
-  const [claudeFolder, setClaudeFolder] = useState<string | null>(null);
+  const [claudeFilter, setClaudeFilter] = useState<ClaudeSessionFilter | null>(null);
+  const showClaudeSessions = (filter: ClaudeSessionFilter) => {
+    setClaudeFilter(filter);
+    if (sidePanel !== 'claude') toggleSidePanel('claude');
+  };
   // List view: navigation, search, priority filter, grouping and sorting
   const [view, setView] = useState<ViewState>(DEFAULT_VIEW_STATE);
   const { nav: activeNav, search: searchQuery, priority: priorityFilter, groupBy, sortBy } = view;
@@ -497,7 +503,7 @@ export const App: React.FC = () => {
   const importBackupMutation = useMutation({
     mutationFn: importDashboardData,
     // The server takes a safety backup first, so the backup list changes too
-    onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups', 'claudeSessions'),
+    onSettled: () => invalidate('tasks', 'projects', 'dashboard', 'backups', 'claudeSessions', 'claudeFolders'),
   });
 
   const updateClaudeSessionMutation = useMutation({
@@ -563,7 +569,7 @@ export const App: React.FC = () => {
         }
         const undo = schedule([id], async () => {
           await deleteProject(id);
-          await invalidate('projects', 'tasks');
+          await invalidate('projects', 'tasks', 'claudeFolders', 'claudeSessions');
         });
         showToast(`Deleted project "${project.name}"`, undo);
       },
@@ -712,6 +718,17 @@ export const App: React.FC = () => {
     );
   const currentProject =
     activeNav.type === 'project' ? projects.find((p) => p.id === activeNav.id) : undefined;
+  const { links: claudeFolderLinks } = useClaudeFolders();
+  const projectHasClaudeFolders = !!currentProject && claudeFolderLinks.some((l) => l.projectId === currentProject.id);
+  // Entering a project with mapped Claude folders filters the Claude panel to it; leaving drops
+  // a project filter. A folder filter the user picked stays.
+  useEffect(() => {
+    setClaudeFilter((f) =>
+      projectHasClaudeFolders
+        ? { type: 'project', value: currentProject!.id }
+        : f?.type === 'project' ? null : f
+    );
+  }, [currentProject?.id, projectHasClaudeFolders]);
   const showAdoImported = (count: number, linked: boolean) =>
     showToast(
       linked
@@ -813,10 +830,7 @@ export const App: React.FC = () => {
     },
     projects,
     claudeSessions,
-    onSelectClaudeFolder: (folder) => {
-      setClaudeFolder(folder);
-      if (sidePanel !== 'claude') toggleSidePanel('claude');
-    },
+    onSelectClaudeFolder: (folder) => showClaudeSessions({ type: 'folder', value: folder }),
     scratchpad,
     quickLinks,
     staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
@@ -835,15 +849,15 @@ export const App: React.FC = () => {
   const projectStats = useMemo(() => {
     if (!currentProject) return null;
     const own = tasks.filter((t) => t.projectId === currentProject.id && t.status !== 'archived');
-    const ownIds = new Set(own.map((t) => t.id));
-    const waiting = claudeSessions.find(
-      (s) => s.state === 'needs_attention' && !s.dismissedAt && s.taskId !== null && ownIds.has(s.taskId)
-    );
+    // Through a linked task or the session's mapped folder
+    const sessions = claudeSessions.filter((s) => s.projectId === currentProject.id && !s.dismissedAt);
+    const waiting = sessions.find((s) => s.state === 'needs_attention');
     return {
       done: own.filter((t) => t.status === 'done').length,
       total: own.length,
       overdue: own.filter((t) => t.status !== 'done' && t.dueDate !== null && t.dueDate < today).length,
       waitingSessionId: waiting?.sessionId ?? null,
+      sessionCount: sessions.length,
     };
   }, [currentProject, tasks, claudeSessions, today]);
   const listMeta = isCompletedView
@@ -1084,6 +1098,7 @@ export const App: React.FC = () => {
                         ? () => claudeSessionActions.onOpen(projectStats.waitingSessionId!)
                         : undefined
                     }
+                    onOpenSessions={() => showClaudeSessions({ type: 'project', value: currentProject.id })}
                   />
                   <AdoProjectPanel
                     key={currentProject.id}
@@ -1275,8 +1290,10 @@ export const App: React.FC = () => {
           <ClaudeSessionsSidePanel
             sessions={claudeSessions}
             tasks={tasks}
-            folder={claudeFolder}
-            onFolderChange={setClaudeFolder}
+            projects={projects}
+            currentProject={currentProject}
+            filter={claudeFilter}
+            onFilterChange={setClaudeFilter}
             onClose={() => toggleSidePanel('claude')}
             {...claudeSessionActions}
           />
@@ -1310,6 +1327,7 @@ export const App: React.FC = () => {
       <ClaudeSessionPanel
         session={selectedSession}
         tasks={tasks}
+        projects={projects}
         onClose={() => setSelectedSessionId(null)}
         onOpenTask={claudeSessionActions.onOpenTask}
         onLink={claudeSessionActions.onLink}

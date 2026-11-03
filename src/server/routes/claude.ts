@@ -1,14 +1,17 @@
 import { FastifyInstance } from 'fastify';
-import { and, desc, eq, isNull, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, lt } from 'drizzle-orm';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { AppDatabase } from '../db/index.ts';
-import { claudeSessions, tasks } from '../db/schema.ts';
+import { claudeFolderLinks, claudeSessions, projects, tasks } from '../db/schema.ts';
+import { cleanFolder, matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
 import { readSettings } from '../settings.ts';
 import { recordTaskEvents } from '../taskEvents.ts';
 import {
+  ClaudeFolderLink,
+  ClaudeFolderLinkSchema,
   ClaudeHookEvent,
   ClaudeHookEventSchema,
   ClaudeSession,
@@ -143,12 +146,28 @@ export function readHostSessionId(
   }
 }
 
-export function listClaudeSessions(db: AppDatabase): ClaudeSession[] {
+export function listClaudeFolderLinks(db: AppDatabase): ClaudeFolderLink[] {
   return db
-    .select()
-    .from(claudeSessions)
-    .orderBy(desc(claudeSessions.lastEventAt))
+    .select({ path: claudeFolderLinks.path, projectId: claudeFolderLinks.projectId })
+    .from(claudeFolderLinks)
+    .orderBy(asc(claudeFolderLinks.path))
     .all();
+}
+
+/** Newest activity first, each with its project: the linked task's, else its folder's. */
+export function listClaudeSessions(db: AppDatabase, sessionId?: string): ClaudeSession[] {
+  const folders = listClaudeFolderLinks(db);
+  return db
+    .select({ session: claudeSessions, taskProjectId: tasks.projectId })
+    .from(claudeSessions)
+    .leftJoin(tasks, eq(tasks.id, claudeSessions.taskId))
+    .where(sessionId ? eq(claudeSessions.sessionId, sessionId) : undefined)
+    .orderBy(desc(claudeSessions.lastEventAt))
+    .all()
+    .map(({ session, taskProjectId }) => ({
+      ...session,
+      projectId: taskProjectId ?? matchFolderLink(session.cwd, folders)?.projectId ?? null,
+    }));
 }
 
 export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase) {
@@ -283,11 +302,44 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
       }
     });
 
-    const updated = db
-      .select()
-      .from(claudeSessions)
-      .where(eq(claudeSessions.sessionId, request.params.id))
-      .get();
-    return { session: updated! };
+    return { session: listClaudeSessions(db, request.params.id)[0] };
+  });
+
+  // GET /api/claude/folders — folders mapped to projects
+  app.get('/api/claude/folders', async () => ({ links: listClaudeFolderLinks(db) }));
+
+  // PUT /api/claude/folders — maps a folder to a project, replacing its earlier mapping
+  app.put('/api/claude/folders', async (request, reply) => {
+    const parsed = ClaudeFolderLinkSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid folder mapping', details: parsed.error.flatten() });
+    }
+    const folder = cleanFolder(parsed.data.path);
+    if (!path.isAbsolute(folder)) {
+      return reply.status(400).send({ error: 'Folder must be an absolute path' });
+    }
+    const { projectId } = parsed.data;
+    if (!db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).get()) {
+      return reply.status(400).send({ error: 'Unknown project' });
+    }
+    db.transaction((tx) => {
+      // The same folder written with other separators or case is one mapping
+      for (const link of listClaudeFolderLinks(db).filter((l) => sameFolder(l.path, folder))) {
+        tx.delete(claudeFolderLinks).where(eq(claudeFolderLinks.path, link.path)).run();
+      }
+      tx.insert(claudeFolderLinks).values({ path: folder, projectId, createdAt: Date.now() }).run();
+    });
+    return { links: listClaudeFolderLinks(db) };
+  });
+
+  // DELETE /api/claude/folders?path=... — removes a folder's mapping
+  app.delete<{ Querystring: { path?: string } }>('/api/claude/folders', async (request, reply) => {
+    const folder = request.query.path ?? '';
+    const matches = listClaudeFolderLinks(db).filter((l) => sameFolder(l.path, folder));
+    if (!folder || matches.length === 0) return reply.status(404).send({ error: 'Folder not mapped' });
+    db.transaction((tx) => {
+      for (const link of matches) tx.delete(claudeFolderLinks).where(eq(claudeFolderLinks.path, link.path)).run();
+    });
+    return { links: listClaudeFolderLinks(db) };
   });
 }
