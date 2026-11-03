@@ -27,6 +27,7 @@ import {
   AdoSyncResult,
   Project,
   Settings,
+  SettingsResponse,
   Task,
   TaskAdoLink,
   UpdateSettingsInput,
@@ -42,6 +43,7 @@ import {
   updateTask,
 } from '../api.ts';
 import { formatRelativeTime } from '../utils/taskUtils.ts';
+import { playCompletionAnimation } from '../utils/celebrate.ts';
 import { TaskLinkDialog } from './ClaudeSessions.tsx';
 
 /** "Azure DevOps work item 123" / "Azure DevOps pull request 45" for an external id. */
@@ -699,6 +701,11 @@ export const AdoClosedList: React.FC<{ closed: AdoSyncResult['closed'] }> = ({ c
   const queryClient = useQueryClient();
   const complete = useMutation({
     mutationFn: (taskIds: string[]) => Promise.all(taskIds.map((id) => updateTask(id, { status: 'done' }))),
+    // One celebration per click, however many tasks it completes
+    onMutate: () => {
+      const settings = queryClient.getQueryData<SettingsResponse>(['settings'])?.settings;
+      playCompletionAnimation(settings?.completionAnimation ?? 'none', settings?.completionAnimationFollowsPointer);
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       // The server drops completed tasks from the stored list
