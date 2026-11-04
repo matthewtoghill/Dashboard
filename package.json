@@ -36,7 +36,6 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^10.0.6",
-    "drizzle-kit": "^0.31.11",
     "tailwindcss": "^4.3.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
