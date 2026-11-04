@@ -10,7 +10,7 @@ export const KBD_CLASS =
 export const LABEL_CLASS = 'text-[11px] font-semibold uppercase tracking-[0.06em]';
 
 /** Small row badge (subtasks, notes, PR, ...). */
-export const BADGE_CLASS = 'inline-flex items-center gap-1 px-1.5 py-px rounded text-[11px] shrink-0';
+export const BADGE_CLASS = 'inline-flex items-center gap-1 px-1.5 h-[18px] leading-none rounded text-[11px] shrink-0';
 export const NEUTRAL_BADGE_CLASS = `${BADGE_CLASS} bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300`;
 
 /** Round colour dot for projects; grey ring when there is no colour. */
