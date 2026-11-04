@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseQuickAddSyntax, resolveDateToken, sourceKind } from '../../client/utils/taskUtils.ts';
+import type { Project } from '../../shared/types.ts';
 
 const thursday = new Date(2026, 9, 22); // Thu 22 Oct 2026
 const monday = new Date(2026, 9, 19); // Mon 19 Oct 2026
@@ -56,6 +57,12 @@ describe('quick-add dates', () => {
       unit: 'week',
       from: 'completion',
     });
+
+    // [Project Name] sets the project; unmatched brackets stay in the title
+    const projects = [{ id: 'p1', name: 'Side Projects' }] as Project[];
+    const bracketed = parseQuickAddSyntax('Fix [side projects] bug [WIP]', projects, defaults, thursday);
+    expect(bracketed.projectId).toBe('p1');
+    expect(bracketed.title).toBe('Fix bug [WIP]');
 
     // Only tokens: fall back to the raw text as the title
     expect(parseQuickAddSyntax('@today', [], defaults, thursday).title).toBe('@today');

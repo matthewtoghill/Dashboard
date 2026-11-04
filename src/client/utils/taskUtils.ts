@@ -309,7 +309,15 @@ export function parseQuickAddSyntax(
     '!p0': 0,
   };
 
-  const tokens = rawInput.trim().split(/\s+/);
+  // [Project Name] sets the project; an unmatched [text] stays in the title
+  const withoutProjects = rawInput.replace(/\[([^\]]+)\]/g, (match, name: string) => {
+    const project = projects.find((p) => p.name.toLowerCase() === name.trim().toLowerCase());
+    if (!project) return match;
+    projectId = project.id;
+    return ' ';
+  });
+
+  const tokens = withoutProjects.trim().split(/\s+/);
   const keptTokens: string[] = [];
 
   for (const token of tokens) {
