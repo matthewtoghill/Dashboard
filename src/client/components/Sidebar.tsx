@@ -19,9 +19,10 @@ import {
   StickyNote,
   Pause,
   Sun,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
-import { PLAN_SIZE, PROJECT_COLORS, getTodayIso, isPlanned, needsChase } from '../utils/taskUtils.ts';
+import { PROJECT_COLORS, getTodayIso, isPlanned, needsChase } from '../utils/taskUtils.ts';
 import { ActiveNavigation, SmartViewId, resolveSavedView, viewTaskCount } from '../utils/taskView.ts';
 import { ViewNameInput } from './SavedViewControls.tsx';
 import { Dot, LABEL_CLASS } from './ui.tsx';
@@ -47,6 +48,10 @@ interface SidebarProps {
   /** Claude sessions waiting on the user, badged on Home. */
   claudeAttentionCount: number;
   chaseHoldDays: number;
+  /** Soft cap on today's plan (settings). */
+  planSize: number;
+  /** Tasks in the weekly review set, badged on Weekly Review. */
+  reviewCount: number;
 }
 
 const SECTIONS_KEY = 'dashboard_sidebar_sections';
@@ -112,6 +117,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSavedView,
   claudeAttentionCount,
   chaseHoldDays,
+  planSize,
+  reviewCount,
 }) => {
   const [renamingViewId, setRenamingViewId] = useState<string | null>(null);
   const [isAddingProject, setIsAddingProject] = useState(false);
@@ -196,8 +203,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: "Today's Plan",
       icon: Sun,
       count: planCount,
-      countClass: planCount > PLAN_SIZE ? 'text-xs font-semibold text-amber-600 dark:text-amber-400' : undefined,
-      title: `${planCount} of ${PLAN_SIZE} planned`,
+      countClass: planCount > planSize ? 'text-xs font-semibold text-amber-600 dark:text-amber-400' : undefined,
+      title: `${planCount} of ${planSize} planned`,
     },
     { id: 'inbox', label: 'All Active', icon: Inbox, count: activeTasks.length },
     {
@@ -221,6 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           }
         : { count: onHoldCount }),
     },
+    { id: 'review', label: 'Weekly Review', icon: ClipboardCheck, count: reviewCount },
     { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
     { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
     { id: 'notes', label: 'Notes', icon: StickyNote },

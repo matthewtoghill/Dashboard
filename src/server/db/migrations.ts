@@ -210,6 +210,11 @@ export const MIGRATIONS: string[] = [
     ALTER TABLE tasks ADD COLUMN planned_for TEXT;
     ALTER TABLE tasks ADD COLUMN main_thing_on TEXT;
   `,
+
+  // 16: Weekly review. reviewed_at is when the review last kept the task as it is.
+  `
+    ALTER TABLE tasks ADD COLUMN reviewed_at INTEGER;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

@@ -78,6 +78,22 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     ]);
   });
 
+  it('marks a task reviewed without counting it as an edit, and undoes it', async () => {
+    const id = (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 'Tidy' } })).json().task;
+    const review = async (payload?: object) =>
+      app.inject({ method: 'POST', url: `/api/tasks/${id.id}/review`, ...(payload ? { payload } : {}) });
+
+    const reviewed = (await review()).json().task;
+    expect(typeof reviewed.reviewedAt).toBe('number');
+    expect(reviewed.updatedAt).toBe(id.updatedAt);
+    const events = (await app.inject({ method: 'GET', url: `/api/tasks/${id.id}/events` })).json().events;
+    expect(events.map((e: { kind: string }) => e.kind)).toEqual(['created']);
+
+    expect((await review({ reviewedAt: null })).json().task.reviewedAt).toBeNull();
+    expect((await review({ reviewedAt: 'soon' })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: '/api/tasks/missing/review' })).statusCode).toBe(404);
+  });
+
   it('keeps source links in order through updates, export and import', async () => {
     const slack = 'https://acme.slack.com/archives/C1/p1';
     const mail = 'https://outlook.office.com/mail/id/1';
@@ -605,6 +621,7 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         heldSince: null,
         plannedFor: null,
         mainThingOn: null,
+        reviewedAt: null,
         adoLinks: [],
         sourceUrls: [],
         subtasks: [],

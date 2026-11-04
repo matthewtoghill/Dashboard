@@ -13,7 +13,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 5 | [Calendar view](#5-calendar-view) | **Done** (branch `roadmap/calendar`) |
 | 6 | [Task activity log](#6-task-activity-log) | **Done** (branch `roadmap/activity-log`) |
 | 7 | [Automatic Azure DevOps sync check](#7-automatic-azure-devops-sync-check) | **Done** (branch `roadmap/ado-sync`) |
-| 8 | [Weekly review view](#8-weekly-review-view) | Proposed |
+| 8 | [Weekly review view](#8-weekly-review-view) | **Done** (branch `roadmap/weekly-review`) |
 | 9 | [Custom right-click menu](#9-custom-right-click-menu) | **Done** (branch `roadmap/context-menu`) |
 | 10 | [Waiting-on state (built as On Hold)](#10-waiting-on-state) | **Done** (branch `feat/on-hold-status`) |
 | 11 | [Daily plan](#11-daily-plan) | **Done** (branch `roadmap/daily-plan`) |
@@ -271,7 +271,9 @@ Check Azure DevOps in the background so new work and closed items show up withou
 
 ## 8. Weekly Review View
 
-> **Status:** Proposed
+> **Status:** ✅ **Done** (branch `roadmap/weekly-review`)
+>
+> Built as a one-task-at-a-time card (prototype variant A, chosen over a triage list and a split queue). Keep takes an optional status note and records `reviewedAt` (migration 16) without bumping `updatedAt`; a task kept within the stale threshold is left out of the review. Undated to-do tasks join only once stale, so Keep can always clear them. Draft chase copies the message and adds a "Chased" status note, and a status note now restarts the chase clock. Plan size became a General setting (`planSize`, 6 by default) that also caps in-progress work; the closing screen offers "Use N" from the 14-day working-day median. Progress isn't remembered: the set is fixed when the review opens, and Start again rebuilds it. No Overview reminder; the sidebar count is the reminder.
 
 A guided pass over tasks that have gone stale, so the list stays trustworthy.
 

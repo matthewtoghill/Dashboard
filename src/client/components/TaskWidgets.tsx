@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Download, Plus, Star, X } from 'lucide-react';
 import { ClaudeSession, Project, Task, UpdateTaskInput } from '../../shared/types.ts';
 import {
   PLAN_CARRY_LIMIT,
-  PLAN_SIZE,
   adoSummary,
   carriedDays,
   getDueDateInfo,
@@ -21,6 +21,7 @@ import {
 import { AdoBadge, ClaudeSessionBadge, PlanBadge, TaskStatusCheckbox } from './TaskRow.tsx';
 import { DatePopover } from './DatePicker.tsx';
 import { useAdoSync } from './AdoImport.tsx';
+import { fetchSettings } from '../api.ts';
 import { Dot, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
 /** What Home's task sections need to show and act on tasks. */
@@ -114,7 +115,9 @@ export const PlanSection: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }
   const today = getTodayIso();
   const plan = planTasks(tasks, today);
   const openCount = plan.filter((t) => t.status !== 'done').length;
-  const suggestions = planSuggestions(tasks, Math.min(PLAN_SIZE - openCount, 5), today);
+  const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
+  const planSize = settingsData?.settings.planSize ?? 6;
+  const suggestions = planSuggestions(tasks, Math.min(planSize - openCount, 5), today);
 
   return (
     <section aria-labelledby="home-plan" className="min-w-0">
@@ -122,8 +125,8 @@ export const PlanSection: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }
         id="home-plan"
         title="Today's Plan"
         meta={
-          <span className={openCount > PLAN_SIZE ? 'text-amber-600 dark:text-amber-400 font-semibold' : undefined}>
-            {openCount} of {PLAN_SIZE}
+          <span className={openCount > planSize ? 'text-amber-600 dark:text-amber-400 font-semibold' : undefined}>
+            {openCount} of {planSize}
           </span>
         }
       />

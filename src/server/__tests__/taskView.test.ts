@@ -9,6 +9,7 @@ import {
   needsChase,
   planSuggestions,
   planTasks,
+  suggestedPlanSize,
   tasksToCsv,
 } from '../../client/utils/taskUtils.ts';
 import {
@@ -17,6 +18,7 @@ import {
   buildTaskList,
   filterTasks,
   groupTasks,
+  reviewTasks,
   sortTasks,
   viewTitle,
   visibleTaskOrder,
@@ -51,6 +53,7 @@ function task(overrides: Partial<Task>): Task {
     heldSince: null,
     plannedFor: null,
     mainThingOn: null,
+    reviewedAt: null,
     adoLinks: [],
     sourceUrls: [],
     subtasks: [],
@@ -306,5 +309,68 @@ describe('daily plan', () => {
     const list = [task({ id: 'p', plannedFor: TODAY }), task({ id: 'main', plannedFor: TODAY, mainThingOn: TODAY }), task({ id: 'n' })];
     const view = { ...DEFAULT_VIEW_STATE, nav: { type: 'smart' as const, id: 'plan' as const } };
     expect(filterTasks(list, view, projects, TODAY).map((t) => t.id)).toEqual(['p', 'main']);
+  });
+});
+
+describe('weekly review', () => {
+  const DAY = 86_400_000;
+  const now = new Date(2026, 10, 4, 12).getTime(); // Wed 4 Nov 2026
+  const today = '2026-11-04';
+  const old = now - 20 * DAY;
+
+  it('collects overdue, chase-due and stale tasks in reason order, oldest first', () => {
+    const tasks = [
+      task({ id: 'stale-todo', updatedAt: old }),
+      task({ id: 'fresh-todo', updatedAt: now - DAY }),
+      task({ id: 'dated-todo', updatedAt: old, dueDate: '2026-11-20' }), // scheduled, not stale
+      task({ id: 'stale-wip', status: 'in_progress', updatedAt: old }),
+      task({ id: 'overdue-new', dueDate: '2026-11-03', updatedAt: now }),
+      task({ id: 'overdue-old', status: 'in_progress', dueDate: '2026-10-01', updatedAt: now }),
+      task({ id: 'chase', status: 'on_hold', heldSince: now - 8 * DAY, updatedAt: old }),
+      task({ id: 'held', status: 'on_hold', heldSince: now - 2 * DAY, updatedAt: old }),
+      task({ id: 'done', status: 'done', dueDate: '2026-10-01', updatedAt: old }),
+    ];
+    const set = reviewTasks(tasks, 14, 7, now, today);
+    expect(set.map((i) => [i.task.id, i.reason])).toEqual([
+      ['overdue-old', 'overdue'],
+      ['overdue-new', 'overdue'],
+      ['chase', 'chase'],
+      ['stale-wip', 'stale_in_progress'],
+      ['stale-todo', 'stale_todo'],
+    ]);
+  });
+
+  it('leaves out tasks kept within the stale window, and chases noted since', () => {
+    const tasks = [
+      task({ id: 'kept', updatedAt: old, reviewedAt: now - 3 * DAY }),
+      task({ id: 'kept-long-ago', updatedAt: old, reviewedAt: now - 15 * DAY }),
+      task({ id: 'kept-overdue', dueDate: '2026-11-01', reviewedAt: now - DAY }),
+      task({
+        id: 'chased',
+        status: 'on_hold',
+        heldSince: now - 10 * DAY,
+        latestNote: { text: 'Chased', at: now - DAY },
+      }),
+    ];
+    expect(reviewTasks(tasks, 14, 7, now, today).map((i) => i.task.id)).toEqual(['kept-long-ago']);
+    expect(needsChase(tasks[3], 7, now)).toBe(false);
+    expect(needsChase(tasks[3], 7, now + 6 * DAY)).toBe(true);
+  });
+
+  it('suggests the median completions per working day as the plan size', () => {
+    // 10 working days from 22 Oct to 4 Nov: three with 4 done, two with 2, the rest none
+    const doneOn = (date: string, n: number) =>
+      Array.from({ length: n }, () => task({ status: 'done', completedAt: new Date(`${date}T10:00:00`).getTime() }));
+    const tasks = [
+      ...doneOn('2026-11-02', 4),
+      ...doneOn('2026-11-03', 4),
+      ...doneOn('2026-11-04', 4),
+      ...doneOn('2026-10-29', 2),
+      ...doneOn('2026-10-30', 2),
+      ...doneOn('2026-11-01', 9), // Sunday: ignored
+    ];
+    expect(suggestedPlanSize(tasks, today)).toBe(1);
+    expect(suggestedPlanSize([...tasks, ...doneOn('2026-10-27', 3), ...doneOn('2026-10-28', 3)], today)).toBe(3);
+    expect(suggestedPlanSize([], today)).toBe(1);
   });
 });

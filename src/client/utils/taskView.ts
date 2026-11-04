@@ -6,7 +6,14 @@ import {
   Task,
   ViewStateSchema,
 } from '../../shared/types.ts';
-import { PRIORITY_CONFIG, STATUS_LABELS, getTodayIso, isPlanned } from './taskUtils.ts';
+import {
+  PRIORITY_CONFIG,
+  STATUS_LABELS,
+  formatIsoDateFromTimestamp,
+  getTodayIso,
+  isPlanned,
+  needsChase,
+} from './taskUtils.ts';
 import { addDays, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 
 export type SmartViewId = z.infer<typeof SmartViewIdSchema>;
@@ -300,6 +307,7 @@ const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
   upcoming: 'Upcoming',
   on_hold: 'On Hold',
   plan: "Today's Plan",
+  review: 'Weekly Review',
   completed: 'Completed',
   archived: 'Archive',
   notes: 'Notes',
@@ -355,4 +363,50 @@ export function resolveSavedView(
   return missing
     ? { view: { ...view, nav: { type: 'smart', id: 'inbox' } }, notice: `${missing}, so its filters are shown on All Active.` }
     : { view, notice: null };
+}
+
+export type ReviewReason = 'overdue' | 'chase' | 'stale_in_progress' | 'stale_todo';
+export interface ReviewItem {
+  task: Task;
+  reason: ReviewReason;
+}
+export const REVIEW_REASON_LABELS: Record<ReviewReason, string> = {
+  overdue: 'Overdue',
+  chase: 'Chase',
+  stale_in_progress: 'Stale in progress',
+  stale_todo: 'Stale to do',
+};
+const REVIEW_ORDER: ReviewReason[] = ['overdue', 'chase', 'stale_in_progress', 'stale_todo'];
+const REVIEW_DAY_MS = 86_400_000;
+
+/**
+ * The weekly review set: open overdue tasks, on hold tasks due a chase, and in progress or undated
+ * to-do tasks untouched for `staleDays`. Tasks the review kept within `staleDays` are left out.
+ * Ordered by reason, then oldest due date, hold or update first.
+ */
+export function reviewTasks(
+  tasks: Task[],
+  staleDays: number,
+  chaseDays: number,
+  now = Date.now(),
+  today: string = formatIsoDateFromTimestamp(now)
+): ReviewItem[] {
+  const cutoff = now - staleDays * REVIEW_DAY_MS;
+  const items: ReviewItem[] = [];
+  for (const task of tasks) {
+    if (task.reviewedAt !== null && task.reviewedAt > cutoff) continue;
+    const open = task.status === 'todo' || task.status === 'in_progress';
+    const stale = task.updatedAt <= cutoff;
+    let reason: ReviewReason | null = null;
+    if (open && task.dueDate !== null && task.dueDate < today) reason = 'overdue';
+    else if (needsChase(task, chaseDays, now)) reason = 'chase';
+    else if (task.status === 'in_progress' && stale) reason = 'stale_in_progress';
+    else if (task.status === 'todo' && stale && task.dueDate === null) reason = 'stale_todo';
+    if (reason) items.push({ task, reason });
+  }
+  const age = ({ task, reason }: ReviewItem) =>
+    reason === 'overdue' ? parseIsoDate(task.dueDate!).getTime() : reason === 'chase' ? task.heldSince! : task.updatedAt;
+  return items.sort(
+    (a, b) => REVIEW_ORDER.indexOf(a.reason) - REVIEW_ORDER.indexOf(b.reason) || age(a) - age(b)
+  );
 }

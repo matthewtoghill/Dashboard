@@ -42,6 +42,7 @@ describe('settings', () => {
         weekStartDay: 1,
         staleTaskDays: 14,
         chaseHoldDays: 7,
+        planSize: 6,
         statusNoteStyle: 'line',
         inProgressColor: '#fbbf24',
         primaryColor: 'indigo',
