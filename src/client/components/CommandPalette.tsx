@@ -111,6 +111,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'nav-plan',
+        label: "Go to Today's Plan",
+        category: 'Views',
+        icon: Sun,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'plan' });
+          onClose();
+        },
+      },
+      {
         id: 'nav-inbox',
         label: 'Go to All Active Tasks',
         category: 'Views',

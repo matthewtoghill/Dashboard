@@ -15,6 +15,8 @@ import {
   Pin,
   PinOff,
   Settings,
+  Star,
+  Sun,
   Tag,
   Trash2,
 } from 'lucide-react';
@@ -27,6 +29,8 @@ import {
   cleanTag,
   getTodayIso,
   getTomorrowIso,
+  isMainThing,
+  isPlanned,
   resolveDateToken,
   sourceKind,
 } from './taskUtils.ts';
@@ -60,6 +64,25 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
     { label: 'Edit title', icon: Pencil, onSelect: () => a.onRename(task.id) },
     { label: 'Status note…', icon: MessageSquare, onSelect: () => a.onAddNote(task.id) },
   ];
+
+  if (task.status !== 'archived' && task.status !== 'done') {
+    const today = getTodayIso();
+    const planned = isPlanned(task, today);
+    const main = isMainThing(task, today);
+    items.push(
+      {
+        label: planned ? "Remove from today's plan" : "Plan for today",
+        icon: Sun,
+        separatorBefore: true,
+        onSelect: () => a.onUpdate(task.id, { plannedFor: planned ? null : today }),
+      },
+      {
+        label: main ? 'Clear main thing' : 'Make main thing',
+        icon: Star,
+        onSelect: () => a.onUpdate(task.id, { mainThingOn: main ? null : today }),
+      }
+    );
+  }
 
   if (!isArchived) {
     items.push(

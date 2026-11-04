@@ -110,6 +110,10 @@ export const TaskSchema = z.object({
   /** Set while on hold: why, and when it went on hold. Leaving on hold clears both. */
   holdReason: z.string().nullable().optional().default(null),
   heldSince: z.number().nullable().optional().default(null),
+  /** Day the task joined the daily plan; before today means carried over. */
+  plannedFor: IsoDateSchema.nullable().optional().default(null),
+  /** Day the task is the daily plan's main thing. */
+  mainThingOn: IsoDateSchema.nullable().optional().default(null),
   /** Newest status note, derived from the activity log. */
   latestNote: z.object({ text: z.string(), at: z.number() }).nullable().optional(),
   /** The completed task this occurrence was spawned from. */
@@ -136,6 +140,7 @@ export const TASK_EVENT_KINDS = [
   'session_linked',
   'session_unlinked',
   'status_note',
+  'planned',
 ] as const;
 export const TASK_EVENT_SOURCES = ['manual', 'ado', 'claude'] as const;
 
@@ -171,6 +176,7 @@ export const CreateTaskInputSchema = z.object({
   dueDate: IsoDateSchema.nullable().optional().default(null),
   recurrence: RecurrenceSchema.nullable().optional().default(null),
   sourceUrls: SourceUrlListSchema.optional().default([]),
+  plannedFor: IsoDateSchema.nullable().optional().default(null),
 });
 export type CreateTaskInput = z.input<typeof CreateTaskInputSchema>;
 
@@ -187,6 +193,10 @@ export const UpdateTaskInputSchema = z.object({
   holdReason: z.string().trim().nullable().optional(),
   /** Backdates when an on hold task went on hold. Ignored unless the task is on hold. */
   heldSince: z.number().int().optional(),
+  /** Adds the task to the daily plan on that day, or removes it (null, which also clears mainThingOn). */
+  plannedFor: IsoDateSchema.nullable().optional(),
+  /** Makes the task that day's main thing (planning it too), replacing any other; null clears it. */
+  mainThingOn: IsoDateSchema.nullable().optional(),
   /** Replaces the task's source links; links kept keep their place. */
   sourceUrls: SourceUrlListSchema.optional(),
 });
@@ -231,7 +241,7 @@ export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
 /** 'notes' is the Notes page, not a task list. */
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'completed', 'archived', 'notes']);
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'completed', 'archived', 'notes']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),

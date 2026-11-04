@@ -6,7 +6,7 @@ import {
   Task,
   ViewStateSchema,
 } from '../../shared/types.ts';
-import { PRIORITY_CONFIG, STATUS_LABELS, getTodayIso } from './taskUtils.ts';
+import { PRIORITY_CONFIG, STATUS_LABELS, getTodayIso, isPlanned } from './taskUtils.ts';
 import { addDays, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 
 export type SmartViewId = z.infer<typeof SmartViewIdSchema>;
@@ -55,6 +55,7 @@ export function filterTasks(
       if (nav.id === 'upcoming' && (task.dueDate === null || task.dueDate <= today)) return false;
       if (nav.id === 'completed' && task.status !== 'done') return false;
       if (nav.id === 'on_hold' && task.status !== 'on_hold') return false;
+      if (nav.id === 'plan' && !isPlanned(task, today)) return false;
     } else if (nav.type === 'project') {
       if (task.projectId !== nav.id) return false;
     } else if (!task.tags.includes(nav.id)) {
@@ -298,6 +299,7 @@ const SMART_VIEW_TITLES: Record<SmartViewId, string> = {
   today: 'Today & Overdue',
   upcoming: 'Upcoming',
   on_hold: 'On Hold',
+  plan: "Today's Plan",
   completed: 'Completed',
   archived: 'Archive',
   notes: 'Notes',

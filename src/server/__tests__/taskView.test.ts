@@ -1,6 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { Project, Task } from '../../shared/types.ts';
-import { getTodayIso, getTomorrowIso, heldDays, needsChase, tasksToCsv } from '../../client/utils/taskUtils.ts';
+import {
+  carriedDays,
+  getTodayIso,
+  getTomorrowIso,
+  heldDays,
+  isPlanned,
+  needsChase,
+  planSuggestions,
+  planTasks,
+  tasksToCsv,
+} from '../../client/utils/taskUtils.ts';
 import {
   DEFAULT_VIEW_STATE,
   ViewState,
@@ -39,6 +49,8 @@ function task(overrides: Partial<Task>): Task {
     recurrenceParentId: null,
     holdReason: null,
     heldSince: null,
+    plannedFor: null,
+    mainThingOn: null,
     adoLinks: [],
     sourceUrls: [],
     subtasks: [],
@@ -243,5 +255,56 @@ describe('tasksToCsv', () => {
     expect(csv).toContain("'@team");
     expect(csv).toContain(`"'-2, then 3"`);
     expect(titles[3]).toBe('Plain');
+  });
+});
+
+describe('daily plan', () => {
+  // TODAY (2026-10-22) is a Thursday
+  const doneAt = (iso: string) => new Date(`${iso}T12:00:00`).getTime();
+
+  it('keeps open planned tasks, carries them over, and drops those completed before today', () => {
+    expect(isPlanned(task({ plannedFor: TODAY }), TODAY)).toBe(true);
+    expect(isPlanned(task({ plannedFor: '2026-10-20' }), TODAY)).toBe(true); // carried over
+    expect(isPlanned(task({ plannedFor: '2026-10-23' }), TODAY)).toBe(false);
+    expect(isPlanned(task({ plannedFor: null }), TODAY)).toBe(false);
+    expect(isPlanned(task({ plannedFor: '2026-10-20', status: 'done', completedAt: doneAt(TODAY) }), TODAY)).toBe(true);
+    expect(isPlanned(task({ plannedFor: '2026-10-20', status: 'done', completedAt: doneAt('2026-10-21') }), TODAY)).toBe(false);
+    expect(isPlanned(task({ plannedFor: TODAY, status: 'archived' }), TODAY)).toBe(false);
+  });
+
+  it('counts carry-over in working days, skipping the weekend', () => {
+    expect(carriedDays(task({ plannedFor: TODAY }), TODAY)).toBe(0);
+    expect(carriedDays(task({ plannedFor: '2026-10-19' }), TODAY)).toBe(3); // Mon -> Thu
+    expect(carriedDays(task({ plannedFor: '2026-10-16' }), '2026-10-19')).toBe(1); // Fri -> Mon
+  });
+
+  it('puts the main thing first and completed tasks last', () => {
+    const list = [
+      task({ id: 'done', plannedFor: TODAY, status: 'done', completedAt: doneAt(TODAY), sortOrder: 0 }),
+      task({ id: 'a', plannedFor: TODAY, sortOrder: 1 }),
+      task({ id: 'main', plannedFor: TODAY, mainThingOn: TODAY, sortOrder: 2 }),
+      task({ id: 'stale-main', plannedFor: TODAY, mainThingOn: '2026-10-21', sortOrder: 3 }),
+    ];
+    expect(planTasks(list, TODAY).map((t) => t.id)).toEqual(['main', 'a', 'stale-main', 'done']);
+  });
+
+  it('suggests in progress, overdue, due today, then manual order, leaving out planned and held tasks', () => {
+    const list = [
+      task({ id: 'top', sortOrder: 0 }),
+      task({ id: 'today', dueDate: TODAY, sortOrder: 5 }),
+      task({ id: 'overdue', dueDate: '2026-10-01', sortOrder: 6 }),
+      task({ id: 'doing', status: 'in_progress', sortOrder: 7 }),
+      task({ id: 'planned', status: 'in_progress', plannedFor: TODAY }),
+      task({ id: 'held', status: 'on_hold' }),
+    ];
+    expect(planSuggestions(list, 10, TODAY).map((t) => t.id)).toEqual(['doing', 'overdue', 'today', 'top']);
+    expect(planSuggestions(list, 2, TODAY)).toHaveLength(2);
+    expect(planSuggestions(list, -1, TODAY)).toHaveLength(0);
+  });
+
+  it("filters the Today's Plan view", () => {
+    const list = [task({ id: 'p', plannedFor: TODAY }), task({ id: 'main', plannedFor: TODAY, mainThingOn: TODAY }), task({ id: 'n' })];
+    const view = { ...DEFAULT_VIEW_STATE, nav: { type: 'smart' as const, id: 'plan' as const } };
+    expect(filterTasks(list, view, projects, TODAY).map((t) => t.id)).toEqual(['p', 'main']);
   });
 });

@@ -17,6 +17,8 @@ import {
   Users,
   Mail,
   Link2,
+  Star,
+  Sun,
 } from 'lucide-react';
 import {
   Task,
@@ -37,6 +39,10 @@ import {
   formatRelativeTime,
   sourceKind,
   SourceKind,
+  carriedDays,
+  getTodayIso,
+  isMainThing,
+  isPlanned,
 } from '../utils/taskUtils.ts';
 import { externalLinkLabel, typeStyle } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
@@ -51,6 +57,27 @@ export const taskGridClass = (showProject: boolean) =>
   showProject
     ? 'grid grid-cols-[minmax(0,1fr)_140px_130px_130px_84px] max-[1200px]:grid-cols-[minmax(0,1fr)_130px_130px_84px] max-[1000px]:grid-cols-[minmax(0,1fr)_130px_84px]'
     : 'grid grid-cols-[minmax(0,1fr)_140px_130px_84px] max-[1200px]:grid-cols-[minmax(0,1fr)_130px_84px]';
+
+/**
+ * Marks a task in today's plan: a star for the main thing, and how many working days it has carried over.
+ * `ignoreMain` is for places with their own main thing toggle.
+ */
+export const PlanBadge: React.FC<{ task: Task; today?: string; ignoreMain?: boolean }> = ({
+  task,
+  today = getTodayIso(),
+  ignoreMain = false,
+}) => {
+  const main = !ignoreMain && isMainThing(task, today);
+  const carried = carriedDays(task, today);
+  const label = `${main ? 'Main thing' : "In today's plan"}${carried > 0 ? `, carried over ${carried} working day${carried === 1 ? '' : 's'}` : ''}`;
+  const Icon = main ? Star : Sun;
+  return (
+    <span role="img" aria-label={label} title={label} className={`${BADGE_CLASS} bg-amber-500/15 text-amber-700 dark:text-amber-300`}>
+      <Icon className="w-[11px] h-[11px]" />
+      {carried > 0 && <span>{carried}d</span>}
+    </span>
+  );
+};
 
 /** Column labels for a task list. */
 export const TaskListHeader: React.FC<{ showProject?: boolean }> = ({ showProject = true }) => (
@@ -356,6 +383,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const statusNote = task.latestNote;
   // A finished task's note stays in the drawer; the row would only repeat it
   const showNoteLine = noteStyle === 'line' && Boolean(statusNote) && !isDone && !isArchived;
+  const today = getTodayIso();
+  const planned = isPlanned(task, today);
 
   return (
     <div
@@ -456,6 +485,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             {noteStyle === 'icon' && statusNote && (
               <StatusNoteBadge note={statusNote} onOpen={() => onSelect?.(task)} />
             )}
+            {planned && !isDone && <PlanBadge task={task} today={today} />}
             <ClaudeSessionBadge sessions={claudeSessions} onOpenSession={onOpenSession} />
             <AdoBadge task={task} />
             <SourceBadge task={task} />
@@ -499,6 +529,17 @@ Click to open details`}
               className={actionButtonClass}
             >
               <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {!isArchived && !isDone && (
+            <button
+              type="button"
+              onClick={() => onUpdate(task.id, { plannedFor: planned ? null : today })}
+              aria-label={planned ? `Remove "${task.title}" from today's plan` : `Plan "${task.title}" for today`}
+              title={planned ? "Remove from today's plan (P)" : 'Plan for today (P)'}
+              className={actionButtonClass}
+            >
+              <Sun className="w-3.5 h-3.5" />
             </button>
           )}
           {isArchived ? (

@@ -4,7 +4,7 @@ import { ClaudeSession, Task, WidgetConfig } from '../../shared/types.ts';
 import { computeDashboardStats } from '../utils/taskUtils.ts';
 import { ClaudeAttentionBanner, ClaudeSessionActions, ClaudeSessionsRail } from './ClaudeSessions.tsx';
 import { HomeDrawer } from './DashboardWidgets.tsx';
-import { InProgressRail, TaskWidgetActions, UpNextSection } from './TaskWidgets.tsx';
+import { InProgressRail, PlanSection, TaskWidgetActions, UpNextSection } from './TaskWidgets.tsx';
 import { Divider } from './ui.tsx';
 
 /** "Friday, 24 October" */
@@ -60,7 +60,7 @@ const HomeStatsStrip: React.FC<{ tasks: Task[]; onOpenOverdue: () => void }> = (
   );
 };
 
-/** Home: greeting and stats, the Claude banner, Up next beside the rail, and the bottom drawer. */
+/** Home: greeting and stats, the Claude banner, today's plan and Up next beside the rail, and the bottom drawer. */
 export const HomeView: React.FC<{
   tasks: Task[];
   claudeSessions: ClaudeSession[];
@@ -85,14 +85,11 @@ export const HomeView: React.FC<{
 
       <ClaudeAttentionBanner sessions={claudeSessions} tasks={tasks} />
 
-      <div
-        className={`flex-1 grid gap-10 items-start ${
-          widgetConfig.showAgenda
-            ? 'grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] max-[1100px]:grid-cols-1'
-            : 'grid-cols-1'
-        }`}
-      >
-        {widgetConfig.showAgenda && <UpNextSection tasks={tasks} actions={taskWidgetActions} />}
+      <div className="flex-1 grid gap-10 items-start grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] max-[1100px]:grid-cols-1">
+        <div className="flex flex-col gap-[26px] min-w-0">
+          <PlanSection tasks={tasks} actions={taskWidgetActions} />
+          {widgetConfig.showAgenda && <UpNextSection tasks={tasks} actions={taskWidgetActions} />}
+        </div>
         <div className="flex flex-col gap-[26px] min-w-0">
           {showRailTasks && <InProgressRail tasks={tasks} actions={taskWidgetActions} />}
           <ClaudeSessionsRail sessions={claudeSessions} tasks={tasks} {...claudeSessionActions} />

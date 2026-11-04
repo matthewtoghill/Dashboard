@@ -1,8 +1,15 @@
-import React from 'react';
-import { Download } from 'lucide-react';
-import { ClaudeSession, Project, Task } from '../../shared/types.ts';
+import React, { useState } from 'react';
+import { Download, Plus, Star, X } from 'lucide-react';
+import { ClaudeSession, Project, Task, UpdateTaskInput } from '../../shared/types.ts';
 import {
+  PLAN_CARRY_LIMIT,
+  PLAN_SIZE,
   adoSummary,
+  carriedDays,
+  getDueDateInfo,
+  isMainThing,
+  planSuggestions,
+  planTasks,
   agendaGroups,
   formatDayDate,
   formatRelativeTime,
@@ -11,7 +18,8 @@ import {
   getTomorrowIso,
   staleTasks,
 } from '../utils/taskUtils.ts';
-import { AdoBadge, ClaudeSessionBadge, TaskStatusCheckbox } from './TaskRow.tsx';
+import { AdoBadge, ClaudeSessionBadge, PlanBadge, TaskStatusCheckbox } from './TaskRow.tsx';
+import { DatePopover } from './DatePicker.tsx';
 import { useAdoSync } from './AdoImport.tsx';
 import { Dot, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
@@ -20,6 +28,7 @@ export interface TaskWidgetActions {
   projects: Project[];
   claudeSessionsByTaskId: Map<string, ClaudeSession[]>;
   onToggleTask: (task: Task) => void;
+  onUpdateTask: (id: string, payload: UpdateTaskInput) => void;
   onOpenTask: (taskId: string) => void;
   onOpenSession: (sessionId: string) => void;
 }
@@ -66,6 +75,208 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
         </>
       )}
     </li>
+  );
+};
+
+const ICON_BUTTON_CLASS =
+  'shrink-0 p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200/60 dark:hover:bg-zinc-800 cursor-pointer';
+const PROMPT_BUTTON_CLASS = 'text-amber-800 dark:text-amber-200 font-medium hover:underline cursor-pointer';
+
+/** Shown under a task carried over for PLAN_CARRY_LIMIT working days: split it, reschedule it, or drop it. */
+const CarryOverPrompt: React.FC<{ task: Task; days: number; actions: TaskWidgetActions }> = ({ task, days, actions }) => {
+  const [dateOpen, setDateOpen] = useState(false);
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 ml-9 mb-1 px-2 py-1 rounded-md bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300">
+      <span>Carried over {days} working days.</span>
+      <button type="button" className={PROMPT_BUTTON_CLASS} onClick={() => actions.onOpenTask(task.id)}>
+        Split into subtasks
+      </button>
+      <DatePopover
+        value={task.dueDate}
+        onChange={(dueDate) => actions.onUpdateTask(task.id, { dueDate, plannedFor: null })}
+        open={dateOpen}
+        onOpenChange={setDateOpen}
+        trigger={
+          <button type="button" className={PROMPT_BUTTON_CLASS} onClick={() => setDateOpen((v) => !v)}>
+            Reschedule
+          </button>
+        }
+      />
+      <button type="button" className={PROMPT_BUTTON_CLASS} onClick={() => actions.onUpdateTask(task.id, { plannedFor: null })}>
+        Drop from plan
+      </button>
+    </li>
+  );
+};
+
+/** Today's plan: the main thing first, carry-over marks and the 3-day check, then suggestions while there is room. */
+export const PlanSection: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }> = ({ tasks, actions }) => {
+  const today = getTodayIso();
+  const plan = planTasks(tasks, today);
+  const openCount = plan.filter((t) => t.status !== 'done').length;
+  const suggestions = planSuggestions(tasks, Math.min(PLAN_SIZE - openCount, 5), today);
+
+  return (
+    <section aria-labelledby="home-plan" className="min-w-0">
+      <SectionHeader
+        id="home-plan"
+        title="Today's Plan"
+        meta={
+          <span className={openCount > PLAN_SIZE ? 'text-amber-600 dark:text-amber-400 font-semibold' : undefined}>
+            {openCount} of {PLAN_SIZE}
+          </span>
+        }
+      />
+      {plan.length === 0 && <EmptyNote>Nothing planned yet. Pick what you'll work on today.</EmptyNote>}
+      <ul className="pt-1.5">
+        {plan.map((task) => {
+          const main = isMainThing(task, today);
+          const days = carriedDays(task, today);
+          const done = task.status === 'done';
+          return (
+            <React.Fragment key={task.id}>
+              <HomeTaskRow
+                task={task}
+                actions={actions}
+                trailing={
+                  <>
+                    {!done && days > 0 && <PlanBadge task={task} today={today} ignoreMain />}
+                    {!done && (
+                      <button
+                        type="button"
+                        onClick={() => actions.onUpdateTask(task.id, { mainThingOn: main ? null : today })}
+                        aria-label={main ? `Clear "${task.title}" as the main thing` : `Make "${task.title}" the main thing`}
+                        title={main ? 'Clear main thing' : 'Make main thing'}
+                        className={`${ICON_BUTTON_CLASS} ${main ? 'text-amber-500!' : ''}`}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${main ? 'fill-current' : ''}`} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => actions.onUpdateTask(task.id, { plannedFor: null })}
+                      aria-label={`Remove "${task.title}" from today's plan`}
+                      title="Remove from plan"
+                      className={ICON_BUTTON_CLASS}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                }
+              />
+              {!done && days >= PLAN_CARRY_LIMIT && <CarryOverPrompt task={task} days={days} actions={actions} />}
+            </React.Fragment>
+          );
+        })}
+      </ul>
+      {suggestions.length > 0 && (
+        <>
+          <h4 className={`px-2 pt-3 pb-1 ${LABEL_CLASS} text-zinc-600 dark:text-zinc-400`}>Suggestions</h4>
+          <ul>
+            {suggestions.map((task) => (
+              <HomeTaskRow
+                key={task.id}
+                task={task}
+                actions={actions}
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => actions.onUpdateTask(task.id, { plannedFor: today })}
+                    aria-label={`Plan "${task.title}" for today`}
+                    title="Add to today's plan"
+                    className={ICON_BUTTON_CLASS}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                }
+              />
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+};
+
+/**
+ * Today's Plan view: the main thing in a card above the list (it stays in the list too). With none
+ * chosen, offers the open planned tasks to pick from.
+ */
+export const MainThingCard: React.FC<{ tasks: Task[]; actions: TaskWidgetActions }> = ({ tasks, actions }) => {
+  const today = getTodayIso();
+  const plan = planTasks(tasks, today);
+  const main = plan.find((t) => isMainThing(t, today));
+  const candidates = plan.filter((t) => t.status !== 'done');
+  if (!main && candidates.length === 0) return null;
+
+  const cardClass = 'rounded-xl border border-amber-500/40 bg-amber-500/[.08] dark:bg-amber-500/[.06] px-4 py-3';
+  const heading = (
+    <span className={`flex items-center gap-1.5 ${LABEL_CLASS} text-amber-700 dark:text-amber-300`}>
+      <Star className="w-3 h-3 fill-current" />
+      Main thing
+    </span>
+  );
+
+  if (!main) {
+    return (
+      <section aria-label="Main thing" className={cardClass}>
+        {heading}
+        <p className="mt-1 text-[13px] text-zinc-600 dark:text-zinc-400">Pick the one task that would make today a good day.</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {candidates.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => actions.onUpdateTask(t.id, { mainThingOn: today })}
+              className="max-w-64 truncate px-2.5 py-1 rounded-md border border-amber-500/40 text-xs text-zinc-800 dark:text-zinc-200 hover:bg-amber-500/15 cursor-pointer"
+            >
+              {t.title}
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  const project = actions.projects.find((p) => p.id === main.projectId);
+  const done = main.status === 'done';
+  const days = carriedDays(main, today);
+  const details = [
+    project?.name,
+    main.dueDate && getDueDateInfo(main.dueDate).label,
+    days > 0 && `Carried over ${days}d`,
+  ].filter(Boolean);
+  return (
+    <section aria-label="Main thing" data-menu-task={main.id} className={cardClass}>
+      <div className="flex items-center justify-between gap-3">
+        {heading}
+        <button
+          type="button"
+          onClick={() => actions.onUpdateTask(main.id, { mainThingOn: null })}
+          className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
+        >
+          Clear
+        </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-3">
+        <TaskStatusCheckbox task={main} onToggle={actions.onToggleTask} />
+        <button
+          type="button"
+          onClick={() => actions.onOpenTask(main.id)}
+          className={`min-w-0 truncate text-left text-base font-semibold cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 ${
+            done ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-900 dark:text-zinc-100'
+          }`}
+        >
+          {main.title}
+        </button>
+      </div>
+      {details.length > 0 && (
+        <p className="mt-1 ml-8 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+          {project && <Dot color={project.color} />}
+          {details.join(' · ')}
+        </p>
+      )}
+    </section>
   );
 };
 

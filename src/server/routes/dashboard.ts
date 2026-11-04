@@ -337,6 +337,8 @@ export async function registerDashboardRoutes(
               recurrenceParentId: t.recurrenceParentId,
               holdReason: t.holdReason,
               heldSince: t.heldSince,
+              plannedFor: t.plannedFor,
+              mainThingOn: t.mainThingOn,
             })
             .onConflictDoNothing()
             .run();

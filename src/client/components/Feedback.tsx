@@ -185,6 +185,7 @@ const SHORTCUTS: [string, string][] = [
   ['Enter', 'Open details'],
   ['E', 'Rename'],
   ['A', 'Archive or restore'],
+  ['P', "Add to or remove from today's plan"],
   ['Delete', 'Delete'],
   ['1 \u2013 4, 0', 'Priority Low \u2013 Urgent, None'],
   ['Alt + \u2191 / \u2193', 'Move (Manual sort)'],

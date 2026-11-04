@@ -20,6 +20,7 @@ export function diffTask(before: DbTask, after: DbTask): TaskEventChange[] {
     ['due', before.dueDate, after.dueDate],
     ['priority', before.priority, after.priority],
     ['project', before.projectId, after.projectId],
+    ['planned', before.plannedFor, after.plannedFor],
   ];
   return fields
     .filter(([, from, to]) => from !== to)

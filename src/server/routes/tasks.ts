@@ -161,6 +161,8 @@ export function serializeTask(
     recurrenceParentId: row.recurrenceParentId ?? null,
     holdReason: row.holdReason ?? null,
     heldSince: row.heldSince ?? null,
+    plannedFor: row.plannedFor ?? null,
+    mainThingOn: row.mainThingOn ?? null,
     latestNote,
     subtasks: taskSubtasks,
     adoLinks,
@@ -292,6 +294,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       createdAt: now,
       updatedAt: now,
       recurrence: stringifyRecurrence(input.recurrence),
+      plannedFor: input.plannedFor,
     };
 
     db.transaction(() => {
@@ -340,6 +343,11 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     const heldSince = held ? input.heldSince ?? existing.heldSince ?? now : null;
     const holdReason = held ? (input.holdReason !== undefined ? input.holdReason || null : existing.holdReason) : null;
 
+    // Making a task the main thing plans it; unplanning it drops the main thing.
+    const plannedFor =
+      input.plannedFor !== undefined ? input.plannedFor : input.mainThingOn ? existing.plannedFor ?? input.mainThingOn : existing.plannedFor;
+    const mainThingOn = plannedFor === null ? null : input.mainThingOn !== undefined ? input.mainThingOn : existing.mainThingOn;
+
     let statusBeforeArchive = existing.statusBeforeArchive;
     if (input.status === 'archived' && existing.status !== 'archived') {
       statusBeforeArchive = existing.status;
@@ -355,6 +363,9 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       existing.status === 'done';
 
     const outcome = db.transaction(() => {
+      if (mainThingOn && mainThingOn !== existing.mainThingOn) {
+        db.update(tasks).set({ mainThingOn: null }).where(eq(tasks.mainThingOn, mainThingOn)).run();
+      }
       db.update(tasks)
         .set({
           ...(input.title !== undefined ? { title: input.title } : {}),
@@ -372,6 +383,8 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
           statusBeforeArchive,
           holdReason,
           heldSince,
+          plannedFor,
+          mainThingOn,
           updatedAt: now,
         })
         .where(eq(tasks.id, id))

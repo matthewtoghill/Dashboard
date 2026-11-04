@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Task, TaskPriority, UpdateTaskInput } from '../../shared/types.ts';
 import { isTextInput } from './useGlobalShortcuts.ts';
+import { getTodayIso, isPlanned } from './taskUtils.ts';
 
 interface TaskListKeyboardOptions {
   tasks: Task[];
@@ -128,6 +129,13 @@ export function useTaskListKeyboard({
           if (task.status === 'archived') onRestore([task]);
           else onArchive(task);
           return;
+        case 'p': {
+          if (task.status === 'archived' || task.status === 'done') return;
+          e.preventDefault();
+          const today = getTodayIso();
+          onUpdate(task.id, { plannedFor: isPlanned(task, today) ? null : today });
+          return;
+        }
         case 'Delete':
         case 'Backspace':
           e.preventDefault();

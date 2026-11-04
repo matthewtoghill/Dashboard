@@ -16,7 +16,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | 8 | [Weekly review view](#8-weekly-review-view) | Proposed |
 | 9 | [Custom right-click menu](#9-custom-right-click-menu) | **Done** (branch `roadmap/context-menu`) |
 | 10 | [Waiting-on state (built as On Hold)](#10-waiting-on-state) | **Done** (branch `feat/on-hold-status`) |
-| 11 | [Daily plan](#11-daily-plan) | Proposed |
+| 11 | [Daily plan](#11-daily-plan) | **Done** (branch `roadmap/daily-plan`) |
 | 12 | [Task status notes](#12-task-status-notes) | **Done** (branch `roadmap/status-notes`) |
 | 13 | [Dismissed Azure DevOps items](#13-dismissed-azure-devops-items) | **Done** (branch `feat/ado-dismissed`) |
 | 14 | [Source links](#14-source-links) | **Done** (branch `feat/source-links`) |
@@ -359,7 +359,9 @@ Built as an **On Hold** status (`on_hold`) with an optional free-text reason (`h
 
 ## 11. Daily Plan
 
-> **Status:** Proposed
+> **Status:** ✅ **Done** (branch `roadmap/daily-plan`)
+>
+> Built with: a separate Today's Plan view (Today & Overdue unchanged), due-today tasks only suggested, the main thing chosen again each day, and `P` to plan the focused task. One `planned_for` column covers carry-over (no `plannedSince`), and the main thing is a `main_thing_on` date column rather than a `key_value_store` entry, so it travels with the task in export and import. The plan size is fixed at 6 until the weekly review suggests one.
 
 Pick what to work on today, separately from due dates. The Today view lists tasks due today, which is not the same as the set of tasks I have committed to.
 

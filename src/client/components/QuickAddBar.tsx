@@ -83,6 +83,8 @@ export const QuickAddBar: React.FC<{
       tags: parsed.tags,
       recurrence: parsed.recurrence,
       sourceUrls: parsed.sourceUrls,
+      // Added from Today's Plan: joins the plan
+      plannedFor: activeNav.type === 'smart' && activeNav.id === 'plan' ? getTodayIso() : null,
     }, () => {
       setNewTitle('');
       setNewTagInput('');

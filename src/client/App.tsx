@@ -72,6 +72,7 @@ import {
   useClaudeFolders,
 } from './components/ClaudeSessions.tsx';
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
+import { MainThingCard } from './components/TaskWidgets.tsx';
 import { CalendarView } from './components/CalendarView.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
@@ -825,6 +826,7 @@ export const App: React.FC = () => {
       projects,
       claudeSessionsByTaskId,
       onToggleTask: handleToggleTask,
+      onUpdateTask: handleUpdateTask,
       onOpenTask: claudeSessionActions.onOpenTask,
       onOpenSession: claudeSessionActions.onOpen,
     },
@@ -1107,6 +1109,10 @@ export const App: React.FC = () => {
                     onImported={showAdoImported}
                   />
                 </>
+              )}
+
+              {activeNav.type === 'smart' && activeNav.id === 'plan' && (
+                <MainThingCard tasks={tasks} actions={widgetProps.taskWidgetActions} />
               )}
 
               {!isCompletedView && !isArchiveView && (

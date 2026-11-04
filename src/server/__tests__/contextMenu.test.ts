@@ -20,6 +20,8 @@ const base: Task = {
   recurrenceParentId: null,
   holdReason: null,
   heldSince: null,
+  plannedFor: null,
+  mainThingOn: null,
   adoLinks: [],
   sourceUrls: [],
   subtasks: [],
@@ -49,10 +51,21 @@ describe('taskMenuItems', () => {
   it('lists the task actions, ticking the current status', () => {
     const items = taskMenuItems(base, false, actions());
     expect(items.map((i) => i.label)).toEqual([
-      'Open task', 'Edit title', 'Status note…', 'To Do', 'In Progress', 'On Hold', 'Completed', 'Priority', 'Due date',
+      'Open task', 'Edit title', 'Status note…', 'Plan for today', 'Make main thing', 'To Do', 'In Progress', 'On Hold', 'Completed', 'Priority', 'Due date',
       'Move to project', 'Add tag', 'Copy title', 'Archive', 'Delete',
     ]);
     expect(items.find((i) => i.label === 'To Do')?.checked).toBe(true);
+  });
+
+  it('plans the task for today, and offers removal once planned', () => {
+    const a = actions();
+    taskMenuItems(base, false, a).find((i) => i.label === 'Plan for today')!.onSelect!();
+    expect(a.onUpdate).toHaveBeenCalledWith('t1', { plannedFor: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    const today = (a.onUpdate as ReturnType<typeof vi.fn>).mock.calls[0][1].plannedFor;
+    expect(labels({ ...base, plannedFor: today, mainThingOn: today })).toEqual(
+      expect.arrayContaining(["Remove from today's plan", 'Clear main thing'])
+    );
+    expect(labels({ ...base, status: 'done' })).not.toContain('Plan for today');
   });
 
   it('swaps status and archive for restore on an archived task', () => {

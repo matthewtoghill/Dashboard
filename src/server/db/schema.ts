@@ -31,6 +31,10 @@ export const tasks = sqliteTable('tasks', {
   recurrenceParentId: text('recurrence_parent_id'),
   holdReason: text('hold_reason'),
   heldSince: integer('held_since'),
+  /** Day the task joined the daily plan; it stays planned (carried over) until done or removed. */
+  plannedFor: text('planned_for'),
+  /** Day this task is the plan's main thing. At most one task per day. */
+  mainThingOn: text('main_thing_on'),
 });
 
 export const subtasks = sqliteTable('subtasks', {

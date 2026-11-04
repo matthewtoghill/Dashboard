@@ -53,6 +53,31 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     expect(resumed.heldSince).toBeNull();
   });
 
+  it('plans tasks, keeps one main thing per day and logs planning', async () => {
+    const create = async (title: string) =>
+      (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title } })).json().task.id as string;
+    const patch = async (id: string, payload: object) =>
+      (await app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, payload })).json().task;
+    const a = await create('A');
+    const b = await create('B');
+
+    expect((await patch(a, { plannedFor: '2026-11-03' })).plannedFor).toBe('2026-11-03');
+    // Main thing on a carried-over task keeps its planned day; on an unplanned task, plans it
+    expect(await patch(a, { mainThingOn: '2026-11-04' })).toMatchObject({ plannedFor: '2026-11-03', mainThingOn: '2026-11-04' });
+    expect(await patch(b, { mainThingOn: '2026-11-04' })).toMatchObject({ plannedFor: '2026-11-04', mainThingOn: '2026-11-04' });
+    const all = (await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks;
+    expect(all.find((t: { id: string }) => t.id === a).mainThingOn).toBeNull();
+
+    // Unplanning drops the main thing too
+    expect(await patch(b, { plannedFor: null })).toMatchObject({ plannedFor: null, mainThingOn: null });
+
+    const events = (await app.inject({ method: 'GET', url: `/api/tasks/${b}/events` })).json().events;
+    expect(events.filter((e: { kind: string }) => e.kind === 'planned').map((e: { to: string | null }) => e.to)).toEqual([
+      null,
+      '2026-11-04',
+    ]);
+  });
+
   it('keeps source links in order through updates, export and import', async () => {
     const slack = 'https://acme.slack.com/archives/C1/p1';
     const mail = 'https://outlook.office.com/mail/id/1';
@@ -578,6 +603,8 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
         recurrenceParentId: null,
         holdReason: null,
         heldSince: null,
+        plannedFor: null,
+        mainThingOn: null,
         adoLinks: [],
         sourceUrls: [],
         subtasks: [],

@@ -203,6 +203,13 @@ export const MIGRATIONS: string[] = [
       created_at INTEGER NOT NULL
     );
   `,
+
+  // 15: Daily plan. planned_for is the day a task joined the plan; main_thing_on the day it is the
+  // plan's main thing.
+  `
+    ALTER TABLE tasks ADD COLUMN planned_for TEXT;
+    ALTER TABLE tasks ADD COLUMN main_thing_on TEXT;
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

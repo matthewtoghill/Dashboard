@@ -202,6 +202,8 @@ export function describeTaskEvent(event: TaskEvent, projects: Project[]): string
       return `Claude session unlinked: ${from}`;
     case 'status_note':
       return `Note: ${to}`;
+    case 'planned':
+      return to === null ? 'Removed from daily plan' : from === null ? 'Added to daily plan' : `Planned ${due(from)} → ${due(to)}`;
   }
 }
 
@@ -488,6 +490,53 @@ export function agendaGroups(tasks: Task[], days = 7, today: string = getTodayIs
     .sort()
     .map((date) => ({ date, tasks: byDay.get(date)!.sort(byPriorityThenOrder) }));
   return overdue.length > 0 ? [{ date: null, tasks: overdue }, ...groups] : groups;
+}
+
+// ponytail: fixed soft cap; the weekly review (roadmap 8) will suggest one from completion history
+export const PLAN_SIZE = 6;
+/** Working days a task may carry over before the plan asks to split, reschedule or drop it. */
+export const PLAN_CARRY_LIMIT = 3;
+
+/** In today's plan: planned on or before today and still open, or completed today. */
+export function isPlanned(task: Task, today: string = getTodayIso()): boolean {
+  if (task.plannedFor === null || task.plannedFor > today || task.status === 'archived') return false;
+  return task.status !== 'done' || (task.completedAt !== null && formatIsoDateFromTimestamp(task.completedAt) === today);
+}
+
+/** Monday-to-Friday days since the task joined the plan; 0 when planned today. */
+export function carriedDays(task: Task, today: string = getTodayIso()): number {
+  if (task.plannedFor === null) return 0;
+  let days = 0;
+  for (let d = parseIsoDate(task.plannedFor); toIsoDate(d) < today; ) {
+    d = addDays(d, 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) days++;
+  }
+  return days;
+}
+
+export const isMainThing = (task: Task, today: string = getTodayIso()) =>
+  task.mainThingOn === today && isPlanned(task, today);
+
+/** Today's plan: the main thing, then open tasks in manual order, then those completed today. */
+export function planTasks(tasks: Task[], today: string = getTodayIso()): Task[] {
+  return tasks
+    .filter((t) => isPlanned(t, today))
+    .sort(
+      (a, b) =>
+        Number(isMainThing(b, today)) - Number(isMainThing(a, today)) ||
+        Number(a.status === 'done') - Number(b.status === 'done') ||
+        a.sortOrder - b.sortOrder
+    );
+}
+
+/** Unplanned open tasks worth planning: in progress, overdue, due today, then the top of the manual order. */
+export function planSuggestions(tasks: Task[], limit: number, today: string = getTodayIso()): Task[] {
+  const rank = (t: Task) =>
+    t.status === 'in_progress' ? 0 : t.dueDate !== null && t.dueDate < today ? 1 : t.dueDate === today ? 2 : 3;
+  return tasks
+    .filter((t) => isOpen(t) && !isPlanned(t, today))
+    .sort((a, b) => rank(a) - rank(b) || a.sortOrder - b.sortOrder)
+    .slice(0, Math.max(limit, 0));
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

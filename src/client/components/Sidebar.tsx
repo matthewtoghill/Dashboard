@@ -18,9 +18,10 @@ import {
   ChevronRight,
   StickyNote,
   Pause,
+  Sun,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
-import { PROJECT_COLORS, getTodayIso, needsChase } from '../utils/taskUtils.ts';
+import { PLAN_SIZE, PROJECT_COLORS, getTodayIso, isPlanned, needsChase } from '../utils/taskUtils.ts';
 import { ActiveNavigation, SmartViewId, resolveSavedView, viewTaskCount } from '../utils/taskView.ts';
 import { ViewNameInput } from './SavedViewControls.tsx';
 import { Dot, LABEL_CLASS } from './ui.tsx';
@@ -147,6 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const completedCount = tasks.filter((t) => t.status === 'done').length;
   const onHoldCount = tasks.filter((t) => t.status === 'on_hold').length;
   const chaseCount = tasks.filter((t) => needsChase(t, chaseHoldDays)).length;
+  const planCount = activeTasks.filter((t) => isPlanned(t, today)).length;
   const archivedCount = tasks.filter((t) => t.status === 'archived').length;
 
   // Gather unique tags across active tasks
@@ -188,6 +190,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           'px-1.5 py-px rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300',
         title: `${claudeAttentionCount} Claude session${claudeAttentionCount === 1 ? '' : 's'} need${claudeAttentionCount === 1 ? 's' : ''} attention`,
       }),
+    },
+    {
+      id: 'plan',
+      label: "Today's Plan",
+      icon: Sun,
+      count: planCount,
+      countClass: planCount > PLAN_SIZE ? 'text-xs font-semibold text-amber-600 dark:text-amber-400' : undefined,
+      title: `${planCount} of ${PLAN_SIZE} planned`,
     },
     { id: 'inbox', label: 'All Active', icon: Inbox, count: activeTasks.length },
     {
