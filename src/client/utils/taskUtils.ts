@@ -466,9 +466,11 @@ export function heldDays(task: Task, now = Date.now()): number {
   return Math.floor((now - task.heldSince) / 86_400_000);
 }
 
-/** On hold for `chaseDays` or more: time to follow up. */
+/** On hold for `chaseDays` or more since it went on hold or since its latest status note (a follow-up): time to chase. */
 export const needsChase = (task: Task, chaseDays: number, now = Date.now()) =>
-  task.status === 'on_hold' && heldDays(task, now) >= chaseDays;
+  task.status === 'on_hold' &&
+  task.heldSince !== null &&
+  Math.floor((now - Math.max(task.heldSince, task.latestNote?.at ?? 0)) / 86_400_000) >= chaseDays;
 const byPriorityThenOrder = (a: Task, b: Task) => b.priority - a.priority || a.sortOrder - b.sortOrder;
 
 export interface AgendaGroup {
@@ -492,8 +494,16 @@ export function agendaGroups(tasks: Task[], days = 7, today: string = getTodayIs
   return overdue.length > 0 ? [{ date: null, tasks: overdue }, ...groups] : groups;
 }
 
-// ponytail: fixed soft cap; the weekly review (roadmap 8) will suggest one from completion history
-export const PLAN_SIZE = 6;
+/** Plan size the weekly review suggests: the median completions per working day over the last 14 days, at least 1. */
+export function suggestedPlanSize(tasks: Task[], today: string = getTodayIso()): number {
+  const counts = completionsByDay(tasks, 14, today)
+    .filter((d) => ![0, 6].includes(parseIsoDate(d.date).getDay()))
+    .map((d) => d.count)
+    .sort((a, b) => a - b);
+  const mid = Math.floor(counts.length / 2);
+  const median = counts.length % 2 ? counts[mid] : (counts[mid - 1] + counts[mid]) / 2;
+  return Math.max(1, Math.round(median));
+}
 /** Working days a task may carry over before the plan asks to split, reschedule or drop it. */
 export const PLAN_CARRY_LIMIT = 3;
 

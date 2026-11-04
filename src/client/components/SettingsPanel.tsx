@@ -125,7 +125,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   /** Text and number fields save on blur, and only when changed. */
   const saveOnBlur =
-    (key: 'backupKeep' | 'backupDir' | 'claudeSessionTtlDays' | 'staleTaskDays' | 'chaseHoldDays') =>
+    (key: 'backupKeep' | 'backupDir' | 'claudeSessionTtlDays' | 'staleTaskDays' | 'chaseHoldDays' | 'planSize') =>
     (e: React.FocusEvent<HTMLInputElement>) => {
       const value = e.target.type === 'number' ? Number(e.target.value) : e.target.value.trim();
       if (settings && value !== settings[key]) save.mutate({ [key]: value } as UpdateSettingsInput);
@@ -406,6 +406,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     className={`${inputClass} w-20`}
                   />
                   days on hold
+                </span>
+              </label>
+            )}
+            {settings && (
+              <label className="flex items-center gap-4">
+                <span className="w-32 text-zinc-600 dark:text-zinc-300">Plan size</span>
+                <span className="inline-flex items-center gap-2 text-xs text-zinc-500">
+                  <input
+                    key={settings.planSize}
+                    type="number"
+                    min={1}
+                    max={50}
+                    defaultValue={settings.planSize}
+                    onBlur={saveOnBlur('planSize')}
+                    className={`${inputClass} w-20`}
+                  />
+                  tasks a day, and in progress at once
                 </span>
               </label>
             )}

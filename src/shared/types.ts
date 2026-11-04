@@ -114,6 +114,8 @@ export const TaskSchema = z.object({
   plannedFor: IsoDateSchema.nullable().optional().default(null),
   /** Day the task is the daily plan's main thing. */
   mainThingOn: IsoDateSchema.nullable().optional().default(null),
+  /** When the weekly review last kept the task unchanged; not an edit, so updatedAt stays. */
+  reviewedAt: z.number().nullable().optional().default(null),
   /** Newest status note, derived from the activity log. */
   latestNote: z.object({ text: z.string(), at: z.number() }).nullable().optional(),
   /** The completed task this occurrence was spawned from. */
@@ -165,6 +167,9 @@ export const CreateTaskNoteInputSchema = z.object({
     .pipe(z.string().min(1, 'Note is required').max(280, 'Note is limited to 280 characters')),
 });
 export type CreateTaskNoteInput = z.input<typeof CreateTaskNoteInputSchema>;
+
+/** Weekly review keep: omitted reviewedAt means now; a value or null restores one (undo). */
+export const ReviewTaskInputSchema = z.object({ reviewedAt: z.number().int().nullable().optional() });
 
 export const CreateTaskInputSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required'),
@@ -241,7 +246,7 @@ export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
 /** 'notes' is the Notes page, not a task list. */
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'completed', 'archived', 'notes']);
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'review', 'completed', 'archived', 'notes']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),
@@ -370,6 +375,8 @@ export const SettingsSchema = z.object({
   staleTaskDays: z.number().int().min(1).max(365).default(14),
   /** On hold tasks held this many days or more get a "Chase?" badge. */
   chaseHoldDays: z.number().int().min(1).max(365).default(7),
+  /** Soft cap on today's plan, and on tasks in progress; the weekly review suggests one. */
+  planSize: z.number().int().min(1).max(50).default(6),
   /** How a task's latest status note shows in lists: a second line, or an icon with the note on hover. */
   statusNoteStyle: z.enum(['line', 'icon']).default('line'),
   /** Accent for in-progress tasks, as #rrggbb. */

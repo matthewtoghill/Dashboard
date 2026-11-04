@@ -486,6 +486,17 @@ export async function fetchAdoWorkItemTypes(project?: string, refresh = false): 
   return (await res.json()) as AdoWorkItemTypes;
 }
 
+/** Marks a task kept by the weekly review (now), or restores an earlier value (undo). */
+export async function reviewTask(taskId: string, reviewedAt?: number | null): Promise<Task> {
+  const res = await fetch(`/api/tasks/${taskId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(reviewedAt === undefined ? {} : { reviewedAt }),
+  });
+  if (!res.ok) return failWith(res, 'Failed to save review');
+  return ((await res.json()) as { task: Task }).task;
+}
+
 export async function addTaskNote(taskId: string, text: string): Promise<Task> {
   const res = await fetch(`/api/tasks/${taskId}/notes`, {
     method: 'POST',

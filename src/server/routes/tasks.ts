@@ -8,6 +8,7 @@ import {
   UpdateTaskInputSchema,
   CreateSubtaskInputSchema,
   CreateTaskNoteInputSchema,
+  ReviewTaskInputSchema,
   UpdateSubtaskInputSchema,
   BulkTaskIdsSchema,
   Task,
@@ -163,6 +164,7 @@ export function serializeTask(
     heldSince: row.heldSince ?? null,
     plannedFor: row.plannedFor ?? null,
     mainThingOn: row.mainThingOn ?? null,
+    reviewedAt: row.reviewedAt ?? null,
     latestNote,
     subtasks: taskSubtasks,
     adoLinks,
@@ -433,6 +435,22 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, id)).run();
     });
     return reply.status(201).send({ task: getTaskWithSubtasks(id)! });
+  });
+
+  // POST /api/tasks/:id/review — the weekly review kept the task; body { reviewedAt: null } undoes it.
+  // Not an edit: updatedAt is left alone and nothing is logged.
+  app.post<{ Params: { id: string } }>('/api/tasks/:id/review', async (request, reply) => {
+    const { id } = request.params;
+    if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, id)).get()) {
+      return reply.status(404).send({ error: 'Task not found' });
+    }
+    const parsed = ReviewTaskInputSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid review payload', details: parsed.error.flatten() });
+    }
+    const reviewedAt = parsed.data.reviewedAt === undefined ? Date.now() : parsed.data.reviewedAt;
+    db.update(tasks).set({ reviewedAt }).where(eq(tasks.id, id)).run();
+    return { task: getTaskWithSubtasks(id)! };
   });
 
   // DELETE /api/tasks/:id

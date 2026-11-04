@@ -339,6 +339,7 @@ export async function registerDashboardRoutes(
               heldSince: t.heldSince,
               plannedFor: t.plannedFor,
               mainThingOn: t.mainThingOn,
+              reviewedAt: t.reviewedAt,
             })
             .onConflictDoNothing()
             .run();

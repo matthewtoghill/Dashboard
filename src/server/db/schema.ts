@@ -35,6 +35,8 @@ export const tasks = sqliteTable('tasks', {
   plannedFor: text('planned_for'),
   /** Day this task is the plan's main thing. At most one task per day. */
   mainThingOn: text('main_thing_on'),
+  /** When the weekly review last kept the task unchanged. Not an edit, so updatedAt is left alone. */
+  reviewedAt: integer('reviewed_at'),
 });
 
 export const subtasks = sqliteTable('subtasks', {

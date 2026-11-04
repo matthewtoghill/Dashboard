@@ -22,6 +22,7 @@ import {
   StickyNote,
   NotebookPen,
   Pause,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -157,6 +158,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: Pause,
         action: () => {
           onSelectNav({ type: 'smart', id: 'on_hold' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-review',
+        label: 'Go to Weekly Review',
+        category: 'Views',
+        icon: ClipboardCheck,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'review' });
           onClose();
         },
       },

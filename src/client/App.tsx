@@ -31,6 +31,8 @@ import {
   importDashboardData,
   saveSavedViews,
   fetchSettings,
+  updateSettings,
+  reviewTask,
   fetchAdoItems,
   deleteNote,
   createNote,
@@ -55,6 +57,7 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer.tsx';
 import { CommandPalette } from './components/CommandPalette.tsx';
 import { HomeView } from './components/Home.tsx';
+import { WeeklyReview, WeeklyReviewActions } from './components/WeeklyReview.tsx';
 import { HomeDrawerProps, WidgetsPanel } from './components/DashboardWidgets.tsx';
 import { SettingsPanel, ThemePreference } from './components/SettingsPanel.tsx';
 import { AdoImportDialog } from './components/AdoImport.tsx';
@@ -97,6 +100,7 @@ import {
   ViewState,
   buildTaskList,
   resolveSavedView,
+  reviewTasks,
   sameView,
   viewTitle,
   visibleTaskOrder,
@@ -234,6 +238,7 @@ export const App: React.FC = () => {
       (activeNav.id === 'overview' ||
         activeNav.id === 'completed' ||
         activeNav.id === 'archived' ||
+        activeNav.id === 'review' ||
         activeNav.id === 'notes')
     ) {
       setActiveNav({ type: 'smart', id: 'inbox' });
@@ -279,6 +284,8 @@ export const App: React.FC = () => {
   const weekStartDay = settingsData?.settings.weekStartDay ?? 1;
   const inProgressColor = settingsData?.settings.inProgressColor;
   const chaseHoldDays = settingsData?.settings.chaseHoldDays ?? 7;
+  const staleTaskDays = settingsData?.settings.staleTaskDays ?? 14;
+  const planSize = settingsData?.settings.planSize ?? 6;
   const statusNoteStyle = settingsData?.settings.statusNoteStyle ?? 'line';
   useEffect(() => {
     if (inProgressColor) document.documentElement.style.setProperty('--in-progress', inProgressColor);
@@ -384,6 +391,11 @@ export const App: React.FC = () => {
                 : t
             ),
     [rawTasks, pendingIds]
+  );
+  // `today` re-counts once midnight passes
+  const reviewCount = useMemo(
+    () => reviewTasks(tasks, staleTaskDays, chaseHoldDays).length,
+    [tasks, staleTaskDays, chaseHoldDays, today]
   );
   const allTags = useMemo(
     () => [...new Set(tasks.flatMap((t) => t.tags))].sort(),
@@ -683,6 +695,7 @@ export const App: React.FC = () => {
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
   const isNotesPage = activeNav.type === 'smart' && activeNav.id === 'notes';
+  const isReviewPage = activeNav.type === 'smart' && activeNav.id === 'review';
   // The note panel belongs to the Notes page
   useEffect(() => {
     if (!isNotesPage) setNotePanel(null);
@@ -742,7 +755,7 @@ export const App: React.FC = () => {
     tasks,
     visibleOrder,
     enabled: !(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId),
-    listShown: !isOverviewPage && !isNotesPage && !isCalendar,
+    listShown: !isOverviewPage && !isNotesPage && !isReviewPage && !isCalendar,
     onShowShortcuts: () => setShortcutsOpen(true),
     onOpen: setSelectedTaskId,
     onToggle: handleToggleTask,
@@ -817,6 +830,42 @@ export const App: React.FC = () => {
     };
   };
 
+  const reviewActions: WeeklyReviewActions = {
+    onOpen: setSelectedTaskId,
+    onKeep: (task, note) => {
+      const previous = task.reviewedAt;
+      if (note) handleAddNote(task.id, note);
+      reviewTask(task.id).then(
+        () => {
+          invalidate('tasks');
+          showToast(`Kept "${task.title}"`, () => void reviewTask(task.id, previous).then(() => invalidate('tasks')));
+        },
+        (err) => showToast(errorMessage(err, 'Saving review failed'))
+      );
+    },
+    onUpdate: handleUpdateTask,
+    onSetStatus: handleSetStatus,
+    onReschedule: handleRescheduleTask,
+    onArchive: handleArchiveTask,
+    // The note restarts the chase clock, so the task stops asking to be chased
+    onChase: (task, message) =>
+      navigator.clipboard.writeText(message).then(
+        () => {
+          handleAddNote(task.id, 'Chased');
+          showToast('Copied a chase message');
+        },
+        () => showToast('Copying failed')
+      ),
+    onSetPlanSize: (size) =>
+      updateSettings({ planSize: size }).then(
+        () => {
+          invalidate('settings');
+          showToast(`Plan size set to ${size}`);
+        },
+        (err) => showToast(errorMessage(err, 'Saving settings failed'))
+      ),
+  };
+
   const backgroundInert = selectedTask !== null || selectedSession !== null || commandPaletteOpen;
   // Shared by Home's bottom drawer and the Widgets panel
   const widgetProps: HomeDrawerProps = {
@@ -835,7 +884,7 @@ export const App: React.FC = () => {
     onSelectClaudeFolder: (folder) => showClaudeSessions({ type: 'folder', value: folder }),
     scratchpad,
     quickLinks,
-    staleTaskDays: settingsData?.settings.staleTaskDays ?? 14,
+    staleTaskDays,
     onSaveScratchpad: (content) => saveScratchpadMutation.mutateAsync(content),
     onConvertLineToTask: handleConvertScratchpadLineToTask,
     onCreateQuickLink: (title, url, category) => createQuickLinkMutation.mutate({ title, url, category }),
@@ -918,8 +967,8 @@ export const App: React.FC = () => {
             onChange={(e) =>
               updateView({
                 search: e.target.value,
-                // Typing a search on Home jumps to the task list; on Notes it filters notes
-                ...(isOverviewPage && e.target.value.trim()
+                // Typing a search on Home or Weekly Review jumps to the task list; on Notes it filters notes
+                ...((isOverviewPage || isReviewPage) && e.target.value.trim()
                   ? { nav: { type: 'smart', id: 'inbox' } as const }
                   : {}),
               })
@@ -1035,6 +1084,8 @@ export const App: React.FC = () => {
             onDeleteSavedView={handleDeleteSavedView}
             claudeAttentionCount={claudeAttentionCount}
             chaseHoldDays={chaseHoldDays}
+            planSize={planSize}
+            reviewCount={reviewCount}
           />
         )}
 
@@ -1053,6 +1104,16 @@ export const App: React.FC = () => {
               onOpen={openNote}
               onNew={() => openNote(null)}
               showToast={showToast}
+            />
+          ) : isReviewPage ? (
+            <WeeklyReview
+              tasks={tasks}
+              projects={projects}
+              staleDays={staleTaskDays}
+              chaseDays={chaseHoldDays}
+              planSize={planSize}
+              keysEnabled={!(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId)}
+              actions={reviewActions}
             />
           ) : isOverviewPage ? (
             <HomeView
