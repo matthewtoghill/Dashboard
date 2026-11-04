@@ -1350,6 +1350,7 @@ export const App: React.FC = () => {
             onDelete={handleDeleteNote}
             onClose={() => setNotePanel(null)}
             showToast={showToast}
+            onShowShortcuts={() => setShortcutsOpen(true)}
           />
         ) : sidePanel === 'widgets' ? (
           <WidgetsPanel {...widgetProps} onClose={() => toggleSidePanel('widgets')} />
@@ -1388,6 +1389,7 @@ export const App: React.FC = () => {
         onDeleteSubtask={handleDeleteSubtask}
         claudeSessions={claudeSessionsByTaskId.get(selectedTask?.id ?? '') ?? []}
         claudeSessionActions={claudeSessionActions}
+        onShowShortcuts={() => setShortcutsOpen(true)}
       />
 
       {/* Slide-over Claude Session Panel */}

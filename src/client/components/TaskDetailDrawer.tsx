@@ -50,7 +50,10 @@ import {
 import { fetchTaskEvents } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
+import { markdownEditorProps } from '../utils/markdownEditing.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
+import { MarkdownToolbar } from './MarkdownToolbar.tsx';
+import { EditorShortcutsButton } from './Feedback.tsx';
 import { DateInput } from './DatePicker.tsx';
 import { LinkedAdoItems } from './AdoImport.tsx';
 import { SOURCE_ICONS } from './TaskRow.tsx';
@@ -203,6 +206,7 @@ interface TaskDetailDrawerProps {
   /** Sessions linked to this task. */
   claudeSessions: ClaudeSession[];
   claudeSessionActions: ClaudeSessionActions;
+  onShowShortcuts: () => void;
   onAddNote: (taskId: string, text: string) => void;
   /** Bumped by "Status note…" in the right-click menu to focus the note input. */
   noteFocusRequest: { taskId: string; n: number } | null;
@@ -220,12 +224,14 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   onDeleteSubtask,
   claudeSessions,
   claudeSessionActions,
+  onShowShortcuts,
   onAddNote,
   noteFocusRequest,
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPreviewingNotes, setIsPreviewingNotes] = useState(false);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [notesCopied, setNotesCopied] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newTagInput, setNewTagInput] = useState('');
@@ -833,6 +839,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <span>Notes (Markdown)</span>
               </label>
               <div className="flex items-center gap-3">
+                <EditorShortcutsButton onClick={onShowShortcuts} />
                 <button
                   type="button"
                   disabled={!description.trim()}
@@ -887,15 +894,23 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 )}
               </div>
             ) : (
-              <textarea
-                rows={6}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleDescriptionBlur}
-                placeholder="Write notes, links, or markdown lists..."
-                aria-label="Task notes"
-                className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-primary-500 resize-y"
-              />
+              <>
+                <MarkdownToolbar textareaRef={descriptionRef} />
+                <textarea
+                  ref={descriptionRef}
+                  rows={6}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={handleDescriptionBlur}
+                  {...markdownEditorProps(() => {
+                    handleDescriptionBlur();
+                    setIsPreviewingNotes(true);
+                  })}
+                  placeholder="Write notes, links, or markdown lists..."
+                  aria-label="Task notes"
+                  className="w-full p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-primary-500 resize-y"
+                />
+              </>
             )}
           </div>
 

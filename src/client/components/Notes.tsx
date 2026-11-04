@@ -13,6 +13,7 @@ import {
   PanelTop,
   LayoutDashboard,
   List,
+  ListChecks,
   Pin,
   Plus,
   StickyNote,
@@ -22,8 +23,12 @@ import {
 import { Note, UpdateNoteInput } from '../../shared/types.ts';
 import { createNote, fetchNotes, updateNote } from '../api.ts';
 import { PROJECT_COLORS, cleanTag, errorMessage, formatRelativeTime, formatTimestamp, plural } from '../utils/taskUtils.ts';
+import { checklistProgress, toggleMarkdownCheckbox } from '../utils/markdown.ts';
+import { markdownEditorProps } from '../utils/markdownEditing.ts';
 import { MarkdownNotes } from './MarkdownNotes.tsx';
+import { MarkdownToolbar } from './MarkdownToolbar.tsx';
 import { toolbarButtonClass } from './TaskListToolbar.tsx';
+import { EditorShortcutsButton } from './Feedback.tsx';
 import { DockedPanel } from './ui.tsx';
 
 type NotesLayout = 'grid' | 'masonry' | 'list';
@@ -177,6 +182,17 @@ const PinButton: React.FC<{ pinned: boolean; onToggle: () => void; className?: s
 /** Clicks on links, checkboxes and buttons inside a card act on their own instead of opening it. */
 const isInnerControl = (target: EventTarget) => (target as HTMLElement).closest('a, button, input') !== null;
 
+/** "3/5" for notes with a checklist. */
+const ChecklistCount: React.FC<{ body: string }> = ({ body }) => {
+  const progress = checklistProgress(body);
+  return progress ? (
+    <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-zinc-400" title="Checklist progress">
+      <ListChecks className="w-3 h-3" />
+      {progress.done}/{progress.total}
+    </span>
+  ) : null;
+};
+
 /** Masonry cards grow with their content up to this height; longer notes fade out. */
 const MASONRY_BODY_LIMIT = 440;
 
@@ -188,15 +204,13 @@ interface NoteItemProps {
   onCopied: (message: string) => void;
 }
 
-const NoteCard: React.FC<NoteItemProps & { layout: 'grid' | 'masonry'; colorStyle: ColorStyle }> = ({
-  note,
-  layout,
-  colorStyle,
-  selected,
-  onOpen,
-  onTogglePin,
-  onCopied,
-}) => {
+const NoteCard: React.FC<
+  NoteItemProps & {
+    layout: 'grid' | 'masonry';
+    colorStyle: ColorStyle;
+    onToggleCheckbox: (note: Note, line: number) => void;
+  }
+> = ({ note, layout, colorStyle, selected, onOpen, onTogglePin, onCopied, onToggleCheckbox }) => {
   const grid = layout === 'grid';
   const tint = note.color !== null && colorStyle === 'tint';
   return (
@@ -237,7 +251,7 @@ const NoteCard: React.FC<NoteItemProps & { layout: 'grid' | 'masonry'; colorStyl
       <div className="relative flex-1 min-h-0 overflow-hidden" style={grid ? undefined : { maxHeight: MASONRY_BODY_LIMIT }}>
         {note.body.trim() ? (
           <div className="text-[13px] [&_.text-sm]:text-[13px]">
-            <MarkdownNotes text={note.body} />
+            <MarkdownNotes text={note.body} onToggleCheckbox={(line) => onToggleCheckbox(note, line)} />
           </div>
         ) : (
           !note.title && <p className="text-xs italic text-zinc-400">Empty note</p>
@@ -258,6 +272,7 @@ const NoteCard: React.FC<NoteItemProps & { layout: 'grid' | 'masonry'; colorStyl
             </span>
           ))}
         </div>
+        <ChecklistCount body={note.body} />
         <span className="shrink-0" title={`Updated ${formatTimestamp(note.updatedAt)}`}>
           {formatRelativeTime(note.updatedAt)}
         </span>
@@ -306,6 +321,7 @@ const NoteRow: React.FC<NoteItemProps> = ({ note, selected, onOpen, onTogglePin,
           </span>
         ))}
       </div>
+      <ChecklistCount body={note.body} />
       <span className="w-20 shrink-0 text-right text-[11px] text-zinc-400" title={`Updated ${formatTimestamp(note.updatedAt)}`}>
         {formatRelativeTime(note.updatedAt)}
       </span>
@@ -391,6 +407,18 @@ export const NotesView: React.FC<{
       (saved) => upsertNote(queryClient, saved),
       (err) => showToast(errorMessage(err, 'Saving note failed'))
     );
+  const toggleCheckbox = (note: Note, line: number) => {
+    const body = toggleMarkdownCheckbox(note.body, line);
+    if (body === note.body) return;
+    upsertNote(queryClient, { ...note, body }); // tick shows at once; the save below confirms it
+    updateNote(note.id, { body }).then(
+      (saved) => upsertNote(queryClient, saved),
+      (err) => {
+        upsertNote(queryClient, note);
+        showToast(errorMessage(err, 'Saving note failed'));
+      }
+    );
+  };
   const itemProps = { onOpen, onTogglePin: togglePin, onCopied: showToast };
   // Tag suggestions for the side panel and the right-click menu, which only exist on this page
   const allTags = useMemo(() => noteTags(data), [data]);
@@ -477,7 +505,7 @@ export const NotesView: React.FC<{
           }
         >
           {shown.map((note) => (
-            <NoteCard key={note.id} note={note} layout={layout} colorStyle={colorStyle} selected={note.id === selectedId} {...itemProps} />
+            <NoteCard key={note.id} note={note} layout={layout} colorStyle={colorStyle} selected={note.id === selectedId} onToggleCheckbox={toggleCheckbox} {...itemProps} />
           ))}
         </div>
       )}
@@ -497,7 +525,8 @@ export const NotePanel: React.FC<{
   onDelete: (note: Note) => void;
   onClose: () => void;
   showToast: (message: string) => void;
-}> = ({ noteId, onCreated, onDelete, onClose, showToast }) => {
+  onShowShortcuts: () => void;
+}> = ({ noteId, onCreated, onDelete, onClose, showToast, onShowShortcuts }) => {
   const queryClient = useQueryClient();
   const { data: notes = [] } = useNotes();
   const note = notes.find((n) => n.id === noteId) ?? null;
@@ -506,6 +535,7 @@ export const NotePanel: React.FC<{
   const [body, setBody] = useState(note?.body ?? '');
   const [preview, setPreview] = useState(Boolean(note?.body.trim()));
   const [tagInput, setTagInput] = useState('');
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   // Refs so the debounced and unmount saves see the latest values
   const idRef = useRef(noteId);
@@ -561,6 +591,21 @@ export const NotePanel: React.FC<{
     saved.current = { ...saved.current, title: note.title };
     setTitle(note.title);
   }, [note?.title]);
+  // Same for the body, which a checkbox ticked on the note's card changes
+  useEffect(() => {
+    if (!note || text.current.body !== saved.current.body || note.body === saved.current.body) return;
+    saved.current = { ...saved.current, body: note.body };
+    setBody(note.body);
+  }, [note?.body]);
+
+  /** A ticked checkbox saves straight away, like the task drawer's notes. */
+  const toggleCheckbox = (line: number) => {
+    const next = toggleMarkdownCheckbox(body, line);
+    if (next === body) return;
+    setBody(next);
+    text.current = { ...text.current, body: next };
+    saveText();
+  };
 
   const tags = note?.tags ?? [];
   const addTag = (e: React.FormEvent) => {
@@ -663,7 +708,13 @@ export const NotePanel: React.FC<{
           </form>
         </div>
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {!preview && (
+            <div className="mr-auto">
+              <MarkdownToolbar textareaRef={bodyRef} />
+            </div>
+          )}
+          <EditorShortcutsButton onClick={onShowShortcuts} />
           <button
             type="button"
             onClick={() => {
@@ -683,16 +734,21 @@ export const NotePanel: React.FC<{
             className="flex-1 min-h-[200px] p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 cursor-text"
           >
             {body.trim() ? (
-              <MarkdownNotes text={body} />
+              <MarkdownNotes text={body} onToggleCheckbox={toggleCheckbox} />
             ) : (
               <p className="text-zinc-400 dark:text-zinc-500 italic text-xs">Nothing written yet. Click to edit.</p>
             )}
           </div>
         ) : (
           <textarea
+            ref={bodyRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onBlur={saveText}
+            {...markdownEditorProps(() => {
+              saveText();
+              setPreview(true);
+            })}
             placeholder="Write in markdown…"
             aria-label="Note body"
             autoFocus={Boolean(note)}

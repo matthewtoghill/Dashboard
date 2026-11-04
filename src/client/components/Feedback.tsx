@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { Keyboard, X } from 'lucide-react';
 import { UNDO_WINDOW_MS } from '../utils/useDeferredDelete.ts';
 
 export interface ConfirmRequest {
@@ -200,6 +200,44 @@ const SHORTCUTS: [string, string][] = [
   ['?', 'This help'],
 ];
 
+/** Keys handled by markdownEditorProps in the task and note editors. */
+const EDITOR_SHORTCUTS: [string, string][] = [
+  ['Enter', 'Continue a list; on an empty item, end it'],
+  ['Tab / Shift + Tab', 'Indent or outdent list lines'],
+  ['Ctrl + B / I', 'Bold or italic'],
+  ['Ctrl + K', 'Link the selected text'],
+  ['Paste a URL', 'Over selected text, makes a link'],
+  ['Ctrl + Enter / Esc', 'Save and show the preview'],
+];
+
+const ShortcutList: React.FC<{ items: [string, string][] }> = ({ items }) => (
+  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+    {items.map(([keys, action]) => (
+      <React.Fragment key={keys}>
+        <dt>
+          <kbd className="px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 font-mono text-xs">
+            {keys}
+          </kbd>
+        </dt>
+        <dd className="text-zinc-600 dark:text-zinc-300">{action}</dd>
+      </React.Fragment>
+    ))}
+  </dl>
+);
+
+/** Opens the shortcuts dialog from above a notes editor. */
+export const EditorShortcutsButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label="Editor keyboard shortcuts"
+    title="Editor keyboard shortcuts"
+    className="p-0.5 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 cursor-pointer"
+  >
+    <Keyboard className="w-3.5 h-3.5" />
+  </button>
+);
+
 /** Keyboard shortcut reference, on native <dialog> like ConfirmDialog. */
 export const ShortcutsDialog: React.FC<{ open: boolean; onClose: () => void }> = ({
   open,
@@ -234,21 +272,12 @@ export const ShortcutsDialog: React.FC<{ open: boolean; onClose: () => void }> =
             <X className="w-4 h-4" />
           </button>
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
-          {SHORTCUTS.map(([keys, action]) => (
-            <React.Fragment key={keys}>
-              <dt>
-                <kbd className="px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 font-mono text-xs">
-                  {keys}
-                </kbd>
-              </dt>
-              <dd className="text-zinc-600 dark:text-zinc-300">{action}</dd>
-            </React.Fragment>
-          ))}
-        </dl>
+        <ShortcutList items={SHORTCUTS} />
         <p className="text-xs text-zinc-400">
           List shortcuts work when a task row has focus; press J to start.
         </p>
+        <h3 className="pt-1 text-sm font-semibold">Notes editor</h3>
+        <ShortcutList items={EDITOR_SHORTCUTS} />
       </form>
     </dialog>
   );

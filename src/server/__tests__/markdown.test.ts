@@ -63,4 +63,11 @@ describe('MarkdownNotes', () => {
     expect(html).toMatch(/aria-label="done"[^>]*checked=""/);
     expect(html).toContain('aria-label="open"');
   });
+
+  it('strikes through ticked items, but only dims one with sub-items', () => {
+    const html = render('- [x] done\n- [ ] open\n- [x] parent\n  - [ ] child');
+    expect(html.match(/line-through/g)).toHaveLength(1);
+    expect(html).toMatch(/<li class="[^"]*line-through[^"]*"><input[^>]*aria-label="done"/);
+    expect(html).toMatch(/<li class="[^"]*text-zinc-400[^"]*"><input[^>]*aria-label="parent"/);
+  });
 });

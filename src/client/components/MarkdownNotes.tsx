@@ -13,6 +13,13 @@ const ownText = (node: HastNode): string =>
     ? node.children.map(ownText).join('')
     : '';
 
+const isList = (node: HastNode) => node.type === 'element' && (node.tagName === 'ul' || node.tagName === 'ol');
+
+// The item's own checkbox is ticked; a loose list wraps it in a <p>, nested lists don't count.
+const isTicked = (node: HastNode): boolean =>
+  node.type === 'element' &&
+  (node.tagName === 'input' ? Boolean(node.properties.checked) : !isList(node) && node.children.some(isTicked));
+
 // The nearest list item, so its checkbox knows which source line to flip and how to label itself.
 const ListItemLine = createContext<{ line: number; label: string } | null>(null);
 
@@ -32,6 +39,17 @@ const TaskCheckbox: React.FC<{ checked: boolean; onToggle?: (line: number) => vo
     />
   );
 };
+
+/**
+ * Ticked items are dimmed and struck through. A strike would carry into nested items and can't be
+ * undone there, so an item with sub-items is only dimmed, and its sub-lists get their colour back.
+ */
+function taskItemClass(node: ExtraProps['node']): string {
+  if (!node?.children.some(isTicked)) return 'list-none [&_ul]:pl-5';
+  return node.children.some(isList)
+    ? 'list-none [&_ul]:pl-5 text-zinc-400 dark:text-zinc-500 [&_ul]:text-zinc-700 dark:[&_ul]:text-zinc-200'
+    : 'list-none text-zinc-400 dark:text-zinc-500 line-through';
+}
 
 function buildComponents(onToggleCheckbox?: (line: number) => void): Components {
   return {
@@ -57,7 +75,7 @@ function buildComponents(onToggleCheckbox?: (line: number) => void): Components 
       <ListItemLine.Provider
         value={node?.position ? { line: node.position.start.line, label: node.children.map(ownText).join('').trim() } : null}
       >
-        <li className={className?.includes('task-list-item') ? 'list-none [&_ul]:pl-5' : undefined} {...props} />
+        <li className={className?.includes('task-list-item') ? taskItemClass(node) : undefined} {...props} />
       </ListItemLine.Provider>
     ),
     input: ({ node, type, checked }) =>
