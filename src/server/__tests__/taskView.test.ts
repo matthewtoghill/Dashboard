@@ -79,6 +79,12 @@ describe('taskView', () => {
     expect(search('task 3')).toEqual(['later']); // title
     expect(search('   ')).toHaveLength(5); // blank search ignored
 
+    const linked = task({ id: 'ado', adoLinks: [{ externalId: 'workitem/4821' } as Task['adoLinks'][number]] });
+    const searchAdo = (q: string) => ids(filterTasks([linked], view({ search: q }), projects, TODAY));
+    expect(searchAdo('4821')).toEqual(['ado']); // ADO id
+    expect(searchAdo('#4821')).toEqual(['ado']);
+    expect(searchAdo('workitem')).toEqual([]); // link kind not searchable
+
     expect(ids(filterTasks(all, view({ priority: 3 }), projects, TODAY))).toEqual(['later']);
   });
 

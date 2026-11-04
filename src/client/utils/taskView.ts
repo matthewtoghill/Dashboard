@@ -69,6 +69,8 @@ export function filterTasks(
         task.title.toLowerCase().includes(q) ||
         task.description.toLowerCase().includes(q) ||
         task.tags.some((t) => t.toLowerCase().includes(q)) ||
+        // ADO ids, matched with or without the leading "#"
+        task.adoLinks.some((l) => `#${l.externalId.split('/')[1]}`.includes(q)) ||
         Boolean(projectName?.includes(q));
       if (!matches) return false;
     }
