@@ -202,6 +202,18 @@ The session title is the first line of its first prompt. Sessions with no linked
   The handler looks the folder up from the Dashboard API (`DASHBOARD_PORT`, default 3444) and only opens sessions the Dashboard knows about, because any web page can fire the link.
 - The copy button puts `cd "<folder>" && claude --resume <session id>` on the clipboard, which works from any terminal.
 
+### Managing tasks from Claude
+
+The `dashboard-tasks` skill (`.claude/skills/dashboard-tasks/SKILL.md`) lets Claude list, create, update, complete and archive tasks, add subtasks and notes, and link its own session to a task. It calls the API with `curl` and never deletes tasks. It loads automatically in sessions inside this repository; to use it from any folder, copy it to your personal skills:
+
+```powershell
+Copy-Item -Recurse .claude\skills\dashboard-tasks "$HOME\.claude\skills\"
+```
+
+Ask in plain words ("add a Dashboard task to fix the login redirect, high priority") or run `/dashboard-tasks`. Changes Claude makes show as "Claude" in the task's History, because the skill sends an `X-Dashboard-Source: claude` header.
+
+When a session is linked to a task that is still to do, the session's next prompt moves the task to in progress. Linking alone changes nothing, and tasks in any other status are left alone.
+
 ## Azure DevOps import
 
 The Dashboard reads work from Azure DevOps through the `az` CLI and stores no tokens of its own. Import is one-way: the Dashboard never changes Azure DevOps items.

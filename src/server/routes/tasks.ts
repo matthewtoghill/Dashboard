@@ -19,7 +19,7 @@ import {
 } from '../../shared/types.ts';
 import { Recurrence, RecurrenceSchema, nextOccurrence } from '../../shared/recurrence.ts';
 import { toIsoDate } from '../../shared/dates.ts';
-import { diffTask, latestNotes, listTaskEvents, recordTaskEvents } from '../taskEvents.ts';
+import { diffTask, latestNotes, listTaskEvents, recordTaskEvents, requestSource } from '../taskEvents.ts';
 
 function serializeSubtask(row: DbSubtask): Subtask {
   return {
@@ -302,7 +302,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     db.transaction(() => {
       db.insert(tasks).values(newTask).run();
       setSourceUrls(db, id, input.sourceUrls, now);
-      recordTaskEvents(db, id, [{ kind: 'created' }], 'manual', now);
+      recordTaskEvents(db, id, [{ kind: 'created' }], requestSource(request.headers), now);
     });
 
     return reply.status(201).send({ task: getTaskWithSubtasks(id)! });
@@ -394,7 +394,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
       if (input.sourceUrls !== undefined) setSourceUrls(db, id, input.sourceUrls, now);
 
       const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()!;
-      recordTaskEvents(db, id, diffTask(existing, updated), 'manual', now);
+      recordTaskEvents(db, id, diffTask(existing, updated), requestSource(request.headers), now);
       const rule = parseRecurrence(updated.recurrence);
       if (completing && rule) {
         return { spawnedTaskId: spawnNextOccurrence(db, updated, rule, now) };
@@ -431,7 +431,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
 
     const now = Date.now();
     db.transaction(() => {
-      recordTaskEvents(db, id, [{ kind: 'status_note', to: parsed.data.text }], 'manual', now);
+      recordTaskEvents(db, id, [{ kind: 'status_note', to: parsed.data.text }], requestSource(request.headers), now);
       db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, id)).run();
     });
     return reply.status(201).send({ task: getTaskWithSubtasks(id)! });
@@ -597,7 +597,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
           .run();
 
         db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, taskId)).run();
-        recordTaskEvents(db, taskId, [{ kind: 'subtask_added', to: parseResult.data.title }], 'manual', now);
+        recordTaskEvents(db, taskId, [{ kind: 'subtask_added', to: parseResult.data.title }], requestSource(request.headers), now);
       });
 
       const created = db.select().from(subtasks).where(eq(subtasks.id, id)).get();
@@ -645,7 +645,7 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
             kind: input.isCompleted ? 'subtask_completed' : 'subtask_reopened',
             to: input.title ?? existing.title,
           },
-        ]);
+        ], requestSource(request.headers));
       }
     });
 

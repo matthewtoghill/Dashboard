@@ -7,7 +7,7 @@ Features planned after Stage 5. Each feature will get its own `PLAN-STAGE<n>.md`
 | # | Feature | Status |
 | :- | :--- | :--- |
 | 1 | [Claude session integration](#1-claude-session-integration) | **Done** (branch `roadmap/claude-sessions`) |
-| 2 | [Claude skills, hooks and automations for task management](#2-claude-skills-hooks-and-automations) | Proposed |
+| 2 | [Claude skills, hooks and automations for task management](#2-claude-skills-hooks-and-automations) | **Done** (branch `roadmap/claude-skills`) |
 | 3 | [Azure DevOps work item import](#3-azure-devops-work-item-import) | **Done** (branch `roadmap/ado-import`) |
 | 4 | [Settings panel](#4-settings-panel) | **Done** (branch `roadmap/settings-panel`) |
 | 5 | [Calendar view](#5-calendar-view) | **Done** (branch `roadmap/calendar`) |
@@ -55,7 +55,7 @@ See Claude sessions from the Dashboard and tie them to tasks.
 
 ## 2. Claude Skills, Hooks and Automations
 
-> **Status:** Proposed
+> **Status:** ✅ **Done** (branch `roadmap/claude-skills`)
 
 Let Claude add, update and complete Dashboard tasks during a session.
 
@@ -75,6 +75,15 @@ Let Claude add, update and complete Dashboard tasks during a session.
 
 - Skill or MCP server first?
 - Should Claude be allowed to delete tasks, or only archive them?
+
+### Decisions
+
+- Skill first, no MCP server. `.claude/skills/dashboard-tasks/SKILL.md` calls the API with `curl`; the README covers copying it to `~/.claude/skills/` for use in every project.
+- Archive only. The skill never documents or calls delete endpoints.
+- Requests with `X-Dashboard-Source: claude` record their task events with source `claude` (task create and update, notes, subtasks, and session link and unlink). Any other value, or none, records `manual`.
+- The skill links its own session with `${CLAUDE_SESSION_ID}`.
+- The automation runs server-side in the existing `/api/claude/events` handler, so no extra hook setup is needed: a `UserPromptSubmit` in a linked session moves its task from `todo` to `in_progress`. Linking alone changes nothing, and other statuses are left alone.
+- No note is added when a session stops or ends, to keep History quiet.
 
 ## 3. Azure DevOps Work Item Import
 

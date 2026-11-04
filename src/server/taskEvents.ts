@@ -27,6 +27,10 @@ export function diffTask(before: DbTask, after: DbTask): TaskEventChange[] {
     .map(([kind, from, to]) => ({ kind, from: str(from), to: str(to) }));
 }
 
+/** Who made a request: `X-Dashboard-Source: claude` marks automation (the Claude skill); anything else is manual. */
+export const requestSource = (headers: Record<string, string | string[] | undefined>): TaskEventSource =>
+  headers['x-dashboard-source'] === 'claude' ? 'claude' : 'manual';
+
 /** Call inside the transaction that makes the change. */
 export function recordTaskEvents(
   db: AppDatabase,

@@ -8,7 +8,7 @@ import { AppDatabase } from '../db/index.ts';
 import { claudeFolderLinks, claudeSessions, projects, tasks } from '../db/schema.ts';
 import { cleanFolder, matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
 import { readSettings } from '../settings.ts';
-import { recordTaskEvents } from '../taskEvents.ts';
+import { recordTaskEvents, requestSource } from '../taskEvents.ts';
 import {
   ClaudeFolderLink,
   ClaudeFolderLinkSchema,
@@ -170,6 +170,20 @@ export function listClaudeSessions(db: AppDatabase, sessionId?: string): ClaudeS
     }));
 }
 
+/** Moves a session's linked task from todo to in_progress, logged as a Claude change. */
+function startLinkedTask(db: AppDatabase, taskId: string, now: number): void {
+  db.transaction(() => {
+    const started = db
+      .update(tasks)
+      .set({ status: 'in_progress', updatedAt: now })
+      .where(and(eq(tasks.id, taskId), eq(tasks.status, 'todo')))
+      .run();
+    if (started.changes) {
+      recordTaskEvents(db, taskId, [{ kind: 'status', from: 'todo', to: 'in_progress' }], 'claude', now);
+    }
+  });
+}
+
 export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase) {
   // POST /api/claude/events — a Claude Code hook's stdin JSON, piped through curl, with the
   // X-Claude-Entrypoint and X-Claude-Pid headers from the hook's environment (both optional).
@@ -227,6 +241,10 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
         })
         .where(eq(claudeSessions.sessionId, event.session_id))
         .run();
+      // Prompting in a linked session starts its task; linking alone doesn't
+      if (event.hook_event_name === 'UserPromptSubmit' && existing.taskId) {
+        startLinkedTask(db, existing.taskId, now);
+      }
     } else {
       db.insert(claudeSessions)
         .values({
@@ -295,10 +313,11 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
 
       if (taskId !== undefined && taskId !== existing.taskId) {
         const label = existing.title || existing.sessionId;
+        const source = requestSource(request.headers);
         if (existing.taskId) {
-          recordTaskEvents(db, existing.taskId, [{ kind: 'session_unlinked', from: label }]);
+          recordTaskEvents(db, existing.taskId, [{ kind: 'session_unlinked', from: label }], source);
         }
-        if (taskId) recordTaskEvents(db, taskId, [{ kind: 'session_linked', to: label }]);
+        if (taskId) recordTaskEvents(db, taskId, [{ kind: 'session_linked', to: label }], source);
       }
     });
 

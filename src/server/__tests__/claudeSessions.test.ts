@@ -303,6 +303,32 @@ describe('Claude sessions API', () => {
     expect((await list())[0].taskId).toBeNull();
   });
 
+  it('starts a linked todo task on the next prompt, not on linking, and leaves other statuses alone', async () => {
+    const task = async (id: string) =>
+      (await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks.find((t: { id: string }) => t.id === id);
+    await post({ session_id: 's1', hook_event_name: 'SessionStart', cwd: '/x' });
+    const taskId = await createTask();
+    await app.inject({
+      method: 'PATCH',
+      url: '/api/claude/sessions/s1',
+      headers: { 'x-dashboard-source': 'claude' },
+      payload: { taskId },
+    });
+    expect((await task(taskId)).status).toBe('todo');
+
+    await post({ session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'go' });
+    expect((await task(taskId)).status).toBe('in_progress');
+    const events = (await app.inject({ method: 'GET', url: `/api/tasks/${taskId}/events` })).json().events;
+    expect(events.slice(0, 2).map((e: { kind: string; source: string }) => [e.kind, e.source])).toEqual([
+      ['status', 'claude'],
+      ['session_linked', 'claude'],
+    ]);
+
+    await app.inject({ method: 'PATCH', url: `/api/tasks/${taskId}`, payload: { status: 'on_hold' } });
+    await post({ session_id: 's1', hook_event_name: 'UserPromptSubmit', prompt: 'again' });
+    expect((await task(taskId)).status).toBe('on_hold');
+  });
+
   it('prunes unlinked sessions after the configured days of silence but keeps linked ones', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(1_000_000_000_000);

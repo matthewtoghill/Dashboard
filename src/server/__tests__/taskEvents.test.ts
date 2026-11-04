@@ -120,6 +120,32 @@ describe('Task activity log', () => {
     expect(await changes(task.id)).toEqual([{ kind: 'created', from: null, to: null, source: 'ado' }]);
   });
 
+  it('records changes sent with X-Dashboard-Source: claude as claude, anything else as manual', async () => {
+    const headers = { 'x-dashboard-source': 'claude' };
+    const id = (await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { title: 'C' } })).json()
+      .task.id as string;
+    await app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, headers, payload: { status: 'in_progress' } });
+    await app.inject({ method: 'POST', url: `/api/tasks/${id}/notes`, headers, payload: { text: 'Halfway' } });
+    const subtask = (
+      await app.inject({ method: 'POST', url: `/api/tasks/${id}/subtasks`, headers, payload: { title: 'S' } })
+    ).json().subtask.id as string;
+    await app.inject({ method: 'PATCH', url: `/api/subtasks/${subtask}`, headers, payload: { isCompleted: true } });
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${id}`,
+      headers: { 'x-dashboard-source': 'ado' },
+      payload: { priority: 1 },
+    });
+    expect((await changes(id)).map((e) => [e.kind, e.source])).toEqual([
+      ['created', 'claude'],
+      ['status', 'claude'],
+      ['status_note', 'claude'],
+      ['subtask_added', 'claude'],
+      ['subtask_completed', 'claude'],
+      ['priority', 'manual'],
+    ]);
+  });
+
   it('records the next occurrence of a recurring task as created', async () => {
     const id = await createTask({ title: 'R', recurrence: { every: 1, unit: 'day', from: 'due' } });
     const spawned = (await patch(`/api/tasks/${id}`, { status: 'done' })).json().spawnedTaskId;
