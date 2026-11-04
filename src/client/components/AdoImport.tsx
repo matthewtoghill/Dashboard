@@ -214,7 +214,7 @@ export const AdoDismissedList: React.FC<{ items: AdoItem[]; className?: string }
   );
 };
 
-/** "Link to task": picks an open task and links the given items to it. */
+/** "Link to task": picks a task and links the given items to it. */
 export const LinkToTaskButton: React.FC<{
   items: AdoItem[];
   tasks: Task[];
@@ -223,6 +223,12 @@ export const LinkToTaskButton: React.FC<{
   className?: string;
 }> = ({ items, tasks, disabled, onLink, className = buttonClass }) => {
   const [open, setOpen] = useState(false);
+  const { data: links = [] } = useQuery({ queryKey: ['adoProjectLinks'], queryFn: fetchAdoProjectLinks });
+  // The dashboard project the items' ADO projects map to, when they all agree
+  const projectIds = new Set(
+    items.map((i) => links.find((l) => l.adoProject.toLowerCase() === i.adoProject.toLowerCase())?.projectId ?? null)
+  );
+  const projectId = projectIds.size === 1 ? [...projectIds][0] : null;
   return (
     <>
       <button
@@ -242,6 +248,7 @@ export const LinkToTaskButton: React.FC<{
             items.length === 1 ? `Link ${externalShortLabel(items[0].externalId)} to a task` : `Link ${items.length} items to a task`
           }
           tasks={tasks}
+          projectId={projectId}
           onClose={() => setOpen(false)}
           onLink={(taskId) => taskId && onLink(taskId)}
         />,

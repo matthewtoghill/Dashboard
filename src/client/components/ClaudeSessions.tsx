@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClaudeFolderLink, ClaudeSession, ClaudeSessionState, Project, Task } from '../../shared/types.ts';
 import { matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
-import { deleteClaudeFolder, fetchClaudeFolders, saveClaudeFolder } from '../api.ts';
+import { deleteClaudeFolder, fetchClaudeFolders, fetchProjects, saveClaudeFolder } from '../api.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
 import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
@@ -211,9 +211,13 @@ const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }>
 const inputClass =
   'w-full px-3 py-1.5 rounded-lg text-sm bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:outline-none focus:border-primary-400';
 
+/** Task title plus its Azure DevOps ids ("#123"), lowercased for the link dialog's search. */
+const taskSearchText = (t: Task) =>
+  [t.title, ...t.adoLinks.map((l) => `#${l.externalId.split('/')[1]}`)].join(' ').toLowerCase();
+
 /**
- * Dialog for choosing a task among open tasks to link something to, or (with `create`) creating a
- * new one to link. Used for Claude sessions and Azure DevOps items.
+ * Dialog for choosing a task (open, or with "Include done" also done) to link something to, or
+ * (with `create`) creating a new one to link. Used for Claude sessions and Azure DevOps items.
  */
 export const TaskLinkDialog: React.FC<{
   open: boolean;
@@ -225,10 +229,16 @@ export const TaskLinkDialog: React.FC<{
   onLink: (taskId: string | null) => void;
   /** Offers "Create & link", starting from `title`. */
   create?: { title: string; onCreate: (title: string) => void };
-}> = ({ open, heading, tasks, linkedTaskId = null, onClose, onLink, create }) => {
+  /** Offers an "All / <project>" switch, on the project by default. */
+  projectId?: string | null;
+}> = ({ open, heading, tasks, linkedTaskId = null, onClose, onLink, create, projectId = null }) => {
   const ref = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState('');
   const [newTitle, setNewTitle] = useState('');
+  const [includeDone, setIncludeDone] = useState(false);
+  const [projectOnly, setProjectOnly] = useState(true);
+  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
+  const project = projects.find((p) => p.id === projectId);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -236,6 +246,8 @@ export const TaskLinkDialog: React.FC<{
     if (open && !dialog.open) {
       setQuery('');
       setNewTitle(create?.title ?? '');
+      setIncludeDone(false);
+      setProjectOnly(true);
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
@@ -243,9 +255,21 @@ export const TaskLinkDialog: React.FC<{
 
   const linkedTask = tasks.find((t) => t.id === linkedTaskId);
   const q = query.trim().toLowerCase();
-  const choices = tasks.filter(
-    (t) => (t.status === 'todo' || t.status === 'in_progress') && t.title.toLowerCase().includes(q)
-  );
+  const choices = tasks
+    .filter(
+      (t) =>
+        (t.status === 'todo' || t.status === 'in_progress' || (includeDone && t.status === 'done')) &&
+        (!project || !projectOnly || t.projectId === project.id) &&
+        taskSearchText(t).includes(q)
+    )
+    // Open tasks first
+    .sort((a, b) => Number(a.status === 'done') - Number(b.status === 'done'));
+  const scopeButtonClass = (active: boolean) =>
+    `flex-1 min-w-0 truncate px-2 py-1 rounded-md transition-colors cursor-pointer ${
+      active
+        ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium'
+        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+    }`;
   const link = (taskId: string | null) => {
     onLink(taskId);
     onClose();
@@ -258,7 +282,7 @@ export const TaskLinkDialog: React.FC<{
       // Keep Esc and typing away from the panel and global shortcuts underneath
       onKeyDown={(e) => e.stopPropagation()}
       aria-labelledby="task-link-dialog-title"
-      className="m-auto w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
+      className="m-auto w-full max-w-2xl max-h-[80vh] overflow-hidden rounded-2xl p-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800 shadow-2xl backdrop:bg-black/40"
     >
       {open && (
         <div className="flex flex-col max-h-[80vh] text-sm">
@@ -290,17 +314,39 @@ export const TaskLinkDialog: React.FC<{
             )}
 
             <div className="space-y-2">
-              <input
-                type="search"
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search open tasks"
-                aria-label="Search open tasks"
-                className={inputClass}
-              />
+              {project && (
+                <div
+                  role="group"
+                  aria-label="Task scope"
+                  className="flex p-0.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs"
+                >
+                  <button type="button" onClick={() => setProjectOnly(false)} aria-pressed={!projectOnly} className={scopeButtonClass(!projectOnly)}>
+                    All
+                  </button>
+                  <button type="button" onClick={() => setProjectOnly(true)} aria-pressed={projectOnly} className={scopeButtonClass(projectOnly)}>
+                    {project.name}
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <input
+                  type="search"
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by title or ADO id"
+                  aria-label="Search tasks by title or Azure DevOps id"
+                  className={inputClass}
+                />
+                <label className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
+                  <input type="checkbox" checked={includeDone} onChange={(e) => setIncludeDone(e.target.checked)} />
+                  Include done
+                </label>
+              </div>
               {choices.length === 0 ? (
-                <p className="py-3 text-center text-xs text-zinc-500 dark:text-zinc-400">No matching open tasks.</p>
+                <p className="py-3 text-center text-xs text-zinc-500 dark:text-zinc-400">
+                  No matching {includeDone ? '' : 'open '}tasks.
+                </p>
               ) : (
                 <ul className="max-h-72 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800">
                   {choices.map((t) => (
@@ -312,7 +358,19 @@ export const TaskLinkDialog: React.FC<{
                           t.id === linkedTaskId ? 'font-medium text-primary-600 dark:text-primary-400' : ''
                         }`}
                       >
-                        <span className="flex-1 truncate">{t.title}</span>
+                        <span className={`flex-1 truncate ${t.status === 'done' ? 'text-zinc-500 dark:text-zinc-400' : ''}`}>
+                          {t.title}
+                        </span>
+                        {t.adoLinks.map((l) => (
+                          <span key={l.externalId} className="flex-shrink-0 text-[11px] text-zinc-400">
+                            #{l.externalId.split('/')[1]}
+                          </span>
+                        ))}
+                        {t.status === 'done' && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                            Done
+                          </span>
+                        )}
                         {t.id === linkedTaskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
                       </button>
                     </li>
@@ -408,6 +466,7 @@ const TaskLinkControls: React.FC<
           open={dialogOpen}
           heading="Link task to session"
           tasks={tasks}
+          projectId={session.projectId}
           linkedTaskId={session.taskId}
           onClose={() => setDialogOpen(false)}
           onLink={(taskId) => onLink(session.sessionId, taskId)}
