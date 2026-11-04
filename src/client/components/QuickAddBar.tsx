@@ -248,21 +248,23 @@ export const QuickAddBar: React.FC<{
         <div className="flex flex-wrap items-center gap-1.5 px-3 text-[11px] text-zinc-500 dark:text-zinc-400">
           <span>Creates</span>
           <span className="font-medium text-zinc-700 dark:text-zinc-200 truncate max-w-xs">{newTaskPreview.title}</span>
-          {newTaskPreview.dueDate && (
-            <span className={NEUTRAL_BADGE_CLASS}>
-              <Calendar className="w-[11px] h-[11px]" />
-              Due {formatDayDate(newTaskPreview.dueDate)}
-            </span>
-          )}
           {newTaskPreview.priority > 0 && (
-            <span className={`${NEUTRAL_BADGE_CLASS} ${PRIORITY_CONFIG[newTaskPreview.priority].textClass}`}>
-              {PRIORITY_CONFIG[newTaskPreview.priority].label}
+            <span className={NEUTRAL_BADGE_CLASS}>
+              <span className={PRIORITY_CONFIG[newTaskPreview.priority].textClass}>
+                {PRIORITY_CONFIG[newTaskPreview.priority].label}
+              </span>
             </span>
           )}
           {newTaskPreview.projectId && (
             <span className={NEUTRAL_BADGE_CLASS}>
               <Dot color={projects.find((p) => p.id === newTaskPreview.projectId)?.color} size={6} />
               {projects.find((p) => p.id === newTaskPreview.projectId)?.name}
+            </span>
+          )}
+          {newTaskPreview.dueDate && (
+            <span className={NEUTRAL_BADGE_CLASS}>
+              <Calendar className="w-[11px] h-[11px]" />
+              Due {formatDayDate(newTaskPreview.dueDate)}
             </span>
           )}
           {newTaskPreview.tags.map((tag) => (
@@ -287,15 +289,22 @@ export const QuickAddBar: React.FC<{
           })}
         </div>
       ) : (
-        (newPriority > 0 || newDueDate || newTags.length > 0) && (
+        (newPriority > 0 || newDueDate || newTags.length > 0 || (!isProjectView && pickedProject)) && (
           <div className="flex flex-wrap items-center gap-1.5 px-3 text-[11px] text-zinc-500 dark:text-zinc-400">
             {newPriority > 0 && (
               <PickedChip label="Clear priority" onClear={() => setNewPriority(0)}>
                 <span className={PRIORITY_CONFIG[newPriority].textClass}>{PRIORITY_CONFIG[newPriority].label}</span>
               </PickedChip>
             )}
+            {!isProjectView && pickedProject && (
+              <PickedChip label="Clear project" onClear={() => setNewProjectId('')}>
+                <Dot color={pickedProject.color} size={6} />
+                {pickedProject.name}
+              </PickedChip>
+            )}
             {newDueDate && (
               <PickedChip label="Clear due date" onClear={() => setNewDueDate('')}>
+                <Calendar className="w-[11px] h-[11px]" />
                 Due {formatDayDate(newDueDate)}
               </PickedChip>
             )}
