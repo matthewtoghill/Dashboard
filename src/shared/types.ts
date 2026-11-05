@@ -625,6 +625,8 @@ export const RestoreRequestSchema = z
     settings: z.array(z.string()).max(100).default([]),
     /** Replace the scratchpad with the backup's text. */
     scratchpad: z.boolean().default(false),
+    /** Check the request and return what it would do, without a safety backup or any change. */
+    dryRun: z.boolean().default(false),
   })
   .strict();
 export type RestoreRequest = z.input<typeof RestoreRequestSchema>;

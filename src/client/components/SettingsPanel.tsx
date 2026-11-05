@@ -22,6 +22,7 @@ import { formatRelativeTime, tasksToCsv, errorMessage } from '../utils/taskUtils
 import { BackupStatusLine } from './DashboardWidgets.tsx';
 import { AdoSettings } from './AdoImport.tsx';
 import { playCompletionAnimation } from '../utils/celebrate.ts';
+import { RestoreDialog } from './RestoreDialog.tsx';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 
@@ -95,6 +96,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const asideRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [restoreFile, setRestoreFile] = useState<string | null>(null);
 
   const { data } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
   const { data: backups } = useQuery({
@@ -467,16 +469,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   {backups?.enabled && backups.backups.length > 0 && (
                     <ul className="text-xs text-zinc-500 dark:text-zinc-400 divide-y divide-zinc-100 dark:divide-zinc-800">
                       {backups.backups.map((b) => (
-                        <li key={b.file} className="flex justify-between gap-3 py-1">
+                        <li key={b.file} className="flex items-center justify-between gap-3 py-1">
                           <span className="truncate font-mono" title={`${backups.dir}/${b.file}`}>
                             {b.file}
                           </span>
-                          <span className="shrink-0">
+                          <span className="shrink-0 flex items-center gap-2">
                             {formatRelativeTime(b.createdAt)} · {(b.size / 1024 / 1024).toFixed(1)} MB
+                            <button
+                              type="button"
+                              onClick={() => setRestoreFile(b.file)}
+                              aria-label={`Restore from ${b.file}`}
+                              title="Pick items to restore from this backup"
+                              className="px-1.5 py-0.5 rounded-md text-primary-600 dark:text-primary-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                            >
+                              {'Restore…'}
+                            </button>
                           </span>
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {restoreFile && (
+                    <RestoreDialog key={restoreFile} file={restoreFile} onClose={() => setRestoreFile(null)} />
                   )}
                 </>
               )

@@ -14,6 +14,9 @@ import {
   WidgetConfig,
   BackupPayload,
   ImportResult,
+  RestoreDiff,
+  RestoreRequest,
+  RestoreResult,
   SavedView,
   ClaudeSession,
   ClaudeFolderLink,
@@ -297,6 +300,30 @@ export async function fetchBackups(): Promise<BackupStatus> {
     throw new Error(`Failed to load backups: ${res.statusText}`);
   }
   return (await res.json()) as BackupStatus;
+}
+
+/** The server's error message, with its details when they are text. */
+async function restoreError(res: Response, fallback: string): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { error?: string; details?: unknown } | null;
+  const details = typeof body?.details === 'string' ? ` (${body.details})` : '';
+  return new Error(`${body?.error ?? `${fallback}: ${res.statusText}`}${details}`);
+}
+
+export async function fetchRestoreDiff(file: string): Promise<RestoreDiff> {
+  const res = await fetch(`/api/backups/${encodeURIComponent(file)}/diff`);
+  if (!res.ok) throw await restoreError(res, 'Failed to read the backup');
+  return (await res.json()) as RestoreDiff;
+}
+
+/** With `dryRun`, returns what the restore would do without changing anything. */
+export async function restoreFromBackup(file: string, request: RestoreRequest): Promise<RestoreResult> {
+  const res = await fetch(`/api/backups/${encodeURIComponent(file)}/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!res.ok) throw await restoreError(res, 'Restore failed');
+  return (await res.json()) as RestoreResult;
 }
 
 export async function createBackup(): Promise<BackupInfo> {

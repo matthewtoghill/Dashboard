@@ -233,17 +233,17 @@ export function planRestore(
   for (const items of [add, overwrite]) {
     items.tasks = items.tasks.map((task) => {
       if (!task.projectId || projectIds.has(task.projectId)) return task;
-      warnings.push(`Task "${task.title}" was restored without its project "${projectName(task.projectId)}".`);
+      warnings.push(`Task "${task.title}": restored without its project "${projectName(task.projectId)}", which isn't in the database.`);
       return { ...task, projectId: null };
     });
     items.claudeFolderLinks = items.claudeFolderLinks.filter((l) => {
       if (projectIds.has(l.projectId)) return true;
-      warnings.push(`Folder link "${l.path}" was skipped because its project "${projectName(l.projectId)}" isn't in the database.`);
+      warnings.push(`Folder link "${l.path}": skipped, because its project "${projectName(l.projectId)}" isn't in the database.`);
       return false;
     });
     items.adoProjectLinks = items.adoProjectLinks.map((l) => {
       if (!l.projectId || projectIds.has(l.projectId)) return l;
-      warnings.push(`ADO project "${l.adoProject}" was restored without its project "${projectName(l.projectId)}".`);
+      warnings.push(`ADO project "${l.adoProject}": restored without its project "${projectName(l.projectId)}", which isn't in the database.`);
       return { ...l, projectId: null };
     });
   }
@@ -251,13 +251,13 @@ export function planRestore(
   // An unlinked session would be pruned straight away, so it isn't restored without its task
   add.claudeSessions = add.claudeSessions.filter((s) => {
     if (s.taskId && taskIds.has(s.taskId)) return true;
-    warnings.push(`Claude session "${s.title || s.cwd}" was skipped because its task isn't in the database.`);
+    warnings.push(`Claude session "${s.title || s.cwd}": skipped, because its task isn't in the database.`);
     return false;
   });
 
   const room = Math.max(0, MAX_SAVED_VIEWS - live.payload.savedViews.length);
   for (const view of add.savedViews.slice(room)) {
-    warnings.push(`Saved view "${view.name}" was skipped: at most ${MAX_SAVED_VIEWS} saved views.`);
+    warnings.push(`Saved view "${view.name}": skipped, because there can be at most ${MAX_SAVED_VIEWS} saved views.`);
   }
   add.savedViews = add.savedViews.slice(0, room);
 

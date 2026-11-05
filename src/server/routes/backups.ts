@@ -71,6 +71,7 @@ export async function registerBackupRoutes(
           { payload: exportPayload(db), settings: readSettings(db.$client) },
           parsed.data
         );
+        if (parsed.data.dryRun) return plan.result;
         // The backup is already copied, so not pruning only keeps it around for another restore
         try {
           backupDatabase(db.$client, config, { prune: false });

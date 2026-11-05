@@ -198,8 +198,16 @@ describe('selective restore', () => {
       await request('DELETE', `/api/tasks/${task.id}`);
       await request('DELETE', `/api/projects/${project.id}`);
 
+      // A dry run reports the same, without a safety backup or any change
+      const before = backupCount();
+      const warning = `Task "In project": restored without its project "Gone", which isn't in the database.`;
+      const preview = await restore(file, { add: { tasks: [task.id] }, dryRun: true });
+      expect(preview.json()).toMatchObject({ restored: { tasks: 1 }, warnings: [warning] });
+      expect((await request('GET', '/api/tasks')).json().tasks).toEqual([]);
+      expect(backupCount()).toBe(before);
+
       const alone = await restore(file, { add: { tasks: [task.id] } });
-      expect(alone.json().warnings).toEqual(['Task "In project" was restored without its project "Gone".']);
+      expect(alone.json().warnings).toEqual([warning]);
       expect((await request('GET', '/api/tasks')).json().tasks[0].projectId).toBeNull();
 
       await request('DELETE', `/api/tasks/${task.id}`);
@@ -220,7 +228,7 @@ describe('selective restore', () => {
       const alone = await restore(file, { add: { claudeSessions: ['s1'] } });
       expect(alone.json()).toMatchObject({
         restored: { claudeSessions: 0 },
-        warnings: ['Claude session "Work" was skipped because its task isn\'t in the database.'],
+        warnings: [`Claude session "Work": skipped, because its task isn't in the database.`],
       });
 
       await restore(file, { add: { claudeSessions: ['s1'], tasks: [task.id] } });
