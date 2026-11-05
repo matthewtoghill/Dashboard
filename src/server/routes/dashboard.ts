@@ -92,7 +92,11 @@ export function setScratchpad(db: AppDatabase, content: string): void {
   setKeyValue(db, SCRATCHPAD_KEY, content);
 }
 
-function getSavedViews(db: AppDatabase): SavedView[] {
+export function setSavedViews(db: AppDatabase, views: SavedView[]): void {
+  setKeyValue(db, SAVED_VIEWS_KEY, JSON.stringify(views));
+}
+
+export function getSavedViews(db: AppDatabase): SavedView[] {
   const row = db
     .select()
     .from(keyValueStore)
@@ -142,6 +146,66 @@ export function exportPayload(db: AppDatabase): BackupPayload {
   };
 }
 
+type BackupTask = BackupPayload['tasks'][number];
+
+/** A backup task as a tasks row. */
+export function taskValues(t: BackupTask) {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    priority: t.priority,
+    projectId: t.projectId,
+    tags: JSON.stringify(t.tags),
+    dueDate: t.dueDate,
+    sortOrder: t.sortOrder,
+    completedAt: t.completedAt,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
+    recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
+    recurrenceParentId: t.recurrenceParentId,
+    holdReason: t.holdReason,
+    heldSince: t.heldSince,
+    plannedFor: t.plannedFor,
+    mainThingOn: t.mainThingOn,
+    reviewedAt: t.reviewedAt,
+  };
+}
+
+/** Inserts a backup task's subtasks, ADO links and source links. Links already on another task stay there. */
+export function insertTaskChildren(db: AppDatabase, t: BackupTask): void {
+  for (const sub of t.subtasks) {
+    db.insert(subtasks)
+      .values({
+        id: sub.id,
+        taskId: t.id,
+        title: sub.title,
+        isCompleted: sub.isCompleted ? 1 : 0,
+        sortOrder: sub.sortOrder,
+      })
+      .run();
+  }
+
+  const legacyLink = TaskAdoLinkSchema.safeParse({
+    externalId: t.externalId,
+    url: t.externalUrl,
+    title: t.title,
+    type: t.externalId?.startsWith('pr/') ? 'Pull Request' : '',
+    state: '',
+    linkedAt: t.createdAt,
+  });
+  const links = t.adoLinks.length ? t.adoLinks : legacyLink.success ? [legacyLink.data] : [];
+  for (const link of links) {
+    // An item already linked to another task stays there
+    db.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
+  }
+  t.sourceUrls.forEach((url, i) => {
+    db.insert(taskSourceLinks).values({ taskId: t.id, url, linkedAt: t.createdAt + i }).onConflictDoNothing().run();
+  });
+}
+
 /**
  * Inserts a backup payload. Rows whose id already exists are skipped, and saved settings and
  * scratchpad text are kept. Call it inside `db.transaction()` so a failure leaves no partial import.
@@ -171,63 +235,10 @@ export function importPayload(db: AppDatabase, payload: BackupPayload): ImportRe
   }
 
   for (const t of payload.tasks) {
-    const result = db
-      .insert(tasks)
-      .values({
-        id: t.id,
-        title: t.title,
-        description: t.description,
-        status: t.status,
-        priority: t.priority,
-        projectId: t.projectId,
-        tags: JSON.stringify(t.tags),
-        dueDate: t.dueDate,
-        sortOrder: t.sortOrder,
-        completedAt: t.completedAt,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-        statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
-        recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
-        recurrenceParentId: t.recurrenceParentId,
-        holdReason: t.holdReason,
-        heldSince: t.heldSince,
-        plannedFor: t.plannedFor,
-        mainThingOn: t.mainThingOn,
-        reviewedAt: t.reviewedAt,
-      })
-      .onConflictDoNothing()
-      .run();
+    const result = db.insert(tasks).values(taskValues(t)).onConflictDoNothing().run();
     if (result.changes === 0) continue;
     importedTasks++;
-
-    for (const sub of t.subtasks) {
-      db.insert(subtasks)
-        .values({
-          id: sub.id,
-          taskId: t.id,
-          title: sub.title,
-          isCompleted: sub.isCompleted ? 1 : 0,
-          sortOrder: sub.sortOrder,
-        })
-        .run();
-    }
-
-    const legacyLink = TaskAdoLinkSchema.safeParse({
-      externalId: t.externalId,
-      url: t.externalUrl,
-      title: t.title,
-      type: t.externalId?.startsWith('pr/') ? 'Pull Request' : '',
-      state: '',
-      linkedAt: t.createdAt,
-    });
-    const links = t.adoLinks.length ? t.adoLinks : legacyLink.success ? [legacyLink.data] : [];
-    for (const link of links) {
-      // An item already linked to another task stays there
-      db.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
-    }
-    t.sourceUrls.forEach((url, i) => {
-      db.insert(taskSourceLinks).values({ taskId: t.id, url, linkedAt: t.createdAt + i }).onConflictDoNothing().run();
-    });
+    insertTaskChildren(db, t);
   }
 
   for (const link of payload.quickLinks) {

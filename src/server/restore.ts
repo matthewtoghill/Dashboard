@@ -9,7 +9,16 @@ import { AppDatabase } from './db/index.ts';
 import { runMigrations } from './db/migrations.ts';
 import { listBackups } from './backup.ts';
 import { readSettings, readStoredSettings, writeSettings } from './settings.ts';
-import { exportPayload, importPayload, setScratchpad } from './routes/dashboard.ts';
+import { eq } from 'drizzle-orm';
+import {
+  exportPayload,
+  getSavedViews,
+  importPayload,
+  insertTaskChildren,
+  setSavedViews,
+  setScratchpad,
+  taskValues,
+} from './routes/dashboard.ts';
 import {
   MAX_SAVED_VIEWS,
   RESTORE_SECTIONS,
@@ -168,12 +177,20 @@ export class RestoreError extends Error {
   }
 }
 
+type Selected = { [S in RestoreSection]: Item<S>[] };
+
 export interface RestorePlan {
+  /** Missing items to insert, through importPayload. */
   payload: BackupPayload;
+  /** Changed items to update in place. */
+  overwrite: Selected;
   settings: Partial<Settings>;
   scratchpad: string | null;
   result: RestoreResult;
 }
+
+const counts = (items: Selected) =>
+  Object.fromEntries(RESTORE_SECTIONS.map((section) => [section, items[section].length])) as Record<RestoreSection, number>;
 
 /**
  * Works out what `selection` restores from `backup` into `live`, without changing anything.
@@ -187,67 +204,67 @@ export function planRestore(
   const diff = diffPayloads(backup, live);
   const warnings: string[] = [];
 
-  const picked = <S extends RestoreSection>(section: S): Item<S>[] => {
-    const ids = new Set(selection.add?.[section] ?? []);
-    const offered = new Set(diff.sections[section].filter((i) => i.state === 'missing').map((i) => i.id));
-    const notOffered = [...ids].filter((id) => !offered.has(id));
-    if (notOffered.length) {
-      throw new RestoreError(`Not missing from the database, so it can't be added (${section}): ${notOffered.join(', ')}`);
-    }
-    const rule = RULES[section] as SectionRule<Item<S>>;
-    return (backup.payload[section] as Item<S>[]).filter((item) => ids.has(rule.key(item)));
+  // Each id must be listed in the diff with the matching state: missing to add, changed to overwrite
+  const pick = (state: RestoreItem['state'], ids: RestoreRequest['add']): Selected => {
+    const select = <S extends RestoreSection>(section: S): Item<S>[] => {
+      const wanted = new Set(ids?.[section] ?? []);
+      const offered = new Set(diff.sections[section].filter((i) => i.state === state).map((i) => i.id));
+      const notOffered = [...wanted].filter((id) => !offered.has(id));
+      if (notOffered.length) {
+        throw new RestoreError(
+          state === 'missing'
+            ? `Not missing from the database, so it can't be added (${section}): ${notOffered.join(', ')}`
+            : `Not changed since the backup, so it can't be overwritten (${section}): ${notOffered.join(', ')}`
+        );
+      }
+      const rule = RULES[section] as SectionRule<Item<S>>;
+      return (backup.payload[section] as Item<S>[]).filter((item) => wanted.has(rule.key(item)));
+    };
+    return Object.fromEntries(RESTORE_SECTIONS.map((section) => [section, select(section)])) as Selected;
   };
+  const add = pick('missing', selection.add);
+  const overwrite = pick('changed', selection.overwrite);
 
-  const projects = picked('projects');
-  const projectIds = new Set([...live.payload.projects, ...projects].map((p) => p.id));
+  const projectIds = new Set([...live.payload.projects, ...add.projects].map((p) => p.id));
   const projectName = (id: string) => backup.payload.projects.find((p) => p.id === id)?.name ?? id;
+  const taskIds = new Set([...live.payload.tasks, ...add.tasks].map((t) => t.id));
 
   // A project that isn't there after the restore is dropped, rather than restored unticked
-  const tasks = picked('tasks').map((task) => {
-    if (!task.projectId || projectIds.has(task.projectId)) return task;
-    warnings.push(`Task "${task.title}" was restored without its project "${projectName(task.projectId)}".`);
-    return { ...task, projectId: null };
-  });
-  const restoredTaskIds = new Set(tasks.map((t) => t.id));
-  const taskIds = new Set([...live.payload.tasks.map((t) => t.id), ...restoredTaskIds]);
+  for (const items of [add, overwrite]) {
+    items.tasks = items.tasks.map((task) => {
+      if (!task.projectId || projectIds.has(task.projectId)) return task;
+      warnings.push(`Task "${task.title}" was restored without its project "${projectName(task.projectId)}".`);
+      return { ...task, projectId: null };
+    });
+    items.claudeFolderLinks = items.claudeFolderLinks.filter((l) => {
+      if (projectIds.has(l.projectId)) return true;
+      warnings.push(`Folder link "${l.path}" was skipped because its project "${projectName(l.projectId)}" isn't in the database.`);
+      return false;
+    });
+    items.adoProjectLinks = items.adoProjectLinks.map((l) => {
+      if (!l.projectId || projectIds.has(l.projectId)) return l;
+      warnings.push(`ADO project "${l.adoProject}" was restored without its project "${projectName(l.projectId)}".`);
+      return { ...l, projectId: null };
+    });
+  }
 
   // An unlinked session would be pruned straight away, so it isn't restored without its task
-  const claudeSessions = picked('claudeSessions').filter((s) => {
+  add.claudeSessions = add.claudeSessions.filter((s) => {
     if (s.taskId && taskIds.has(s.taskId)) return true;
     warnings.push(`Claude session "${s.title || s.cwd}" was skipped because its task isn't in the database.`);
     return false;
   });
 
-  const claudeFolderLinks = picked('claudeFolderLinks').filter((l) => {
-    if (projectIds.has(l.projectId)) return true;
-    warnings.push(`Folder link "${l.path}" was skipped because its project "${projectName(l.projectId)}" isn't in the database.`);
-    return false;
-  });
-
-  const adoProjectLinks = picked('adoProjectLinks').map((l) => {
-    if (!l.projectId || projectIds.has(l.projectId)) return l;
-    warnings.push(`ADO project "${l.adoProject}" was restored without its project "${projectName(l.projectId)}".`);
-    return { ...l, projectId: null };
-  });
-
   const room = Math.max(0, MAX_SAVED_VIEWS - live.payload.savedViews.length);
-  const allViews = picked('savedViews');
-  const savedViews = allViews.slice(0, room);
-  for (const view of allViews.slice(room)) {
+  for (const view of add.savedViews.slice(room)) {
     warnings.push(`Saved view "${view.name}" was skipped: at most ${MAX_SAVED_VIEWS} saved views.`);
   }
+  add.savedViews = add.savedViews.slice(0, room);
 
+  const restoredTaskIds = new Set(add.tasks.map((t) => t.id));
   const payload: BackupPayload = {
     ...backup.payload,
-    projects,
-    tasks,
-    notes: picked('notes'),
-    quickLinks: picked('quickLinks'),
-    savedViews,
-    claudeSessions,
-    claudeFolderLinks,
-    adoProjectLinks,
-    adoDismissed: picked('adoDismissed'),
+    ...add,
     taskEvents: backup.payload.taskEvents.filter((e) => restoredTaskIds.has(e.taskId)),
     // Settings and the scratchpad are applied by applyRestore, not by import's keep-existing rules
     settings: undefined,
@@ -264,21 +281,66 @@ export function planRestore(
   if (selection.scratchpad && !diff.scratchpad) throw new RestoreError('The backup has no scratchpad text to restore');
   const scratchpad = selection.scratchpad ? diff.scratchpad!.backup : null;
 
-  const restored = Object.fromEntries(
-    RESTORE_SECTIONS.map((section) => [section, (payload[section] as unknown[]).length])
-  ) as RestoreResult['restored'];
   return {
     payload,
+    overwrite,
     settings,
     scratchpad,
-    result: { restored, settings: Object.keys(settings).length, scratchpad: scratchpad !== null, warnings },
+    result: {
+      restored: counts(add),
+      overwritten: counts(overwrite),
+      settings: Object.keys(settings).length,
+      scratchpad: scratchpad !== null,
+      warnings,
+    },
   };
+}
+
+/**
+ * Updates changed items in place to the backup's values. Never deletes and re-inserts a task:
+ * that would cascade to its history, links and Claude sessions.
+ */
+function overwriteItems(db: AppDatabase, items: Selected): void {
+  for (const { id, ...project } of items.projects) {
+    db.update(schema.projects).set(project).where(eq(schema.projects.id, id)).run();
+  }
+  for (const task of items.tasks) {
+    const { id, ...values } = taskValues(task);
+    db.update(schema.tasks).set(values).where(eq(schema.tasks.id, id)).run();
+    // Subtasks become the backup's; links from the backup are added back, newer links stay
+    db.delete(schema.subtasks).where(eq(schema.subtasks.taskId, id)).run();
+    insertTaskChildren(db, task);
+  }
+  for (const { id, tags, ...note } of items.notes) {
+    db.update(schema.notes).set({ ...note, tags: JSON.stringify(tags) }).where(eq(schema.notes.id, id)).run();
+  }
+  for (const { id, ...link } of items.quickLinks) {
+    db.update(schema.quickLinks).set(link).where(eq(schema.quickLinks.id, id)).run();
+  }
+  if (items.savedViews.length) {
+    const byId = new Map(items.savedViews.map((v) => [v.id, v]));
+    setSavedViews(db, getSavedViews(db).map((v) => byId.get(v.id) ?? v));
+  }
+  for (const { path: folder, projectId } of items.claudeFolderLinks) {
+    db.update(schema.claudeFolderLinks).set({ projectId }).where(eq(schema.claudeFolderLinks.path, folder)).run();
+  }
+  for (const { adoProject, projectId, workItemTypes, ignoredStates } of items.adoProjectLinks) {
+    db.update(schema.adoProjectLinks)
+      .set({
+        projectId,
+        workItemTypes: workItemTypes ? JSON.stringify(workItemTypes) : null,
+        ignoredStates: ignoredStates ? JSON.stringify(ignoredStates) : null,
+      })
+      .where(eq(schema.adoProjectLinks.adoProject, adoProject))
+      .run();
+  }
 }
 
 /** Applies a plan in one transaction: all of it or, if anything fails, none of it. */
 export function applyRestore(db: AppDatabase, plan: RestorePlan): RestoreResult {
   db.transaction(() => {
     importPayload(db, plan.payload);
+    overwriteItems(db, plan.overwrite);
     if (Object.keys(plan.settings).length) {
       writeSettings(db.$client, { ...readSettings(db.$client), ...plan.settings });
     }

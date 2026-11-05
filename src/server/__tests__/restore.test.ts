@@ -7,6 +7,7 @@ import path from 'node:path';
 import { buildApp } from '../index.ts';
 import { MIGRATIONS, runMigrations } from '../db/migrations.ts';
 import type { RestoreDiff } from '../../shared/types.ts';
+import { DEFAULT_VIEW_STATE } from '../../client/utils/taskView.ts';
 
 describe('selective restore', () => {
   let dir: string;
@@ -138,7 +139,7 @@ describe('selective restore', () => {
     await memory.close();
   });
 
-  describe('restoring missing items', () => {
+  describe('restoring', () => {
     const restore = (file: string, payload: object) =>
       request('POST', `/api/backups/${encodeURIComponent(file)}/restore`, payload);
     const backupCount = () => fs.readdirSync(path.join(dir, 'backups')).length;
@@ -226,12 +227,82 @@ describe('selective restore', () => {
       expect(sqlite.prepare('SELECT task_id FROM claude_sessions').all()).toEqual([{ task_id: task.id }]);
     });
 
+    it('overwrites a changed task in place, keeping its history, newer links and sessions', async () => {
+      const task = (await request('POST', '/api/tasks', { title: 'Original', priority: 1 })).json().task;
+      const step = (await request('POST', `/api/tasks/${task.id}/subtasks`, { title: 'Step' })).json().subtask;
+      const linkAdo = sqlite.prepare(
+        'INSERT INTO task_ado_links (external_id, task_id, url, linked_at) VALUES (?, ?, ?, ?)'
+      );
+      linkAdo.run('workitem/1', task.id, 'https://dev.azure.com/acme/_workitems/edit/1', 1);
+      sqlite
+        .prepare('INSERT INTO claude_sessions (session_id, cwd, state, task_id, started_at, last_event_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run('s1', 'C:/a', 'idle', task.id, 1, 1);
+      const file = await backUp();
+      const backupUpdatedAt = (sqlite.prepare('SELECT updated_at FROM tasks').get() as { updated_at: number }).updated_at;
+
+      await request('PATCH', `/api/tasks/${task.id}`, { title: 'Edited', priority: 3, status: 'done' });
+      await request('PATCH', `/api/subtasks/${step.id}`, { title: 'Renamed' });
+      await request('POST', `/api/tasks/${task.id}/subtasks`, { title: 'Added later' });
+      sqlite.prepare('DELETE FROM task_ado_links').run();
+      linkAdo.run('workitem/2', task.id, 'https://dev.azure.com/acme/_workitems/edit/2', 2);
+      const events = eventCount(task.id);
+
+      const res = await restore(file, { overwrite: { tasks: [task.id] } });
+      expect(res.json()).toMatchObject({ restored: { tasks: 0 }, overwritten: { tasks: 1 }, warnings: [] });
+
+      const [restored] = (await request('GET', '/api/tasks')).json().tasks;
+      expect(restored).toMatchObject({ title: 'Original', priority: 1, status: 'todo', updatedAt: backupUpdatedAt });
+      expect(restored.subtasks.map((s: { title: string }) => s.title)).toEqual(['Step']);
+      expect(restored.adoLinks.map((l: { externalId: string }) => l.externalId).sort()).toEqual(['workitem/1', 'workitem/2']);
+      expect(eventCount(task.id)).toBe(events);
+      expect(sqlite.prepare('SELECT task_id FROM claude_sessions').get()).toEqual({ task_id: task.id });
+    });
+
+    it('overwrites changed projects, notes, quick links, saved views and ADO project mappings', async () => {
+      const project = (await request('POST', '/api/projects', { name: 'Work', color: '#112233' })).json().project;
+      const note = (await request('POST', '/api/notes', { title: 'Note', body: 'v1', tags: ['a'] })).json().note;
+      const link = (await request('POST', '/api/quick-links', { title: 'Docs', url: 'https://a.example' })).json().quickLink;
+      const view = { id: 'v1', name: 'Mine', view: DEFAULT_VIEW_STATE, createdAt: 1 };
+      await request('PUT', '/api/dashboard/saved-views', { savedViews: [view] });
+      const mapping = { adoProject: 'Acme', projectId: project.id, workItemTypes: null, ignoredStates: ['Done'] };
+      await request('PUT', '/api/ado/projects', { links: [mapping] });
+      const file = await backUp();
+
+      await request('PATCH', `/api/projects/${project.id}`, { name: 'Renamed', color: '#445566' });
+      await request('PATCH', `/api/notes/${note.id}`, { body: 'v2', tags: ['b'] });
+      await request('PUT', `/api/quick-links/${link.id}`, { title: 'Wiki', url: 'https://b.example', category: 'Other' });
+      await request('PUT', '/api/dashboard/saved-views', {
+        savedViews: [{ ...view, name: 'Changed' }, { ...view, id: 'v2', name: 'Newer' }],
+      });
+      await request('PUT', '/api/ado/projects', { links: [{ ...mapping, ignoredStates: null }] });
+
+      const res = await restore(file, {
+        overwrite: {
+          projects: [project.id],
+          notes: [note.id],
+          quickLinks: [link.id],
+          savedViews: ['v1'],
+          adoProjectLinks: ['Acme'],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const after = await diff(file);
+      for (const section of ['projects', 'notes', 'quickLinks', 'savedViews', 'adoProjectLinks'] as const) {
+        expect(after.sections[section]).toEqual([]);
+      }
+      const views = (await request('GET', '/api/dashboard')).json().savedViews;
+      expect(views.map((v: { name: string }) => v.name)).toEqual(['Mine', 'Newer']);
+    });
+
     it('rejects anything the diff does not offer, without a safety backup', async () => {
       const task = (await request('POST', '/api/tasks', { title: 'Still here' })).json().task;
       const file = await backUp();
       const before = backupCount();
       for (const body of [
         { add: { tasks: [task.id] } }, // not missing
+        { overwrite: { tasks: [task.id] } }, // unchanged
+        { overwrite: { tasks: ['nope'] } },
+        { overwrite: { adoDismissed: [] }, add: { notes: ['nope'] } },
         { add: { notes: ['nope'] } },
         { settings: ['primaryColor'] }, // unchanged
         { settings: ['backupDir'] },
