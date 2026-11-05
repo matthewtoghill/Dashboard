@@ -134,6 +134,115 @@ describe('selective restore', () => {
   it('is unavailable for in-memory databases', async () => {
     const { app: memory } = await buildApp({ dbPath: ':memory:' });
     expect((await memory.inject({ method: 'GET', url: '/api/backups/x.db/diff' })).statusCode).toBe(400);
+    expect((await memory.inject({ method: 'POST', url: '/api/backups/x.db/restore', payload: {} })).statusCode).toBe(400);
     await memory.close();
+  });
+
+  describe('restoring missing items', () => {
+    const restore = (file: string, payload: object) =>
+      request('POST', `/api/backups/${encodeURIComponent(file)}/restore`, payload);
+    const backupCount = () => fs.readdirSync(path.join(dir, 'backups')).length;
+    const eventCount = (taskId: string) =>
+      (sqlite.prepare('SELECT count(*) AS n FROM task_events WHERE task_id = ?').get(taskId) as { n: number }).n;
+
+    it('brings back only the ticked task, with its subtasks and history, after a safety backup', async () => {
+      const wanted = (await request('POST', '/api/tasks', { title: 'Wanted' })).json().task;
+      const unwanted = (await request('POST', '/api/tasks', { title: 'Unwanted' })).json().task;
+      await request('POST', `/api/tasks/${wanted.id}/subtasks`, { title: 'Step' });
+      const events = eventCount(wanted.id);
+      expect(events).toBeGreaterThan(0);
+      const file = await backUp();
+      await request('DELETE', `/api/tasks/${wanted.id}`);
+      await request('DELETE', `/api/tasks/${unwanted.id}`);
+      const before = backupCount();
+
+      const res = await restore(file, { add: { tasks: [wanted.id] } });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ restored: { tasks: 1, projects: 0 }, settings: 0, scratchpad: false, warnings: [] });
+
+      const tasks = (await request('GET', '/api/tasks')).json().tasks;
+      expect(tasks.map((t: { title: string }) => t.title)).toEqual(['Wanted']);
+      expect(tasks[0].subtasks.map((s: { title: string }) => s.title)).toEqual(['Step']);
+      expect(eventCount(wanted.id)).toBe(events);
+      expect(backupCount()).toBe(before + 1);
+    });
+
+    it('does not prune the backup being restored from', async () => {
+      await request('PUT', '/api/settings', { backupKeep: 1 });
+      const task = (await request('POST', '/api/tasks', { title: 'Only' })).json().task;
+      const file = await backUp(); // prunes down to this one
+      await request('DELETE', `/api/tasks/${task.id}`);
+      expect((await restore(file, { add: { tasks: [task.id] } })).statusCode).toBe(200);
+      expect(fs.existsSync(path.join(dir, 'backups', file))).toBe(true);
+    });
+
+    it('restores chosen settings fields only, and the scratchpad when asked', async () => {
+      await request('PUT', '/api/settings', { backupKeep: 3, planSize: 4, primaryColor: 'rose' });
+      await request('PUT', '/api/dashboard/scratchpad', { content: 'old notes' });
+      const file = await backUp();
+      await request('PUT', '/api/settings', { backupKeep: 8, planSize: 9, primaryColor: 'blue', density: 'compact' });
+      await request('PUT', '/api/dashboard/scratchpad', { content: 'new notes' });
+
+      const res = await restore(file, { settings: ['backupKeep', 'planSize'], scratchpad: true });
+      expect(res.json()).toMatchObject({ settings: 2, scratchpad: true });
+      const settings = (await request('GET', '/api/settings')).json().settings;
+      expect(settings).toMatchObject({ backupKeep: 3, planSize: 4, primaryColor: 'blue', density: 'compact' });
+      expect((await request('GET', '/api/dashboard')).json().scratchpad).toBe('old notes');
+    });
+
+    it('drops a project that is not restored, and keeps it when ticked too', async () => {
+      const project = (await request('POST', '/api/projects', { name: 'Gone' })).json().project;
+      const task = (await request('POST', '/api/tasks', { title: 'In project', projectId: project.id })).json().task;
+      const file = await backUp();
+      await request('DELETE', `/api/tasks/${task.id}`);
+      await request('DELETE', `/api/projects/${project.id}`);
+
+      const alone = await restore(file, { add: { tasks: [task.id] } });
+      expect(alone.json().warnings).toEqual(['Task "In project" was restored without its project "Gone".']);
+      expect((await request('GET', '/api/tasks')).json().tasks[0].projectId).toBeNull();
+
+      await request('DELETE', `/api/tasks/${task.id}`);
+      const both = await restore(file, { add: { tasks: [task.id], projects: [project.id] } });
+      expect(both.json()).toMatchObject({ restored: { tasks: 1, projects: 1 }, warnings: [] });
+      expect((await request('GET', '/api/tasks')).json().tasks[0].projectId).toBe(project.id);
+    });
+
+    it('skips a Claude session whose task is not in the database', async () => {
+      const task = (await request('POST', '/api/tasks', { title: 'Has session' })).json().task;
+      sqlite
+        .prepare('INSERT INTO claude_sessions (session_id, cwd, title, state, task_id, started_at, last_event_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('s1', 'C:/a', 'Work', 'idle', task.id, 1, 1);
+      const file = await backUp();
+      await request('DELETE', `/api/tasks/${task.id}`); // the session stays, unlinked
+      sqlite.prepare('DELETE FROM claude_sessions').run();
+
+      const alone = await restore(file, { add: { claudeSessions: ['s1'] } });
+      expect(alone.json()).toMatchObject({
+        restored: { claudeSessions: 0 },
+        warnings: ['Claude session "Work" was skipped because its task isn\'t in the database.'],
+      });
+
+      await restore(file, { add: { claudeSessions: ['s1'], tasks: [task.id] } });
+      expect(sqlite.prepare('SELECT task_id FROM claude_sessions').all()).toEqual([{ task_id: task.id }]);
+    });
+
+    it('rejects anything the diff does not offer, without a safety backup', async () => {
+      const task = (await request('POST', '/api/tasks', { title: 'Still here' })).json().task;
+      const file = await backUp();
+      const before = backupCount();
+      for (const body of [
+        { add: { tasks: [task.id] } }, // not missing
+        { add: { notes: ['nope'] } },
+        { settings: ['primaryColor'] }, // unchanged
+        { settings: ['backupDir'] },
+        { scratchpad: true }, // backup has none
+        { add: { widgets: [] } },
+        { unexpected: true },
+      ]) {
+        expect((await restore(file, body)).statusCode).toBe(400);
+      }
+      expect((await restore('dashboard-missing.db', {})).statusCode).toBe(404);
+      expect(backupCount()).toBe(before);
+    });
   });
 });

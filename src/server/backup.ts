@@ -58,8 +58,15 @@ export function listBackups(dir: string): BackupInfo[] {
     });
 }
 
-/** Writes a snapshot, then deletes the oldest backups beyond `keep`. */
-export function backupDatabase(sqlite: Database.Database, config: BackupConfig): BackupInfo {
+/**
+ * Writes a snapshot, then deletes the oldest backups beyond `keep`. `prune: false` keeps them
+ * until the next backup, e.g. so a restore's safety backup doesn't delete the backup being restored.
+ */
+export function backupDatabase(
+  sqlite: Database.Database,
+  config: BackupConfig,
+  { prune = true }: { prune?: boolean } = {}
+): BackupInfo {
   fs.mkdirSync(config.dir, { recursive: true });
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -69,7 +76,7 @@ export function backupDatabase(sqlite: Database.Database, config: BackupConfig):
   }
   sqlite.prepare('VACUUM INTO ?').run(path.join(config.dir, name));
 
-  for (const old of listBackups(config.dir).slice(config.keep)) {
+  for (const old of prune ? listBackups(config.dir).slice(config.keep) : []) {
     fs.rmSync(path.join(config.dir, old.file), { force: true });
   }
   return listBackups(config.dir).find((b) => b.file === name)!;

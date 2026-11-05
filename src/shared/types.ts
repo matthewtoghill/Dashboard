@@ -615,6 +615,27 @@ export interface RestoreDiff {
   scratchpad: { backup: string; live: string } | null;
 }
 
+/** POST /api/backups/:file/restore: what to bring back. Every id must be listed as missing in the diff. */
+export const RestoreRequestSchema = z
+  .object({
+    add: z.partialRecord(z.enum(RESTORE_SECTIONS), z.array(z.string()).max(10_000)).default({}),
+    /** Setting names to take from the backup; each must be listed in the diff. */
+    settings: z.array(z.string()).max(100).default([]),
+    /** Replace the scratchpad with the backup's text. */
+    scratchpad: z.boolean().default(false),
+  })
+  .strict();
+export type RestoreRequest = z.input<typeof RestoreRequestSchema>;
+
+export interface RestoreResult {
+  /** Items added, per section. */
+  restored: Record<RestoreSection, number>;
+  settings: number;
+  scratchpad: boolean;
+  /** Items restored differently than ticked, or skipped, and why. */
+  warnings: string[];
+}
+
 /** POST /api/import: how many of each record were added. */
 export interface ImportResult {
   importedTasks: number;

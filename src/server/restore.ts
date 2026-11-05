@@ -8,15 +8,19 @@ import * as schema from './db/schema.ts';
 import { AppDatabase } from './db/index.ts';
 import { runMigrations } from './db/migrations.ts';
 import { listBackups } from './backup.ts';
-import { readStoredSettings } from './settings.ts';
-import { exportPayload } from './routes/dashboard.ts';
-import type {
-  BackupPayload,
-  RestoreDiff,
-  RestoreFieldChange,
-  RestoreItem,
-  RestoreSection,
-  Settings,
+import { readSettings, readStoredSettings, writeSettings } from './settings.ts';
+import { exportPayload, importPayload, setScratchpad } from './routes/dashboard.ts';
+import {
+  MAX_SAVED_VIEWS,
+  RESTORE_SECTIONS,
+  type BackupPayload,
+  type RestoreDiff,
+  type RestoreFieldChange,
+  type RestoreItem,
+  type RestoreRequest,
+  type RestoreResult,
+  type RestoreSection,
+  type Settings,
 } from '../shared/types.ts';
 
 /**
@@ -152,4 +156,133 @@ export function diffPayloads(backup: BackupSnapshot, live: { payload: Payload; s
   const scratchpad = backupText.trim() && backupText !== liveText ? { backup: backupText, live: liveText } : null;
 
   return { sections, settings, scratchpad };
+}
+
+/** A restore request that can't be applied as asked; nothing has been changed. */
+export class RestoreError extends Error {
+  constructor(
+    message: string,
+    readonly status = 400
+  ) {
+    super(message);
+  }
+}
+
+export interface RestorePlan {
+  payload: BackupPayload;
+  settings: Partial<Settings>;
+  scratchpad: string | null;
+  result: RestoreResult;
+}
+
+/**
+ * Works out what `selection` restores from `backup` into `live`, without changing anything.
+ * Throws a RestoreError when an id, setting or the scratchpad isn't offered by the diff.
+ */
+export function planRestore(
+  backup: BackupSnapshot,
+  live: { payload: BackupPayload; settings: Settings },
+  selection: RestoreRequest
+): RestorePlan {
+  const diff = diffPayloads(backup, live);
+  const warnings: string[] = [];
+
+  const picked = <S extends RestoreSection>(section: S): Item<S>[] => {
+    const ids = new Set(selection.add?.[section] ?? []);
+    const offered = new Set(diff.sections[section].filter((i) => i.state === 'missing').map((i) => i.id));
+    const notOffered = [...ids].filter((id) => !offered.has(id));
+    if (notOffered.length) {
+      throw new RestoreError(`Not missing from the database, so it can't be added (${section}): ${notOffered.join(', ')}`);
+    }
+    const rule = RULES[section] as SectionRule<Item<S>>;
+    return (backup.payload[section] as Item<S>[]).filter((item) => ids.has(rule.key(item)));
+  };
+
+  const projects = picked('projects');
+  const projectIds = new Set([...live.payload.projects, ...projects].map((p) => p.id));
+  const projectName = (id: string) => backup.payload.projects.find((p) => p.id === id)?.name ?? id;
+
+  // A project that isn't there after the restore is dropped, rather than restored unticked
+  const tasks = picked('tasks').map((task) => {
+    if (!task.projectId || projectIds.has(task.projectId)) return task;
+    warnings.push(`Task "${task.title}" was restored without its project "${projectName(task.projectId)}".`);
+    return { ...task, projectId: null };
+  });
+  const restoredTaskIds = new Set(tasks.map((t) => t.id));
+  const taskIds = new Set([...live.payload.tasks.map((t) => t.id), ...restoredTaskIds]);
+
+  // An unlinked session would be pruned straight away, so it isn't restored without its task
+  const claudeSessions = picked('claudeSessions').filter((s) => {
+    if (s.taskId && taskIds.has(s.taskId)) return true;
+    warnings.push(`Claude session "${s.title || s.cwd}" was skipped because its task isn't in the database.`);
+    return false;
+  });
+
+  const claudeFolderLinks = picked('claudeFolderLinks').filter((l) => {
+    if (projectIds.has(l.projectId)) return true;
+    warnings.push(`Folder link "${l.path}" was skipped because its project "${projectName(l.projectId)}" isn't in the database.`);
+    return false;
+  });
+
+  const adoProjectLinks = picked('adoProjectLinks').map((l) => {
+    if (!l.projectId || projectIds.has(l.projectId)) return l;
+    warnings.push(`ADO project "${l.adoProject}" was restored without its project "${projectName(l.projectId)}".`);
+    return { ...l, projectId: null };
+  });
+
+  const room = Math.max(0, MAX_SAVED_VIEWS - live.payload.savedViews.length);
+  const allViews = picked('savedViews');
+  const savedViews = allViews.slice(0, room);
+  for (const view of allViews.slice(room)) {
+    warnings.push(`Saved view "${view.name}" was skipped: at most ${MAX_SAVED_VIEWS} saved views.`);
+  }
+
+  const payload: BackupPayload = {
+    ...backup.payload,
+    projects,
+    tasks,
+    notes: picked('notes'),
+    quickLinks: picked('quickLinks'),
+    savedViews,
+    claudeSessions,
+    claudeFolderLinks,
+    adoProjectLinks,
+    adoDismissed: picked('adoDismissed'),
+    taskEvents: backup.payload.taskEvents.filter((e) => restoredTaskIds.has(e.taskId)),
+    // Settings and the scratchpad are applied by applyRestore, not by import's keep-existing rules
+    settings: undefined,
+    scratchpad: undefined,
+  };
+
+  const offeredSettings = new Set(diff.settings.map((c) => c.field));
+  const badSettings = (selection.settings ?? []).filter((key) => !offeredSettings.has(key));
+  if (badSettings.length) throw new RestoreError(`These settings don't differ from the backup: ${badSettings.join(', ')}`);
+  const settings = Object.fromEntries(
+    (selection.settings ?? []).map((key) => [key, backup.settings[key as keyof Settings]])
+  ) as Partial<Settings>;
+
+  if (selection.scratchpad && !diff.scratchpad) throw new RestoreError('The backup has no scratchpad text to restore');
+  const scratchpad = selection.scratchpad ? diff.scratchpad!.backup : null;
+
+  const restored = Object.fromEntries(
+    RESTORE_SECTIONS.map((section) => [section, (payload[section] as unknown[]).length])
+  ) as RestoreResult['restored'];
+  return {
+    payload,
+    settings,
+    scratchpad,
+    result: { restored, settings: Object.keys(settings).length, scratchpad: scratchpad !== null, warnings },
+  };
+}
+
+/** Applies a plan in one transaction: all of it or, if anything fails, none of it. */
+export function applyRestore(db: AppDatabase, plan: RestorePlan): RestoreResult {
+  db.transaction(() => {
+    importPayload(db, plan.payload);
+    if (Object.keys(plan.settings).length) {
+      writeSettings(db.$client, { ...readSettings(db.$client), ...plan.settings });
+    }
+    if (plan.scratchpad !== null) setScratchpad(db, plan.scratchpad);
+  });
+  return plan.result;
 }

@@ -88,6 +88,10 @@ function setKeyValue(db: AppDatabase, key: string, value: string): void {
   }
 }
 
+export function setScratchpad(db: AppDatabase, content: string): void {
+  setKeyValue(db, SCRATCHPAD_KEY, content);
+}
+
 function getSavedViews(db: AppDatabase): SavedView[] {
   const row = db
     .select()
