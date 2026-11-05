@@ -22,7 +22,7 @@ import { AdoBadge, ClaudeSessionBadge, PlanBadge, TaskStatusCheckbox } from './T
 import { DatePopover } from './DatePicker.tsx';
 import { useAdoSync } from './AdoImport.tsx';
 import { fetchSettings } from '../api.ts';
-import { Dot, LABEL_CLASS, SectionHeader } from './ui.tsx';
+import { Dot, LABEL_CLASS, NEUTRAL_BADGE_CLASS, SectionHeader } from './ui.tsx';
 
 /** What Home's task sections need to show and act on tasks. */
 export interface TaskWidgetActions {
@@ -38,7 +38,7 @@ export const EmptyNote: React.FC<{ children: React.ReactNode }> = ({ children })
   <p className="px-2 py-3 text-[13px] text-zinc-500">{children}</p>
 );
 
-/** Checkbox, project dot, title (opens the task drawer) and a trailing note or badges. */
+/** Checkbox, title (opens the task drawer), project badge and a trailing note or badges. */
 const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: TaskWidgetActions }> = ({
   task,
   trailing,
@@ -56,9 +56,6 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
       }`}
     >
       <TaskStatusCheckbox task={task} onToggle={actions.onToggleTask} />
-      <span title={project?.name}>
-        <Dot color={project?.color} />
-      </span>
       <button
         type="button"
         onClick={() => actions.onOpenTask(task.id)}
@@ -66,6 +63,12 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
       >
         {task.title}
       </button>
+      {project && (
+        <span title={project.name} className={`${NEUTRAL_BADGE_CLASS} max-w-36`}>
+          <Dot color={project.color} size={6} />
+          <span className="truncate">{project.name}</span>
+        </span>
+      )}
       {trailing ?? (
         <>
           <ClaudeSessionBadge
