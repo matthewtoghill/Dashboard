@@ -30,6 +30,8 @@ import {
   UpdateScratchpadInputSchema,
   WidgetConfigSchema,
   BackupPayloadSchema,
+  BackupPayload,
+  ImportResult,
   TaskAdoLinkSchema,
   QuickLink,
   WidgetConfig,
@@ -58,39 +60,279 @@ function serializeQuickLink(row: DbQuickLink): QuickLink {
   };
 }
 
+function getScratchpad(db: AppDatabase): string {
+  const row = db
+    .select()
+    .from(keyValueStore)
+    .where(eq(keyValueStore.key, SCRATCHPAD_KEY))
+    .get();
+  return row?.value ?? '';
+}
+
+function setKeyValue(db: AppDatabase, key: string, value: string): void {
+  const now = Date.now();
+  const existing = db
+    .select()
+    .from(keyValueStore)
+    .where(eq(keyValueStore.key, key))
+    .get();
+  if (existing) {
+    db.update(keyValueStore)
+      .set({ value, updatedAt: now })
+      .where(eq(keyValueStore.key, key))
+      .run();
+  } else {
+    db.insert(keyValueStore)
+      .values({ key, value, updatedAt: now })
+      .run();
+  }
+}
+
+function getSavedViews(db: AppDatabase): SavedView[] {
+  const row = db
+    .select()
+    .from(keyValueStore)
+    .where(eq(keyValueStore.key, SAVED_VIEWS_KEY))
+    .get();
+  if (!row) return [];
+  try {
+    const parsed = SavedViewListSchema.safeParse(JSON.parse(row.value));
+    return parsed.success ? parsed.data : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Everything a JSON backup holds, read from `db`. */
+export function exportPayload(db: AppDatabase): BackupPayload {
+  const allProjects = db
+    .select()
+    .from(projects)
+    .orderBy(asc(projects.sortOrder))
+    .all()
+    .map(serializeProject);
+  const allTasks = listTasks(db);
+
+  const allLinks = db
+    .select()
+    .from(quickLinks)
+    .orderBy(asc(quickLinks.sortOrder))
+    .all()
+    .map(serializeQuickLink);
+
+  return {
+    version: 11,
+    exportedAt: Date.now(),
+    projects: allProjects,
+    tasks: allTasks,
+    scratchpad: getScratchpad(db),
+    quickLinks: allLinks,
+    savedViews: getSavedViews(db),
+    claudeSessions: listClaudeSessions(db),
+    settings: readSettings(db.$client),
+    adoProjectLinks: listAdoProjectLinks(db),
+    taskEvents: listTaskEvents(db),
+    notes: listNotes(db),
+    adoDismissed: db.select().from(adoDismissed).orderBy(asc(adoDismissed.dismissedAt)).all(),
+    claudeFolderLinks: listClaudeFolderLinks(db),
+  };
+}
+
+/**
+ * Inserts a backup payload. Rows whose id already exists are skipped, and saved settings and
+ * scratchpad text are kept. Call it inside `db.transaction()` so a failure leaves no partial import.
+ */
+export function importPayload(db: AppDatabase, payload: BackupPayload): ImportResult {
+  let importedProjects = 0;
+  let importedTasks = 0;
+  let importedQuickLinks = 0;
+  let importedSavedViews = 0;
+  let importedClaudeSessions = 0;
+  let importedNotes = 0;
+
+  for (const proj of payload.projects) {
+    const result = db
+      .insert(projects)
+      .values({
+        id: proj.id,
+        name: proj.name,
+        color: proj.color,
+        sortOrder: proj.sortOrder,
+        createdAt: proj.createdAt,
+        adoEnabled: proj.adoEnabled,
+      })
+      .onConflictDoNothing()
+      .run();
+    importedProjects += result.changes;
+  }
+
+  for (const t of payload.tasks) {
+    const result = db
+      .insert(tasks)
+      .values({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        priority: t.priority,
+        projectId: t.projectId,
+        tags: JSON.stringify(t.tags),
+        dueDate: t.dueDate,
+        sortOrder: t.sortOrder,
+        completedAt: t.completedAt,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
+        recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
+        recurrenceParentId: t.recurrenceParentId,
+        holdReason: t.holdReason,
+        heldSince: t.heldSince,
+        plannedFor: t.plannedFor,
+        mainThingOn: t.mainThingOn,
+        reviewedAt: t.reviewedAt,
+      })
+      .onConflictDoNothing()
+      .run();
+    if (result.changes === 0) continue;
+    importedTasks++;
+
+    for (const sub of t.subtasks) {
+      db.insert(subtasks)
+        .values({
+          id: sub.id,
+          taskId: t.id,
+          title: sub.title,
+          isCompleted: sub.isCompleted ? 1 : 0,
+          sortOrder: sub.sortOrder,
+        })
+        .run();
+    }
+
+    const legacyLink = TaskAdoLinkSchema.safeParse({
+      externalId: t.externalId,
+      url: t.externalUrl,
+      title: t.title,
+      type: t.externalId?.startsWith('pr/') ? 'Pull Request' : '',
+      state: '',
+      linkedAt: t.createdAt,
+    });
+    const links = t.adoLinks.length ? t.adoLinks : legacyLink.success ? [legacyLink.data] : [];
+    for (const link of links) {
+      // An item already linked to another task stays there
+      db.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
+    }
+    t.sourceUrls.forEach((url, i) => {
+      db.insert(taskSourceLinks).values({ taskId: t.id, url, linkedAt: t.createdAt + i }).onConflictDoNothing().run();
+    });
+  }
+
+  for (const link of payload.quickLinks) {
+    const result = db
+      .insert(quickLinks)
+      .values({
+        id: link.id,
+        title: link.title,
+        url: link.url,
+        category: link.category,
+        sortOrder: link.sortOrder,
+        createdAt: link.createdAt,
+      })
+      .onConflictDoNothing()
+      .run();
+    importedQuickLinks += result.changes;
+  }
+
+  for (const session of payload.claudeSessions) {
+    // Drop a link to a task that is in neither the backup nor the database
+    const taskExists =
+      session.taskId !== null &&
+      db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, session.taskId)).get();
+    const result = db
+      .insert(claudeSessions)
+      .values({ ...session, taskId: taskExists ? session.taskId : null })
+      .onConflictDoNothing()
+      .run();
+    importedClaudeSessions += result.changes;
+  }
+
+  for (const link of payload.adoProjectLinks) {
+    // Drop a mapping to a project that is in neither the backup nor the database
+    const projectExists =
+      link.projectId !== null &&
+      db.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get();
+    db.insert(adoProjectLinks)
+      .values({
+        adoProject: link.adoProject,
+        projectId: projectExists ? link.projectId : null,
+        workItemTypes: link.workItemTypes ? JSON.stringify(link.workItemTypes) : null,
+        ignoredStates: link.ignoredStates ? JSON.stringify(link.ignoredStates) : null,
+      })
+      .onConflictDoNothing()
+      .run();
+  }
+
+  for (const event of payload.taskEvents) {
+    // Skip history for a task that is in neither the backup nor the database
+    if (!db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, event.taskId)).get()) continue;
+    db.insert(taskEvents).values(event).onConflictDoNothing().run();
+  }
+
+  for (const note of payload.notes) {
+    const result = db
+      .insert(notes)
+      .values({ ...note, tags: JSON.stringify(note.tags) })
+      .onConflictDoNothing()
+      .run();
+    importedNotes += result.changes;
+  }
+
+  for (const dismissed of payload.adoDismissed) {
+    db.insert(adoDismissed).values(dismissed).onConflictDoNothing().run();
+  }
+
+  // Existing mappings win; skip a mapping to a project in neither the backup nor the database
+  for (const link of payload.claudeFolderLinks) {
+    if (!db.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get()) continue;
+    db.insert(claudeFolderLinks).values({ ...link, createdAt: Date.now() }).onConflictDoNothing().run();
+  }
+
+  // Only into a database with no saved settings, so an import never changes them.
+  // The backup folder is machine-specific and not carried over.
+  if (payload.settings && !hasSavedSettings(db.$client)) {
+    writeSettings(db.$client, { ...payload.settings, backupDir: '' });
+  }
+
+  // Like every other record, existing scratchpad text wins
+  if (payload.scratchpad && !getScratchpad(db).trim()) {
+    setKeyValue(db, SCRATCHPAD_KEY, payload.scratchpad);
+  }
+
+  // Merge by id: existing views win, new ones are appended up to the limit.
+  const existingViews = getSavedViews(db);
+  const knownIds = new Set(existingViews.map((v) => v.id));
+  const newViews = payload.savedViews
+    .filter((v) => !knownIds.has(v.id))
+    .slice(0, MAX_SAVED_VIEWS - existingViews.length);
+  if (newViews.length > 0) {
+    setKeyValue(db, SAVED_VIEWS_KEY, JSON.stringify([...existingViews, ...newViews]));
+  }
+  importedSavedViews = newViews.length;
+
+  return {
+    importedTasks,
+    importedProjects,
+    importedQuickLinks,
+    importedSavedViews,
+    importedClaudeSessions,
+    importedNotes,
+  };
+}
+
 export async function registerDashboardRoutes(
   app: FastifyInstance,
   db: AppDatabase,
   options: { beforeImport: (() => void) | null } = { beforeImport: null }
 ) {
-  const getScratchpad = (): string => {
-    const row = db
-      .select()
-      .from(keyValueStore)
-      .where(eq(keyValueStore.key, SCRATCHPAD_KEY))
-      .get();
-    return row?.value ?? '';
-  };
-
-  const setKeyValue = (key: string, value: string) => {
-    const now = Date.now();
-    const existing = db
-      .select()
-      .from(keyValueStore)
-      .where(eq(keyValueStore.key, key))
-      .get();
-    if (existing) {
-      db.update(keyValueStore)
-        .set({ value, updatedAt: now })
-        .where(eq(keyValueStore.key, key))
-        .run();
-    } else {
-      db.insert(keyValueStore)
-        .values({ key, value, updatedAt: now })
-        .run();
-    }
-  };
-
   const getWidgetConfig = (): WidgetConfig => {
     const row = db
       .select()
@@ -106,21 +348,6 @@ export async function registerDashboardRoutes(
     }
   };
 
-  const getSavedViews = (): SavedView[] => {
-    const row = db
-      .select()
-      .from(keyValueStore)
-      .where(eq(keyValueStore.key, SAVED_VIEWS_KEY))
-      .get();
-    if (!row) return [];
-    try {
-      const parsed = SavedViewListSchema.safeParse(JSON.parse(row.value));
-      return parsed.success ? parsed.data : [];
-    } catch {
-      return [];
-    }
-  };
-
   // GET /api/dashboard
   app.get('/api/dashboard', async () => {
     const links = db
@@ -130,10 +357,10 @@ export async function registerDashboardRoutes(
       .all();
 
     return {
-      scratchpad: getScratchpad(),
+      scratchpad: getScratchpad(db),
       widgetConfig: getWidgetConfig(),
       quickLinks: links.map(serializeQuickLink),
-      savedViews: getSavedViews(),
+      savedViews: getSavedViews(db),
       claudeSessions: listClaudeSessions(db),
     };
   });
@@ -147,7 +374,7 @@ export async function registerDashboardRoutes(
         details: parsed.error.flatten(),
       });
     }
-    setKeyValue(SAVED_VIEWS_KEY, JSON.stringify(parsed.data.savedViews));
+    setKeyValue(db, SAVED_VIEWS_KEY, JSON.stringify(parsed.data.savedViews));
     return { savedViews: parsed.data.savedViews };
   });
 
@@ -157,7 +384,7 @@ export async function registerDashboardRoutes(
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid scratchpad payload' });
     }
-    setKeyValue(SCRATCHPAD_KEY, parsed.data.content);
+    setKeyValue(db, SCRATCHPAD_KEY, parsed.data.content);
     return { scratchpad: parsed.data.content };
   });
 
@@ -172,7 +399,7 @@ export async function registerDashboardRoutes(
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid widget config' });
     }
-    setKeyValue(WIDGET_CONFIG_KEY, JSON.stringify(parsed.data));
+    setKeyValue(db, WIDGET_CONFIG_KEY, JSON.stringify(parsed.data));
     return { widgetConfig: parsed.data };
   });
 
@@ -235,39 +462,7 @@ export async function registerDashboardRoutes(
   });
 
   // GET /api/export
-  app.get('/api/export', async () => {
-    const allProjects = db
-      .select()
-      .from(projects)
-      .orderBy(asc(projects.sortOrder))
-      .all()
-      .map(serializeProject);
-    const allTasks = listTasks(db);
-
-    const allLinks = db
-      .select()
-      .from(quickLinks)
-      .orderBy(asc(quickLinks.sortOrder))
-      .all()
-      .map(serializeQuickLink);
-
-    return {
-      version: 11,
-      exportedAt: Date.now(),
-      projects: allProjects,
-      tasks: allTasks,
-      scratchpad: getScratchpad(),
-      quickLinks: allLinks,
-      savedViews: getSavedViews(),
-      claudeSessions: listClaudeSessions(db),
-      settings: readSettings(db.$client),
-      adoProjectLinks: listAdoProjectLinks(db),
-      taskEvents: listTaskEvents(db),
-      notes: listNotes(db),
-      adoDismissed: db.select().from(adoDismissed).orderBy(asc(adoDismissed.dismissedAt)).all(),
-      claudeFolderLinks: listClaudeFolderLinks(db),
-    };
-  });
+  app.get('/api/export', async () => exportPayload(db));
 
   // POST /api/import — all-or-nothing; rows whose id already exists are skipped
   app.post('/api/import', { bodyLimit: 50 * 1024 * 1024 }, async (request, reply) => {
@@ -291,183 +486,8 @@ export async function registerDashboardRoutes(
       });
     }
 
-    let importedProjects = 0;
-    let importedTasks = 0;
-    let importedQuickLinks = 0;
-    let importedSavedViews = 0;
-    let importedClaudeSessions = 0;
-    let importedNotes = 0;
-
     try {
-      db.transaction((tx) => {
-        for (const proj of payload.projects) {
-          const result = tx
-            .insert(projects)
-            .values({
-              id: proj.id,
-              name: proj.name,
-              color: proj.color,
-              sortOrder: proj.sortOrder,
-              createdAt: proj.createdAt,
-              adoEnabled: proj.adoEnabled,
-            })
-            .onConflictDoNothing()
-            .run();
-          importedProjects += result.changes;
-        }
-
-        for (const t of payload.tasks) {
-          const result = tx
-            .insert(tasks)
-            .values({
-              id: t.id,
-              title: t.title,
-              description: t.description,
-              status: t.status,
-              priority: t.priority,
-              projectId: t.projectId,
-              tags: JSON.stringify(t.tags),
-              dueDate: t.dueDate,
-              sortOrder: t.sortOrder,
-              completedAt: t.completedAt,
-              createdAt: t.createdAt,
-              updatedAt: t.updatedAt,
-              statusBeforeArchive: t.status === 'archived' ? t.statusBeforeArchive : null,
-              recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
-              recurrenceParentId: t.recurrenceParentId,
-              holdReason: t.holdReason,
-              heldSince: t.heldSince,
-              plannedFor: t.plannedFor,
-              mainThingOn: t.mainThingOn,
-              reviewedAt: t.reviewedAt,
-            })
-            .onConflictDoNothing()
-            .run();
-          if (result.changes === 0) continue;
-          importedTasks++;
-
-          for (const sub of t.subtasks) {
-            tx.insert(subtasks)
-              .values({
-                id: sub.id,
-                taskId: t.id,
-                title: sub.title,
-                isCompleted: sub.isCompleted ? 1 : 0,
-                sortOrder: sub.sortOrder,
-              })
-              .run();
-          }
-
-          const legacyLink = TaskAdoLinkSchema.safeParse({
-            externalId: t.externalId,
-            url: t.externalUrl,
-            title: t.title,
-            type: t.externalId?.startsWith('pr/') ? 'Pull Request' : '',
-            state: '',
-            linkedAt: t.createdAt,
-          });
-          const links = t.adoLinks.length ? t.adoLinks : legacyLink.success ? [legacyLink.data] : [];
-          for (const link of links) {
-            // An item already linked to another task stays there
-            tx.insert(taskAdoLinks).values({ ...link, taskId: t.id }).onConflictDoNothing().run();
-          }
-          t.sourceUrls.forEach((url, i) => {
-            tx.insert(taskSourceLinks).values({ taskId: t.id, url, linkedAt: t.createdAt + i }).onConflictDoNothing().run();
-          });
-        }
-
-        for (const link of payload.quickLinks) {
-          const result = tx
-            .insert(quickLinks)
-            .values({
-              id: link.id,
-              title: link.title,
-              url: link.url,
-              category: link.category,
-              sortOrder: link.sortOrder,
-              createdAt: link.createdAt,
-            })
-            .onConflictDoNothing()
-            .run();
-          importedQuickLinks += result.changes;
-        }
-
-        for (const session of payload.claudeSessions) {
-          // Drop a link to a task that is in neither the backup nor the database
-          const taskExists =
-            session.taskId !== null &&
-            tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, session.taskId)).get();
-          const result = tx
-            .insert(claudeSessions)
-            .values({ ...session, taskId: taskExists ? session.taskId : null })
-            .onConflictDoNothing()
-            .run();
-          importedClaudeSessions += result.changes;
-        }
-
-        for (const link of payload.adoProjectLinks) {
-          // Drop a mapping to a project that is in neither the backup nor the database
-          const projectExists =
-            link.projectId !== null &&
-            tx.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get();
-          tx.insert(adoProjectLinks)
-            .values({
-              adoProject: link.adoProject,
-              projectId: projectExists ? link.projectId : null,
-              workItemTypes: link.workItemTypes ? JSON.stringify(link.workItemTypes) : null,
-              ignoredStates: link.ignoredStates ? JSON.stringify(link.ignoredStates) : null,
-            })
-            .onConflictDoNothing()
-            .run();
-        }
-
-        for (const event of payload.taskEvents) {
-          // Skip history for a task that is in neither the backup nor the database
-          if (!tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, event.taskId)).get()) continue;
-          tx.insert(taskEvents).values(event).onConflictDoNothing().run();
-        }
-
-        for (const note of payload.notes) {
-          const result = tx
-            .insert(notes)
-            .values({ ...note, tags: JSON.stringify(note.tags) })
-            .onConflictDoNothing()
-            .run();
-          importedNotes += result.changes;
-        }
-
-        for (const dismissed of payload.adoDismissed) {
-          tx.insert(adoDismissed).values(dismissed).onConflictDoNothing().run();
-        }
-
-        // Existing mappings win; skip a mapping to a project in neither the backup nor the database
-        for (const link of payload.claudeFolderLinks) {
-          if (!tx.select({ id: projects.id }).from(projects).where(eq(projects.id, link.projectId)).get()) continue;
-          tx.insert(claudeFolderLinks).values({ ...link, createdAt: Date.now() }).onConflictDoNothing().run();
-        }
-
-        // Only into a database with no saved settings, so an import never changes them.
-        // The backup folder is machine-specific and not carried over.
-        if (payload.settings && !hasSavedSettings(db.$client)) {
-          writeSettings(db.$client, { ...payload.settings, backupDir: '' });
-        }
-
-        // Like every other record, existing scratchpad text wins
-        if (payload.scratchpad && !getScratchpad().trim()) {
-          setKeyValue(SCRATCHPAD_KEY, payload.scratchpad);
-        }
-
-        // Merge by id: existing views win, new ones are appended up to the limit.
-        const existingViews = getSavedViews();
-        const knownIds = new Set(existingViews.map((v) => v.id));
-        const newViews = payload.savedViews
-          .filter((v) => !knownIds.has(v.id))
-          .slice(0, MAX_SAVED_VIEWS - existingViews.length);
-        if (newViews.length > 0) {
-          setKeyValue(SAVED_VIEWS_KEY, JSON.stringify([...existingViews, ...newViews]));
-        }
-        importedSavedViews = newViews.length;
-      });
+      return db.transaction(() => importPayload(db, payload));
     } catch (err) {
       // e.g. a task referencing a project that is neither in the backup nor the database
       return reply.status(400).send({
@@ -475,14 +495,5 @@ export async function registerDashboardRoutes(
         details: err instanceof Error ? err.message : String(err),
       });
     }
-
-    return {
-      importedTasks,
-      importedProjects,
-      importedQuickLinks,
-      importedSavedViews,
-      importedClaudeSessions,
-      importedNotes,
-    };
   });
 }

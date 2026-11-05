@@ -13,6 +13,7 @@ import {
   CreateQuickLinkInput,
   WidgetConfig,
   BackupPayload,
+  ImportResult,
   SavedView,
   ClaudeSession,
   ClaudeFolderLink,
@@ -315,14 +316,7 @@ export async function exportDashboardData(): Promise<BackupPayload> {
   return (await res.json()) as BackupPayload;
 }
 
-export interface ImportResult {
-  importedTasks: number;
-  importedProjects: number;
-  importedQuickLinks: number;
-  importedSavedViews: number;
-  importedClaudeSessions: number;
-  importedNotes: number;
-}
+export type { ImportResult };
 
 export async function importDashboardData(payload: BackupPayload): Promise<ImportResult> {
   const res = await fetch('/api/import', {

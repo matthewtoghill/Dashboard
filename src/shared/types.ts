@@ -576,3 +576,13 @@ export const BackupPayloadSchema = z.object({
   claudeFolderLinks: z.array(ClaudeFolderLinkSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;
+
+/** POST /api/import: how many of each record were added. */
+export interface ImportResult {
+  importedTasks: number;
+  importedProjects: number;
+  importedQuickLinks: number;
+  importedSavedViews: number;
+  importedClaudeSessions: number;
+  importedNotes: number;
+}
