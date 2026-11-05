@@ -8,10 +8,13 @@ import type { Settings } from '../shared/types.ts';
  *
  * Backups are full SQLite files written with `VACUUM INTO` (a consistent snapshot, safe with
  * WAL and while the app is running). They are taken before schema migrations, before every
- * JSON import, once a day while the server runs, and on demand.
+ * JSON import or selective restore, once a day while the server runs, and on demand.
  *
- * Restore (manual): stop the server, copy the chosen backup over the database file
- * (default `data/dashboard.db`, deleting any `-wal`/`-shm` files next to it), start the server.
+ * Selective restore: Settings → Backups → Restore… picks items from a backup (see restore.ts).
+ *
+ * Whole restore (manual, e.g. for a damaged database): stop the server, copy the chosen backup
+ * over the database file (default `data/dashboard.db`, deleting any `-wal`/`-shm` files next to
+ * it), start the server.
  */
 
 export interface BackupConfig {

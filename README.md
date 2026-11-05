@@ -42,7 +42,7 @@ Besides tasks, it tracks your Claude Code sessions and pulls outstanding work fr
 **Integrations and data**
 - Claude Code session tracking through hooks, with links between sessions and tasks.
 - Azure DevOps work item and pull request import through the `az` CLI, with a background check for new and closed items.
-- JSON export/import, CSV task export, and automatic SQLite backups.
+- JSON export/import, CSV task export, and automatic SQLite backups with selective restore.
 - Light, dark and system themes; adjustable density.
 
 ## Getting started
@@ -144,9 +144,17 @@ The server only answers requests addressed to a loopback host name and rejects c
 
 ## Backups and restore
 
-The server keeps automatic snapshots of the database in `data/backups/` and keeps the newest 14 (see `BACKUP_DIR` and `BACKUP_KEEP` above). A snapshot is taken once a day, before every JSON import, and before a schema upgrade. Home and Settings show the last one and have a **Back up now** button.
+The server keeps automatic snapshots of the database in `data/backups/` and keeps the newest 14 (see `BACKUP_DIR` and `BACKUP_KEEP` above). A snapshot is taken once a day, before every JSON import or restore, and before a schema upgrade. Home and Settings show the last one and have a **Back up now** button.
 
-To restore a snapshot:
+To bring back only some things, open **Settings → Backups** and choose **Restore…** next to a snapshot. The dialog lists what differs from your current data, section by section:
+
+- **Missing** items (deleted since the snapshot) can be added back.
+- **Changed** items can be overwritten with the snapshot's version. Expand one to see each differing field with its old and current value. An overwritten task gets the snapshot's subtasks, and keeps ADO and source links added since.
+- Settings can be restored one by one, and the scratchpad can be replaced.
+
+Nothing is ticked to start with, and a restore never deletes anything added since the snapshot. **Review restore** shows what will happen, including anything that can't come back as ticked (for example a task whose project is gone). A safety snapshot is taken before the restore, and the restore applies in full or not at all. The snapshot file itself is never changed; older snapshots are upgraded on a temporary copy.
+
+To restore a whole snapshot, for example if the database is damaged:
 
 1. Stop the server.
 2. Copy the chosen `data/backups/dashboard-<timestamp>.db` over `data/dashboard.db`, and delete `data/dashboard.db-wal` and `data/dashboard.db-shm` if they exist.
