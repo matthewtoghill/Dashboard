@@ -84,7 +84,7 @@ export async function buildApp(options?: { dbPath?: string; az?: AzRunner }): Pr
     // Snapshot before an import changes data; null when backups are disabled
     beforeImport: backupConfig ? () => backupDatabase(sqlite, backupConfig()) : null,
   });
-  await registerBackupRoutes(app, sqlite, backupConfig);
+  await registerBackupRoutes(app, db, backupConfig);
   await registerClaudeRoutes(app, db);
   await registerSettingsRoutes(app, sqlite);
   await registerNoteRoutes(app, db);

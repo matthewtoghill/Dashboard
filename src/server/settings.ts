@@ -26,6 +26,23 @@ export function readSettings(sqlite: Database.Database): Settings {
   return SettingsSchema.parse({});
 }
 
+/**
+ * Only the settings actually stored, so fields added after the database was written (which
+ * readSettings fills with defaults) are left out. Empty when nothing has been saved.
+ */
+export function readStoredSettings(sqlite: Database.Database): Partial<Settings> {
+  if (!hasSavedSettings(sqlite)) return {};
+  const row = sqlite.prepare('SELECT value FROM key_value_store WHERE key = ?').get(SETTINGS_KEY) as { value: string };
+  let stored: string[];
+  try {
+    stored = Object.keys(JSON.parse(row.value) as object);
+  } catch {
+    return {};
+  }
+  const settings = readSettings(sqlite);
+  return Object.fromEntries(stored.filter((key) => key in settings).map((key) => [key, settings[key as keyof Settings]]));
+}
+
 export function hasSavedSettings(sqlite: Database.Database): boolean {
   return !!sqlite.prepare('SELECT 1 FROM key_value_store WHERE key = ?').get(SETTINGS_KEY);
 }

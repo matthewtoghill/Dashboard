@@ -577,6 +577,44 @@ export const BackupPayloadSchema = z.object({
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;
 
+/** Backup sections whose items can be picked one by one in a selective restore. */
+export const RESTORE_SECTIONS = [
+  'projects',
+  'tasks',
+  'notes',
+  'quickLinks',
+  'savedViews',
+  'claudeSessions',
+  'claudeFolderLinks',
+  'adoProjectLinks',
+  'adoDismissed',
+] as const;
+export type RestoreSection = (typeof RESTORE_SECTIONS)[number];
+
+export interface RestoreFieldChange {
+  field: string;
+  backup: unknown;
+  live: unknown;
+}
+
+/** An item in a backup that is missing from the live database, or differs from it. */
+export interface RestoreItem {
+  id: string;
+  label: string;
+  state: 'missing' | 'changed';
+  /** The differing fields; empty for missing items. */
+  changes: RestoreFieldChange[];
+}
+
+/** GET /api/backups/:file/diff. Only differences are listed; items added since the backup are not. */
+export interface RestoreDiff {
+  sections: Record<RestoreSection, RestoreItem[]>;
+  /** Settings saved in the backup that differ from the live ones; backupDir is never included. */
+  settings: RestoreFieldChange[];
+  /** Set when the backup has scratchpad text that differs from the live text. */
+  scratchpad: { backup: string; live: string } | null;
+}
+
 /** POST /api/import: how many of each record were added. */
 export interface ImportResult {
   importedTasks: number;
