@@ -22,7 +22,9 @@ export async function registerSettingsRoutes(app: FastifyInstance, sqlite: Datab
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid settings', details: parsed.error.flatten() });
     }
-    const next = SettingsSchema.parse({ ...readSettings(sqlite), ...parsed.data });
+    // Merge the raw body, not parsed.data: Zod 4's .partial() still fills in .default()s, which
+    // would reset every omitted setting.
+    const next = SettingsSchema.parse({ ...readSettings(sqlite), ...(request.body as object) });
     if (next.backupDir && !path.isAbsolute(next.backupDir)) {
       return reply.status(400).send({ error: 'Backup folder must be an absolute path' });
     }

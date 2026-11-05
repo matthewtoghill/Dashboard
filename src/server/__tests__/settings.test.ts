@@ -56,6 +56,16 @@ describe('settings', () => {
     const updated = await put({ backupKeep: 3 });
     expect(updated.json().settings).toMatchObject({ backupKeep: 3, claudeSessionTtlDays: 7 });
 
+    // Omitted fields keep their saved value rather than resetting to the default
+    await put({ completionAnimation: 'confetti', density: 'compact' });
+    const kept = (await put({ completionAnimationFollowsPointer: false })).json().settings;
+    expect(kept).toMatchObject({
+      backupKeep: 3,
+      completionAnimation: 'confetti',
+      completionAnimationFollowsPointer: false,
+      density: 'compact',
+    });
+
     expect((await put({ backupKeep: 0 })).statusCode).toBe(400);
     expect((await put({ weekStartDay: 2 })).statusCode).toBe(400);
     expect((await put({ backupDir: 'relative/path' })).statusCode).toBe(400);
