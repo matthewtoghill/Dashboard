@@ -40,6 +40,7 @@ describe('settings', () => {
         adoLinkedProjectsOnly: false,
         adoSyncMinutes: 30,
         weekStartDay: 1,
+        streakSkipsWeekends: false,
         staleTaskDays: 14,
         chaseHoldDays: 7,
         planSize: 6,

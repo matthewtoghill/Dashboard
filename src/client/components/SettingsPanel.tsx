@@ -393,6 +393,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </span>
               </label>
             )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings?.streakSkipsWeekends ?? false}
+                onChange={(e) => save.mutate({ streakSkipsWeekends: e.target.checked })}
+                disabled={!settings}
+                className="rounded text-primary-600"
+              />
+              Weekends without completions don't break the streak
+            </label>
             {settings && (
               <label className="flex items-center gap-4">
                 <span className="w-32 text-zinc-600 dark:text-zinc-300">Chase on hold</span>

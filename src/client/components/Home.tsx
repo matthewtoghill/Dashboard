@@ -1,7 +1,9 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CircleCheck, Flame, TriangleAlert } from 'lucide-react';
 import { ClaudeSession, Task, WidgetConfig } from '../../shared/types.ts';
 import { computeDashboardStats } from '../utils/taskUtils.ts';
+import { fetchSettings } from '../api.ts';
 import { ClaudeAttentionBanner, ClaudeSessionActions, ClaudeSessionsRail } from './ClaudeSessions.tsx';
 import { HomeDrawer } from './DashboardWidgets.tsx';
 import { InProgressRail, PlanSection, TaskWidgetActions, UpNextSection } from './TaskWidgets.tsx';
@@ -21,7 +23,8 @@ function greeting(date: Date): string {
 
 /** Progress ring, done today, streak and overdue, inline beside the greeting. */
 const HomeStatsStrip: React.FC<{ tasks: Task[]; onOpenOverdue: () => void }> = ({ tasks, onOpenOverdue }) => {
-  const stats = computeDashboardStats(tasks);
+  const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: fetchSettings });
+  const stats = computeDashboardStats(tasks, settingsData?.settings.streakSkipsWeekends);
   return (
     <div className="flex flex-wrap items-center gap-5 text-xs text-zinc-500 dark:text-zinc-400">
       <span className="flex items-center gap-1.5">

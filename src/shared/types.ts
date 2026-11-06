@@ -371,6 +371,8 @@ export const SettingsSchema = z.object({
   adoSyncMinutes: z.number().int().min(0).max(1440).default(30),
   /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
+  /** Saturdays and Sundays without a completion don't break the streak (they don't add to it either). */
+  streakSkipsWeekends: z.boolean().default(false),
   /** The Overview's stale widget lists to-do tasks untouched for this many days. */
   staleTaskDays: z.number().int().min(1).max(365).default(14),
   /** On hold tasks held this many days or more get a "Chase?" badge. */

@@ -4,6 +4,7 @@ import { buildApp } from '../index.ts';
 import {
   parseQuickAddSyntax,
   computeDashboardStats,
+  countStreakDays,
   tasksToCsv,
   sortOrderForMove,
 } from '../../client/utils/taskUtils.ts';
@@ -635,6 +636,19 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     const csv = tasksToCsv(sampleTasks, projects);
     expect(csv).toContain('Task 1');
     expect(csv).toContain('Work');
+  });
+
+  it('optionally steps over empty weekends when counting the streak', () => {
+    // Thu 29, Fri 30 Oct and Mon 2 Nov 2026 done; counted from Tue 3 Nov (nothing yet today)
+    const days = new Set(['2026-10-29', '2026-10-30', '2026-11-02']);
+    const now = new Date(2026, 10, 3, 12);
+    expect(countStreakDays(days, false, now)).toBe(1);
+    expect(countStreakDays(days, true, now)).toBe(3);
+    // A worked Saturday still counts
+    days.add('2026-10-31');
+    expect(countStreakDays(days, true, now)).toBe(4);
+    // A missed weekday still breaks it
+    expect(countStreakDays(new Set(['2026-10-30']), true, now)).toBe(0);
   });
 
   it('computes manual sort orders between neighbours', () => {

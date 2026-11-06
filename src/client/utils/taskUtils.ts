@@ -598,7 +598,24 @@ export interface DashboardStats {
   streakDays: number;
 }
 
-export function computeDashboardStats(tasks: Task[]): DashboardStats {
+/**
+ * Consecutive days with a completion, ending today (or yesterday if nothing is done today yet).
+ * With skipWeekends, an empty Saturday or Sunday is stepped over instead of ending the streak.
+ */
+export function countStreakDays(completedDates: Set<string>, skipWeekends: boolean, now = new Date()): number {
+  const cursor = new Date(now);
+  if (!completedDates.has(formatIsoDateFromTimestamp(cursor.getTime()))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  let streak = 0;
+  for (;;) {
+    if (completedDates.has(formatIsoDateFromTimestamp(cursor.getTime()))) streak++;
+    else if (!(skipWeekends && (cursor.getDay() === 0 || cursor.getDay() === 6))) return streak;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+}
+
+export function computeDashboardStats(tasks: Task[], streakSkipsWeekends = false): DashboardStats {
   const today = getTodayIso();
   const active = tasks.filter((t) => t.status !== 'done' && t.status !== 'archived');
   const completed = tasks.filter((t) => t.status === 'done');
@@ -617,22 +634,7 @@ export function computeDashboardStats(tasks: Task[]): DashboardStats {
   const completionRate =
     totalNonArchived > 0 ? Math.round((completed.length / totalNonArchived) * 100) : 0;
 
-  // Calculate consecutive day completion streak
-  const completedDates = new Set(completionDays);
-
-  let streakDays = 0;
-  const cursor = new Date();
-  const todayStr = formatIsoDateFromTimestamp(cursor.getTime());
-
-  // If nothing completed today yet, check if streak was alive yesterday
-  if (!completedDates.has(todayStr)) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  while (completedDates.has(formatIsoDateFromTimestamp(cursor.getTime()))) {
-    streakDays++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
+  const streakDays = countStreakDays(new Set(completionDays), streakSkipsWeekends);
 
   return {
     totalActive: active.length,
