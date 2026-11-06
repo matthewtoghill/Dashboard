@@ -86,8 +86,10 @@ Type a task into the quick-add bar and press `Enter`. These tokens are stripped 
 | :--- | :--- | :--- |
 | `!priority` | Priority | `!urgent` `!high` `!med` `!low` `!none`, or `!p4` to `!p0` |
 | `#name` | Project if a project has that name (case-insensitive), otherwise a tag | `#work` `#bug` |
+| `[Project Name]` | Project, for names with spaces. Unmatched brackets stay in the title | `[Side Projects]` |
 | `@date` | Due date | `@today` `@tomorrow` `@tmrw` `@fri` `@next-week` `@eom` `@+3d` `@+2w` `@+1m` `@2026-11-01` |
 | `~repeat` | Recurrence | `~daily` `~weekdays` `~weekly` `~monthly` `~3d` `~2w` `~1m` |
+| `https://…` | Source link (Slack, Teams, email or other link). If the text is only a link, it stays as the title | `https://acme.slack.com/archives/C1/p1` |
 
 Add `!` to a repeat (`~2w!`) to count the next occurrence from completion rather than from the due date.
 
