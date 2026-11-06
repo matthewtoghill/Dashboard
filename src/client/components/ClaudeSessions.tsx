@@ -167,28 +167,39 @@ const StateBadge: React.FC<{ state: ClaudeSessionState }> = ({ state }) => (
   </span>
 );
 
-const CopyResumeButton: React.FC<{ session: ClaudeSession; withLabel?: boolean }> = ({
-  session,
+const CopyButton: React.FC<{ text: string; label: string; title?: string; withLabel?: boolean }> = ({
+  text,
+  label,
+  title,
   withLabel,
 }) => {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
-      title={resumeCommand(session)}
-      aria-label={copied ? 'Resume command copied' : 'Copy resume command'}
+      title={title ?? label}
+      aria-label={copied ? 'Copied' : label}
       onClick={async () => {
-        await navigator.clipboard.writeText(resumeCommand(session));
+        await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
       className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
     >
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-      {withLabel && <span>{copied ? 'Copied' : 'Copy resume command'}</span>}
+      {withLabel && <span>{copied ? 'Copied' : label}</span>}
     </button>
   );
 };
+
+const CopyResumeButton: React.FC<{ session: ClaudeSession; withLabel?: boolean }> = ({ session, withLabel }) => (
+  <CopyButton
+    text={resumeCommand(session)}
+    label="Copy resume command"
+    title={resumeCommand(session)}
+    withLabel={withLabel}
+  />
+);
 
 const OpenSessionLink: React.FC<{ session: ClaudeSession; withLabel?: boolean }> = ({
   session,
@@ -870,7 +881,10 @@ export const ClaudeSessionPanel: React.FC<
               <code className="text-xs">{session.cwd}</code>
             </Detail>
             <Detail label="Session id">
-              <code className="text-xs">{session.sessionId}</code>
+              <span className="flex items-center gap-1">
+                <code className="text-xs break-all">{session.sessionId}</code>
+                <CopyButton text={session.sessionId} label="Copy session id" />
+              </span>
             </Detail>
             <Detail label="Started">{formatTimestamp(session.startedAt)}</Detail>
             <Detail label="Last activity">{formatTimestamp(session.lastEventAt)}</Detail>
