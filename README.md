@@ -101,7 +101,7 @@ Global:
 | :--- | :--- |
 | `N` or `C` | Focus quick-add |
 | `/` | Focus search |
-| `[` | Toggle sidebar |
+| `[` | Cycle sidebar: full, icons only (hover for details), hidden |
 | `Ctrl+K` | Command palette |
 | `Ctrl+Z` | Undo |
 | `?` | Show all shortcuts |

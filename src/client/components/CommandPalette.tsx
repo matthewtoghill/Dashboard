@@ -254,7 +254,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
       {
         id: 'act-sidebar',
-        label: 'Toggle Sidebar',
+        label: 'Cycle Sidebar (full, icons, hidden)',
         category: 'Preferences',
         icon: PanelLeft,
         action: () => {

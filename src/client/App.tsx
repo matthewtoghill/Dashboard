@@ -115,6 +115,12 @@ import {
 
 const DEFAULT_WIDGET_CONFIG = WidgetConfigSchema.parse({});
 const SIDEBAR_KEY = 'dashboard_sidebar_open';
+type SidebarMode = 'full' | 'rail' | 'hidden';
+const SIDEBAR_TOGGLE_LABEL: Record<SidebarMode, string> = {
+  full: 'Collapse sidebar to icons',
+  rail: 'Hide sidebar',
+  hidden: 'Expand sidebar',
+};
 const SIDE_PANEL_KEY = 'dashboard_side_panel';
 type SidePanel = 'widgets' | 'claude' | null;
 
@@ -152,17 +158,25 @@ export const App: React.FC = () => {
 
   // Sidebar & Navigation state
   // Below 900px the sidebar is an overlay, so it starts closed there
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => window.innerWidth >= 900 && localStorage.getItem(SIDEBAR_KEY) !== '0'
-  );
+  // Stored as '1' (full), 'rail' (icons only) or '0' (hidden)
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => {
+    if (window.innerWidth < 900) return 'hidden';
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    return saved === '0' ? 'hidden' : saved === 'rail' ? 'rail' : 'full';
+  });
   // Below 900px the sidebar overlays the page, so picking a view closes it
   const closeOverlaySidebar = () => {
-    if (window.innerWidth < 900) setSidebarOpen(false);
+    if (window.innerWidth < 900) setSidebarMode('hidden');
   };
+  // Wide: full, rail, hidden, full. Narrow: the overlay just opens and closes.
   const toggleSidebar = useCallback(() => {
-    setSidebarOpen((open) => {
-      localStorage.setItem(SIDEBAR_KEY, open ? '0' : '1');
-      return !open;
+    setSidebarMode((mode) => {
+      const next: SidebarMode =
+        window.innerWidth < 900
+          ? mode === 'hidden' ? 'full' : 'hidden'
+          : mode === 'full' ? 'rail' : mode === 'rail' ? 'hidden' : 'full';
+      localStorage.setItem(SIDEBAR_KEY, next === 'full' ? '1' : next === 'hidden' ? '0' : 'rail');
+      return next;
     });
   }, []);
   // Right-hand docked panel: Widgets or Claude sessions, one at a time
@@ -950,9 +964,9 @@ export const App: React.FC = () => {
           <button
             type="button"
             onClick={toggleSidebar}
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            aria-expanded={sidebarOpen}
-            title={`${sidebarOpen ? 'Collapse' : 'Expand'} sidebar ([)`}
+            aria-label={SIDEBAR_TOGGLE_LABEL[sidebarMode]}
+            aria-expanded={sidebarMode !== 'hidden'}
+            title={`${SIDEBAR_TOGGLE_LABEL[sidebarMode]} ([)`}
             className="w-7 h-7 rounded-lg bg-primary-600 hover:bg-primary-500 text-white flex items-center justify-center transition-colors duration-150 cursor-pointer"
           >
             <SquareCheckBig className="w-[15px] h-[15px]" />
@@ -1060,8 +1074,9 @@ export const App: React.FC = () => {
 
       {/* Body with Sidebar + Main View */}
       <div inert={backgroundInert} className="flex-1 flex min-h-0">
-        {sidebarOpen && (
+        {sidebarMode !== 'hidden' && (
           <Sidebar
+            rail={sidebarMode === 'rail'}
             tasks={tasks}
             projects={projects}
             activeNav={activeNav}

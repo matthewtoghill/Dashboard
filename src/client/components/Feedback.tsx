@@ -194,7 +194,7 @@ const SHORTCUTS: [string, string][] = [
   ['Esc', 'Leave the list / close'],
   ['N', 'New task'],
   ['/', 'Search'],
-  ['[', 'Show or hide the sidebar'],
+  ['[', 'Cycle the sidebar: full, icons, hidden'],
   ['Ctrl + K', 'Command palette'],
   ['Ctrl + Z', 'Undo last action'],
   ['?', 'This help'],

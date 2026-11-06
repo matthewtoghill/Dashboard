@@ -29,6 +29,8 @@ import { ViewNameInput } from './SavedViewControls.tsx';
 import { Dot, LABEL_CLASS } from './ui.tsx';
 
 interface SidebarProps {
+  /** Icon-only rail; hovering an icon shows its details. */
+  rail: boolean;
   tasks: Task[];
   projects: Project[];
   activeNav: ActiveNavigation;
@@ -100,7 +102,72 @@ const ProjectDropLine: React.FC<{ position: 'top' | 'bottom' }> = ({ position })
   />
 );
 
+const RAIL_BUTTON_CLASS =
+  'relative w-9 h-[30px] flex items-center justify-center rounded-lg transition-colors duration-150 cursor-pointer';
+const PANEL_CLASS =
+  'rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl text-[13px] text-zinc-700 dark:text-zinc-200';
+
+/**
+ * Rail item: shows `panel` beside the icon on hover or focus. Fixed position escapes the
+ * rail's scroll clipping; the panel is a DOM child with a padding bridge, so the pointer
+ * can move into it (flyout menus) without closing it.
+ */
+const RailHover: React.FC<{ panel: React.ReactNode; menu?: boolean; children: React.ReactNode }> = ({
+  panel,
+  menu,
+  children,
+}) => {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const open = (e: React.SyntheticEvent<HTMLDivElement>) => setAnchor(e.currentTarget.getBoundingClientRect());
+  return (
+    <div
+      onMouseEnter={open}
+      onMouseLeave={() => setAnchor(null)}
+      onFocus={open}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAnchor(null);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setAnchor(null);
+      }}
+    >
+      {children}
+      {anchor && (
+        <div
+          className={`fixed z-40 pl-3 ${menu ? '' : '-translate-y-1/2 pointer-events-none'}`}
+          style={{ left: anchor.right, top: menu ? anchor.top - 4 : anchor.top + anchor.height / 2 }}
+        >
+          {menu ? (
+            <div
+              className={`${PANEL_CLASS} w-60 p-1 overflow-y-auto`}
+              style={{ maxHeight: window.innerHeight - anchor.top - 8 }}
+            >
+              {panel}
+            </div>
+          ) : (
+            <div role="tooltip" className={`${PANEL_CLASS} min-w-36 max-w-64 px-3 py-2`}>
+              {panel}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Tooltip body: label with count, optional detail line beneath. */
+const RailTip: React.FC<{ label: string; count?: number; detail?: string }> = ({ label, count, detail }) => (
+  <>
+    <div className="flex items-center gap-4">
+      <span className="flex-1 font-medium text-zinc-900 dark:text-zinc-100 whitespace-nowrap">{label}</span>
+      {count !== undefined && <span className="text-xs text-zinc-500">{count}</span>}
+    </div>
+    {detail && <div className="mt-0.5 text-xs text-zinc-500">{detail}</div>}
+  </>
+);
+
 export const Sidebar: React.FC<SidebarProps> = ({
+  rail,
   tasks,
   projects,
   activeNav,
@@ -187,6 +254,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     title?: string;
     /** The Calendar entry: All Active in month layout. */
     calendar?: true;
+    /** Needs the user; dotted on the rail icon. */
+    alert?: boolean;
   }[] = [
     {
       id: 'overview',
@@ -194,6 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: LayoutDashboard,
       ...(claudeAttentionCount > 0 && {
         count: claudeAttentionCount,
+        alert: true,
         countClass:
           'px-1.5 py-px rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300',
         title: `${claudeAttentionCount} Claude session${claudeAttentionCount === 1 ? '' : 's'} need${claudeAttentionCount === 1 ? 's' : ''} attention`,
@@ -223,6 +293,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ...(chaseCount > 0
         ? {
             count: chaseCount,
+            alert: true,
             countClass:
               'px-1.5 py-px rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300',
             title: `${chaseCount} of ${onHoldCount} on hold need${chaseCount === 1 ? 's' : ''} chasing`,
@@ -237,6 +308,175 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const isArchiveSelected = activeNav.type === 'smart' && activeNav.id === 'archived';
+  const isNavSelected = (item: (typeof navItems)[number]) =>
+    activeNav.type === 'smart' &&
+    activeNav.id === item.id &&
+    (item.id !== 'inbox' || isCalendar === !!item.calendar);
+  const selectNavItem = (item: (typeof navItems)[number]) =>
+    item.calendar ? onOpenCalendar() : onSelectNav({ type: 'smart', id: item.id });
+  const projectTaskCount = (id: string) => activeTasks.filter((t) => t.projectId === id).length;
+  const savedViewCount = (saved: SavedView) =>
+    viewTaskCount(tasks, resolveSavedView(saved.view, projects, tasks).view, projects, today);
+
+  const tagChips = (
+    <div className="flex flex-wrap gap-1.5">
+      {allTags.length === 0 && <p className="text-xs text-zinc-500">No tags on active tasks</p>}
+      {allTags.map(([tag, count]) => {
+        const isSelected = activeNav.type === 'tag' && activeNav.id === tag;
+        return (
+          <button
+            key={tag}
+            type="button"
+            onClick={() => onSelectNav({ type: 'tag', id: tag })}
+            aria-current={isSelected ? 'page' : undefined}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors duration-150 cursor-pointer ${
+              isSelected
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-primary-400'
+            }`}
+          >
+            <Tag className="w-2.5 h-2.5" />
+            <span>{tag}</span>
+            <span className="opacity-70 text-[10px]">{count}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (rail) {
+    const railClass = (selected: boolean) => `${RAIL_BUTTON_CLASS} ${selected ? ACTIVE_CLASS : IDLE_CLASS}`;
+    const iconClass = (selected: boolean) => `w-4 h-4 ${selected ? '' : 'text-zinc-500 dark:text-zinc-400'}`;
+    const isTagSelected = activeNav.type === 'tag';
+    const isSavedViewSelected = savedViews.some((v) => v.id === appliedViewId);
+    return (
+      <aside className="w-[52px] shrink-0 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50 dark:bg-zinc-950 flex flex-col select-none text-[13px]">
+        <div className="px-2 py-3.5 flex flex-col items-center gap-[22px] flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          <nav className="flex flex-col gap-px" aria-label="Smart Views">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isSelected = isNavSelected(item);
+              return (
+                <RailHover
+                  key={item.calendar ? 'calendar' : item.id}
+                  panel={<RailTip label={item.label} count={item.count} detail={item.title} />}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectNavItem(item)}
+                    aria-label={item.label}
+                    aria-current={isSelected ? 'page' : undefined}
+                    className={railClass(isSelected)}
+                  >
+                    <Icon className={iconClass(isSelected)} />
+                    {item.alert && (
+                      <span aria-hidden className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    )}
+                  </button>
+                </RailHover>
+              );
+            })}
+          </nav>
+
+          {projects.length > 0 && (
+            <div className="flex flex-col gap-px" role="group" aria-label="Projects">
+              {projects.map((project) => {
+                const isSelected = activeNav.type === 'project' && activeNav.id === project.id;
+                return (
+                  <RailHover
+                    key={project.id}
+                    panel={<RailTip label={project.name} count={projectTaskCount(project.id)} detail="Project" />}
+                  >
+                    <button
+                      type="button"
+                      data-menu-project={project.id}
+                      onClick={() => onSelectNav({ type: 'project', id: project.id })}
+                      aria-label={`Project ${project.name}`}
+                      aria-current={isSelected ? 'page' : undefined}
+                      className={railClass(isSelected)}
+                    >
+                      <Dot color={project.color} size={10} />
+                    </button>
+                  </RailHover>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-px">
+            <RailHover
+              menu
+              panel={
+                <>
+                  <div className={`px-2 pt-1 pb-1.5 ${LABEL_CLASS} text-zinc-500`}>Saved views</div>
+                  {savedViews.length === 0 ? (
+                    <p className="px-2 pb-1.5 text-xs text-zinc-500">Use "Save view" above a task list</p>
+                  ) : (
+                    savedViews.map((saved) => {
+                      const isSelected = appliedViewId === saved.id;
+                      return (
+                        <button
+                          key={saved.id}
+                          type="button"
+                          onClick={() => onApplySavedView(saved.id)}
+                          aria-current={isSelected ? 'true' : undefined}
+                          className={`${ROW_CLASS} py-1.5 ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}
+                        >
+                          <Bookmark className="w-3.5 h-3.5 shrink-0" />
+                          <span className="flex-1 truncate text-left">{saved.name}</span>
+                          <span className="text-xs text-zinc-500">{savedViewCount(saved)}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </>
+              }
+            >
+              <button
+                type="button"
+                aria-label={`Saved views (${savedViews.length})`}
+                aria-haspopup="true"
+                className={railClass(isSavedViewSelected)}
+              >
+                <Bookmark className={iconClass(isSavedViewSelected)} />
+              </button>
+            </RailHover>
+
+            <RailHover
+              menu
+              panel={
+                <div className="px-1.5 pb-1.5">
+                  <div className={`px-0.5 pt-1 pb-1.5 ${LABEL_CLASS} text-zinc-500`}>Tags</div>
+                  {tagChips}
+                </div>
+              }
+            >
+              <button
+                type="button"
+                aria-label={`Tags (${allTags.length})`}
+                aria-haspopup="true"
+                className={railClass(isTagSelected)}
+              >
+                <Tag className={iconClass(isTagSelected)} />
+              </button>
+            </RailHover>
+
+            <RailHover panel={<RailTip label="Archive" count={archivedCount} />}>
+              <button
+                type="button"
+                onClick={() => onSelectNav({ type: 'smart', id: 'archived' })}
+                aria-label="Archive"
+                aria-current={isArchiveSelected ? 'page' : undefined}
+                className={railClass(isArchiveSelected)}
+              >
+                <Archive className={iconClass(isArchiveSelected)} />
+              </button>
+            </RailHover>
+          </div>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="w-[232px] shrink-0 border-r border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50 dark:bg-zinc-950 flex flex-col select-none text-[13px] max-[900px]:fixed max-[900px]:top-[52px] max-[900px]:bottom-0 max-[900px]:left-0 max-[900px]:z-30 max-[900px]:shadow-xl">
@@ -245,15 +485,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex flex-col gap-px" aria-label="Smart Views">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isSelected =
-              activeNav.type === 'smart' &&
-              activeNav.id === item.id &&
-              (item.id !== 'inbox' || isCalendar === !!item.calendar);
+            const isSelected = isNavSelected(item);
             return (
               <button
                 key={item.calendar ? 'calendar' : item.id}
                 type="button"
-                onClick={() => (item.calendar ? onOpenCalendar() : onSelectNav({ type: 'smart', id: item.id }))}
+                onClick={() => selectNavItem(item)}
                 title={item.title}
                 aria-current={isSelected ? 'page' : undefined}
                 className={`${ROW_CLASS} py-[7px] ${isSelected ? ACTIVE_CLASS : IDLE_CLASS}`}
@@ -346,8 +583,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               projects.map((project, index) => {
                 const isSelected = activeNav.type === 'project' && activeNav.id === project.id;
-                const projectTaskCount = activeTasks.filter((t) => t.projectId === project.id).length;
-
                 return (
                   <div
                     key={project.id}
@@ -412,7 +647,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
-                    <span className={`text-xs ${isSelected ? '' : 'text-zinc-500'}`}>{projectTaskCount}</span>
+                    <span className={`text-xs ${isSelected ? '' : 'text-zinc-500'}`}>{projectTaskCount(project.id)}</span>
                   </div>
                 );
               })
@@ -478,7 +713,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <Trash2 className="w-3 h-3" />
                       </button>
                       <span className="text-xs text-zinc-500">
-                        {viewTaskCount(tasks, resolveSavedView(saved.view, projects, tasks).view, projects, today)}
+                        {savedViewCount(saved)}
                       </span>
                     </div>
                   );
@@ -489,29 +724,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <SectionToggle label="Tags" count={allTags.length} open={sections.tags} onToggle={() => toggleSection('tags')} />
           {sections.tags && (
-            <div className="flex flex-wrap gap-1.5 px-2.5 pt-1 pb-2">
-              {allTags.length === 0 && <p className="text-xs text-zinc-500">No tags on active tasks</p>}
-              {allTags.map(([tag, count]) => {
-                const isSelected = activeNav.type === 'tag' && activeNav.id === tag;
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => onSelectNav({ type: 'tag', id: tag })}
-                    aria-current={isSelected ? 'page' : undefined}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors duration-150 cursor-pointer ${
-                      isSelected
-                        ? 'bg-primary-600 text-white border-primary-600'
-                        : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-primary-400'
-                    }`}
-                  >
-                    <Tag className="w-2.5 h-2.5" />
-                    <span>{tag}</span>
-                    <span className="opacity-70 text-[10px]">{count}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <div className="px-2.5 pt-1 pb-2">{tagChips}</div>
           )}
 
           <button
