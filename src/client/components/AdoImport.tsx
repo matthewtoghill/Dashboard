@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AtSign,
   Bug,
+  Check,
   CloudDownload,
+  Copy,
   Crown,
   ExternalLink,
   EyeOff,
@@ -258,9 +260,10 @@ export const LinkToTaskButton: React.FC<{
   );
 };
 
-/** The task drawer's linked Azure DevOps items, each with Unlink and Open buttons. */
+/** The task drawer's linked Azure DevOps items, each with Copy id, Unlink and Open buttons. */
 export const LinkedAdoItems: React.FC<{ links: TaskAdoLink[] }> = ({ links }) => {
   const queryClient = useQueryClient();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const unlink = useMutation({
     mutationFn: unlinkAdoItem,
     onSettled: () => {
@@ -291,6 +294,19 @@ export const LinkedAdoItems: React.FC<{ links: TaskAdoLink[] }> = ({ links }) =>
               {link.state && ` \u00b7 ${link.state}`}
             </span>
           </a>
+          <button
+            type="button"
+            aria-label={copiedId === link.externalId ? 'Id copied' : `Copy id of ${externalLinkLabel(link.externalId)}`}
+            title="Copy id"
+            onClick={async () => {
+              await navigator.clipboard.writeText(link.externalId.split('/')[1]);
+              setCopiedId(link.externalId);
+              setTimeout(() => setCopiedId((id) => (id === link.externalId ? null : id)), 1500);
+            }}
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+          >
+            {copiedId === link.externalId ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
           <button
             type="button"
             aria-label={`Unlink ${externalLinkLabel(link.externalId)}`}
