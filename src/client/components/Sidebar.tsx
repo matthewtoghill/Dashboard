@@ -20,6 +20,7 @@ import {
   Pause,
   Sun,
   ClipboardCheck,
+  History,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { PROJECT_COLORS, getTodayIso, isPlanned, needsChase } from '../utils/taskUtils.ts';
@@ -232,6 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
     { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
     { id: 'notes', label: 'Notes', icon: StickyNote },
+    { id: 'activity', label: 'Activity Log', icon: History },
   ];
 
   const isArchiveSelected = activeNav.type === 'smart' && activeNav.id === 'archived';

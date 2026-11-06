@@ -23,6 +23,7 @@ import {
   NotebookPen,
   Pause,
   ClipboardCheck,
+  History,
 } from 'lucide-react';
 import { Project, SavedView, Task } from '../../shared/types.ts';
 import { ActiveNavigation } from '../utils/taskView.ts';
@@ -208,6 +209,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: StickyNote,
         action: () => {
           onSelectNav({ type: 'smart', id: 'notes' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-activity',
+        label: 'Go to Activity Log',
+        category: 'Views',
+        icon: History,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'activity' });
           onClose();
         },
       },

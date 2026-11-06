@@ -245,8 +245,8 @@ export const WidgetConfigSchema = z.object({
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
-/** 'notes' is the Notes page, not a task list. */
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'review', 'completed', 'archived', 'notes']);
+/** 'notes' and 'activity' are pages, not task lists. */
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'review', 'completed', 'archived', 'notes', 'activity']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),

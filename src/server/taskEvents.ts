@@ -67,6 +67,11 @@ export function listTaskEvents(db: AppDatabase, taskId?: string): TaskEvent[] {
     .all();
 }
 
+/** The newest `limit` events across all tasks, newest first: the activity log page. */
+export function recentTaskEvents(db: AppDatabase, limit: number): TaskEvent[] {
+  return db.select().from(taskEvents).orderBy(desc(taskEvents.at), desc(sql`rowid`)).limit(limit).all();
+}
+
 /** The newest status note of each task that has one, or of just `taskId` (uses its index). */
 export function latestNotes(db: AppDatabase, taskId?: string): Map<string, { text: string; at: number }> {
   const notes = new Map<string, { text: string; at: number }>();

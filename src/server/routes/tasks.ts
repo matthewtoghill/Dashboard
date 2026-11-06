@@ -19,7 +19,7 @@ import {
 } from '../../shared/types.ts';
 import { Recurrence, RecurrenceSchema, nextOccurrence } from '../../shared/recurrence.ts';
 import { toIsoDate } from '../../shared/dates.ts';
-import { diffTask, latestNotes, listTaskEvents, recordTaskEvents, requestSource } from '../taskEvents.ts';
+import { diffTask, latestNotes, listTaskEvents, recentTaskEvents, recordTaskEvents, requestSource } from '../taskEvents.ts';
 
 function serializeSubtask(row: DbSubtask): Subtask {
   return {
@@ -404,6 +404,12 @@ export async function registerTaskRoutes(app: FastifyInstance, db: AppDatabase) 
     });
 
     return { task: getTaskWithSubtasks(id)!, ...outcome };
+  });
+
+  // GET /api/events?limit= — every task's activity, newest first
+  app.get<{ Querystring: { limit?: string } }>('/api/events', async (request) => {
+    const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 2000);
+    return { events: recentTaskEvents(db, limit) };
   });
 
   // GET /api/tasks/:id/events — activity log, newest first

@@ -169,6 +169,20 @@ describe('Task activity log', () => {
     const after = (await app.inject({ method: 'GET', url: '/api/export' })).json();
     expect(after.taskEvents).toEqual([]);
   });
+
+  it('lists recent events across tasks, newest first, up to the limit', async () => {
+    const a = await createTask({ title: 'A' });
+    const b = await createTask({ title: 'B' });
+    await patch(`/api/tasks/${a}`, { status: 'done' });
+    const recent = async (limit: number) =>
+      (await app.inject({ method: 'GET', url: `/api/events?limit=${limit}` })).json().events as TaskEvent[];
+    expect((await recent(10)).map((e) => [e.taskId, e.kind])).toEqual([
+      [a, 'status'],
+      [b, 'created'],
+      [a, 'created'],
+    ]);
+    expect(await recent(1)).toHaveLength(1);
+  });
 });
 
 describe('Status notes', () => {

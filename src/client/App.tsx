@@ -77,6 +77,7 @@ import {
 import { ReorderableTaskList } from './components/ReorderableTaskList.tsx';
 import { MainThingCard } from './components/TaskWidgets.tsx';
 import { CalendarView } from './components/CalendarView.tsx';
+import { ActivityLog } from './components/ActivityLog.tsx';
 import { SavedViewControls } from './components/SavedViewControls.tsx';
 import { QuickAddBar } from './components/QuickAddBar.tsx';
 import { ProjectProgressStrip, TaskListToolbar } from './components/TaskListToolbar.tsx';
@@ -239,7 +240,8 @@ export const App: React.FC = () => {
         activeNav.id === 'completed' ||
         activeNav.id === 'archived' ||
         activeNav.id === 'review' ||
-        activeNav.id === 'notes')
+        activeNav.id === 'notes' ||
+        activeNav.id === 'activity')
     ) {
       setActiveNav({ type: 'smart', id: 'inbox' });
     }
@@ -696,6 +698,7 @@ export const App: React.FC = () => {
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
   const isNotesPage = activeNav.type === 'smart' && activeNav.id === 'notes';
   const isReviewPage = activeNav.type === 'smart' && activeNav.id === 'review';
+  const isActivityPage = activeNav.type === 'smart' && activeNav.id === 'activity';
   // The note panel belongs to the Notes page
   useEffect(() => {
     if (!isNotesPage) setNotePanel(null);
@@ -755,7 +758,7 @@ export const App: React.FC = () => {
     tasks,
     visibleOrder,
     enabled: !(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId),
-    listShown: !isOverviewPage && !isNotesPage && !isReviewPage && !isCalendar,
+    listShown: !isOverviewPage && !isNotesPage && !isReviewPage && !isActivityPage && !isCalendar,
     onShowShortcuts: () => setShortcutsOpen(true),
     onOpen: setSelectedTaskId,
     onToggle: handleToggleTask,
@@ -967,13 +970,13 @@ export const App: React.FC = () => {
             onChange={(e) =>
               updateView({
                 search: e.target.value,
-                // Typing a search on Home or Weekly Review jumps to the task list; on Notes it filters notes
+                // Typing a search on Home or Weekly Review jumps to the task list; on Notes and Activity Log it filters the page
                 ...((isOverviewPage || isReviewPage) && e.target.value.trim()
                   ? { nav: { type: 'smart', id: 'inbox' } as const }
                   : {}),
               })
             }
-            placeholder={isNotesPage ? 'Search notes…' : 'Search tasks or run a command…'}
+            placeholder={isNotesPage ? 'Search notes…' : isActivityPage ? 'Search activity…' : 'Search tasks or run a command…'}
             aria-label={isNotesPage ? 'Search notes' : 'Search tasks'}
             className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
@@ -1104,6 +1107,14 @@ export const App: React.FC = () => {
               onOpen={openNote}
               onNew={() => openNote(null)}
               showToast={showToast}
+            />
+          ) : isActivityPage ? (
+            <ActivityLog
+              tasks={tasks}
+              projects={projects}
+              search={searchQuery}
+              onOpenTask={setSelectedTaskId}
+              onOpenProject={(id) => setActiveNav({ type: 'project', id })}
             />
           ) : isReviewPage ? (
             <WeeklyReview

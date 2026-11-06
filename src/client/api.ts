@@ -537,6 +537,12 @@ export async function fetchTaskEvents(taskId: string): Promise<TaskEvent[]> {
   return data.events;
 }
 
+export async function fetchRecentEvents(limit: number): Promise<TaskEvent[]> {
+  const res = await fetch(`/api/events?limit=${limit}`);
+  if (!res.ok) throw new Error(`Failed to load activity: ${res.statusText}`);
+  return ((await res.json()) as { events: TaskEvent[] }).events;
+}
+
 export async function fetchNotes(): Promise<Note[]> {
   const res = await fetch('/api/notes');
   if (!res.ok) throw new Error(`Failed to load notes: ${res.statusText}`);
