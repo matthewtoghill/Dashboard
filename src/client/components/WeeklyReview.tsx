@@ -487,16 +487,25 @@ const PlanSizeCheck: React.FC<{ tasks: Task[]; planSize: number; onSetPlanSize: 
   const max = Math.max(1, ...days.map((d) => d.count));
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex items-end gap-1 h-12" aria-hidden>
+      <div className="flex items-end gap-1 h-16" aria-hidden>
         {days.map((d) => {
           const weekend = [0, 6].includes(parseIsoDate(d.date).getDay());
           return (
             <div
               key={d.date}
               title={`${formatShortDate(d.date)}: ${d.count}`}
-              className={`flex-1 rounded-sm ${weekend ? 'bg-zinc-200 dark:bg-zinc-800' : 'bg-primary-500/70'}`}
-              style={{ height: `${Math.max(6, (d.count / max) * 100)}%` }}
-            />
+              className="flex-1 h-full flex flex-col justify-end items-stretch"
+            >
+              {d.count > 0 && (
+                <span className="text-[10px] leading-3 text-center tabular-nums text-zinc-500 dark:text-zinc-400">
+                  {d.count}
+                </span>
+              )}
+              <div
+                className={`rounded-sm ${weekend ? 'bg-zinc-200 dark:bg-zinc-800' : 'bg-primary-500/70'}`}
+                style={{ height: `max(6px, calc((100% - 0.75rem) * ${d.count / max}))` }}
+              />
+            </div>
           );
         })}
       </div>
