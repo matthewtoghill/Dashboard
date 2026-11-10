@@ -7,7 +7,7 @@ import { arrangeAdoItems } from '../../client/components/AdoProjectPanel.tsx';
 import { AdoSyncResult, Task } from '../../shared/types.ts';
 
 const ORG = 'https://dev.azure.com/acme/';
-const ME = 'me@acme.com';
+const ME_ID = 'me-guid';
 /** Longer than the other WIQL keys, so the fake az answers the mentions query with it. */
 const MENTIONS = 'WHERE [System.Id] IN (@RecentMentions)';
 
@@ -22,7 +22,7 @@ const workItem = (id: number, type: string, project = 'Alpha', state = 'Active')
   },
 });
 
-const pr = (id: number, project: string, reviewers: { uniqueName: string; vote: number }[] = [], status = 'active') => ({
+const pr = (id: number, project: string, reviewers: { id: string; vote: number }[] = [], status = 'active') => ({
   pullRequestId: id,
   title: `PR ${id}`,
   status,
@@ -124,14 +124,14 @@ describe('Azure DevOps import', () => {
     calls = [];
     responses = {
       'devops configure --list': `[defaults]\norganization = ${ORG}\nproject = Alpha\n`,
-      'account show': `${ME}\n`,
+      'rest --method get': `${ME_ID}\n`,
       [MENTIONS]: [],
       'boards query': [workItem(1, 'Task'), workItem(2, 'Feature'), workItem(3, 'Bug', 'Beta')],
       '--project Alpha --status active --creator me': [pr(10, 'Alpha')],
       '--project Alpha --status active --reviewer me': [
-        pr(10, 'Alpha', [{ uniqueName: ME, vote: 0 }]), // also authored: listed once
-        pr(11, 'Alpha', [{ uniqueName: 'ME@acme.com', vote: 0 }]),
-        pr(12, 'Alpha', [{ uniqueName: ME, vote: 10 }]), // already approved
+        pr(10, 'Alpha', [{ id: ME_ID, vote: 0 }]), // also authored: listed once
+        pr(11, 'Alpha', [{ id: 'ME-GUID', vote: 0 }]),
+        pr(12, 'Alpha', [{ id: ME_ID, vote: 10 }]), // already approved
       ],
     };
     const runner: AzRunner = (args) => fakeAz(responses, calls)(args);
@@ -191,7 +191,6 @@ describe('Azure DevOps import', () => {
 
   it('fetches recent mentions with their comment and imports them as reply tasks', async () => {
     responses[MENTIONS] = [workItem(7, 'Product Backlog Item'), workItem(8, 'Bug', 'Beta')];
-    responses['rest --method get'] = 'ME-GUID\n';
     responses['workItemId=7'] = {
       comments: [
         { text: '<div>later</div>', createdBy: { displayName: 'Other' } },

@@ -150,7 +150,7 @@ interface AzPullRequest {
   status: string;
   isDraft?: boolean;
   repository: { name: string; project: { name: string } };
-  reviewers?: { uniqueName?: string; vote?: number }[];
+  reviewers?: { id?: string; vote?: number }[];
 }
 
 export function workItemToItem(org: string, wi: AzWorkItem): AdoItem {
@@ -182,10 +182,10 @@ export function pullRequestToItem(org: string, pr: AzPullRequest, role: 'author'
   };
 }
 
-/** True when `me` is a reviewer on the PR who has not voted yet. */
-export function awaitsMyVote(pr: AzPullRequest, me: string): boolean {
+/** True when `meId` (my identity id) is a reviewer on the PR who has not voted yet. */
+export function awaitsMyVote(pr: AzPullRequest, meId: string): boolean {
   if (pr.isDraft) return false;
-  const mine = pr.reviewers?.find((r) => r.uniqueName?.toLowerCase() === me.toLowerCase());
+  const mine = pr.reviewers?.find((r) => r.id?.toLowerCase() === meId.toLowerCase());
   return !!mine && !mine.vote;
 }
 
@@ -462,6 +462,12 @@ export async function registerAdoRoutes(
       }
     };
 
+    // My Azure DevOps identity id, which reviewer lists and @mentions in comments both use
+    const meIdRequest = az([
+      'rest', '--method', 'get', '--resource', ADO_RESOURCE, '--url', `${org}_apis/connectionData`,
+      '--query', 'authenticatedUser.id', '--output', 'tsv',
+    ]).then((out) => out.trim());
+
     // Mentions already imported keep their task; only new ones need their comment looked up. A
     // dismissed or unchanged one keeps the comment found last time.
     const linkedIds = new Set(db.select({ id: taskAdoLinks.externalId }).from(taskAdoLinks).all().map((r) => r.id));
@@ -495,12 +501,7 @@ export async function registerAdoRoutes(
           return !dismissed;
         });
         if (unlinked.length === 0) return mentioned;
-        const meId = (
-          await az([
-            'rest', '--method', 'get', '--resource', ADO_RESOURCE, '--url', `${org}_apis/connectionData`,
-            '--query', 'authenticatedUser.id', '--output', 'tsv',
-          ])
-        ).trim();
+        const meId = await meIdRequest;
         await Promise.all(unlinked.map(async (item) => {
           try {
             const out = await az([
@@ -522,14 +523,14 @@ export async function registerAdoRoutes(
       }
     };
 
-    const [workItems, me, prLists, mentions] = await Promise.all([
+    const [workItems, meId, prLists, mentions] = await Promise.all([
       linkedOnly && links.length === 0
         ? []
         : az([
             'boards', 'query', ...scope, '--wiql',
             openWorkItemsWiql(linkedOnly ? links.map((l) => l.adoProject) : undefined),
           ]).then((out) => parseJson<AzWorkItem[]>(out)),
-      az(['account', 'show', '--query', 'user.name', '--output', 'tsv']).then((out) => out.trim()),
+      meIdRequest,
       Promise.all(
         links.map(async (l) => ({
           authored: await listPrs(l.adoProject, ['--creator', 'me']),
@@ -554,7 +555,7 @@ export async function registerAdoRoutes(
       for (const pr of authored) found.set(`pr/${pr.pullRequestId}`, pullRequestToItem(org, pr, 'author'));
       for (const pr of reviewing) {
         const id = `pr/${pr.pullRequestId}`;
-        if (!found.has(id) && awaitsMyVote(pr, me)) found.set(id, pullRequestToItem(org, pr, 'reviewer'));
+        if (!found.has(id) && awaitsMyVote(pr, meId)) found.set(id, pullRequestToItem(org, pr, 'reviewer'));
       }
     }
     for (const item of mentions) found.set(item.externalId, item);
