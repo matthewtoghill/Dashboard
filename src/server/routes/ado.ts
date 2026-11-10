@@ -127,7 +127,14 @@ export const runAz: AzRunner = (args) =>
     }, AZ_TIMEOUT_MS);
   });
 
-const parseJson = <T>(stdout: string): T => JSON.parse(stdout || 'null') as T;
+/** az prints nothing for an empty result, hence null. */
+const parseJson = <T>(stdout: string): T | null => {
+  try {
+    return JSON.parse(stdout || 'null') as T | null;
+  } catch {
+    throw new AzError('The Azure CLI returned output that is not JSON.');
+  }
+};
 
 const withSlash = (url: string) => (url.endsWith('/') ? url : `${url}/`);
 
@@ -383,7 +390,7 @@ export async function registerAdoRoutes(
                   : '{}';
                 const enabled = (
                   parseJson<{ value?: { name: string; isDisabled?: boolean; states?: { name: string }[] }[] }>(out)
-                    .value ?? []
+                    ?.value ?? []
                 ).filter((t) => !t.isDisabled);
                 cache.projects[name.toLowerCase()] = {
                   types: enabled.map((t) => t.name),
@@ -442,8 +449,10 @@ export async function registerAdoRoutes(
     // PRs can only be listed per project, so only mapped projects are searched
     const listPrs = async (project: string, filter: string[]) => {
       try {
-        return parseJson<AzPullRequest[]>(
-          await az(['repos', 'pr', 'list', ...scope, '--project', project, '--status', 'active', ...filter])
+        return (
+          parseJson<AzPullRequest[]>(
+            await az(['repos', 'pr', 'list', ...scope, '--project', project, '--status', 'active', ...filter])
+          ) ?? []
         );
       } catch (err) {
         if (!(err instanceof AzError)) throw err;
@@ -597,6 +606,7 @@ export async function registerAdoRoutes(
         az(['repos', 'pr', 'show', ...scope, '--id', id])
           .then((out) => {
             const pr = parseJson<AzPullRequest>(out);
+            if (!pr) return;
             const closed = pr.status === 'completed' || pr.status === 'abandoned';
             const state = closed ? (pr.status === 'completed' ? 'Completed' : 'Abandoned') : pr.isDraft ? 'Draft' : pr.status;
             seen.set(`pr/${id}`, { title: pr.title, state, closed });

@@ -259,6 +259,13 @@ describe('Azure DevOps import', () => {
     expect(res.status).toBe(200);
     expect(res.body.warnings).toEqual(['Alpha: Azure CLI: project not found']);
 
+    // Empty output is an empty list; output that isn't JSON is a warning, not a failed check
+    responses['--project Alpha --status active --creator me'] = '';
+    responses['--project Alpha --status active --reviewer me'] = 'oops';
+    res = await fetchItems();
+    expect(res.status).toBe(200);
+    expect(res.body.warnings).toEqual(['Alpha: The Azure CLI returned output that is not JSON.']);
+
     responses['boards query'] = new AzError('Not signed in to Azure DevOps. Run az login, then try again.');
     res = await fetchItems();
     expect(res.status).toBe(502);
