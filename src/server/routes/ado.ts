@@ -99,21 +99,32 @@ export function describeAzFailure(stderr: string, notFound = false): string {
   return error ? `Azure CLI: ${error.replace(/^ERROR:\s*/, '')}` : 'The Azure CLI failed.';
 }
 
+const AZ_TIMEOUT_MS = 60_000;
+
 export const runAz: AzRunner = (args) =>
   new Promise((resolve, reject) => {
     const windows = process.platform === 'win32';
+    let timedOut = false;
     // az is a .cmd script on Windows, which Node only starts through cmd.exe. Each argument is
     // double-quoted there; values from users are validated to contain no " or % (see types.ts).
-    execFile(
+    const child = execFile(
       'az',
       windows ? args.map((a) => `"${a}"`) : args,
-      { shell: windows, timeout: 60_000, maxBuffer: 64 * 1024 * 1024, windowsHide: true },
+      { shell: windows, maxBuffer: 64 * 1024 * 1024, windowsHide: true },
       (err, stdout, stderr) => {
+        clearTimeout(timer);
         if (!err) return resolve(stdout);
+        if (timedOut) return reject(new AzError(`The Azure CLI did not answer within ${AZ_TIMEOUT_MS / 1000} seconds.`));
         const notFound = (err as NodeJS.ErrnoException).code === 'ENOENT';
         reject(new AzError(describeAzFailure(String(stderr), notFound)));
       }
     );
+    // Killing cmd.exe would leave az's Python process running, so on Windows the whole tree goes
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (windows && child.pid) execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
+      else child.kill();
+    }, AZ_TIMEOUT_MS);
   });
 
 const parseJson = <T>(stdout: string): T => JSON.parse(stdout || 'null') as T;
