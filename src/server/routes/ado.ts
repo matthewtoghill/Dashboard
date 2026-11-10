@@ -28,7 +28,8 @@ const CLOSED_STATES = ['Done', 'Closed', 'Removed'];
 
 const wiqlString = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-const WORK_ITEM_FIELDS = '[System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject]';
+const WORK_ITEM_FIELDS =
+  '[System.Id], [System.Title], [System.State], [System.WorkItemType], [System.TeamProject], [System.ChangedDate]';
 const inProjects = (projects?: string[]) =>
   projects ? `AND [System.TeamProject] IN (${projects.map(wiqlString).join(', ')}) ` : '';
 
@@ -426,8 +427,11 @@ export async function registerAdoRoutes(
       }
     };
 
-    // Mentions already imported keep their task; only new ones need their comment looked up
+    // Mentions already imported keep their task; only new ones need their comment looked up. A
+    // dismissed or unchanged one keeps the comment found last time.
     const linkedIds = new Set(db.select({ id: taskAdoLinks.externalId }).from(taskAdoLinks).all().map((r) => r.id));
+    const dismissedIds = new Set(db.select().from(adoDismissed).all().map((d) => d.externalId));
+    const previous = new Map((readSyncState(db).result?.items ?? []).map((i) => [i.externalId, i]));
     const fetchMentions = async (): Promise<AdoItem[]> => {
       try {
         const mentioned = (
@@ -437,9 +441,24 @@ export async function registerAdoRoutes(
               recentMentionsWiql(linkedOnly ? links.map((l) => l.adoProject) : undefined),
             ])
           ) ?? []
-        ).map((wi) => ({ ...workItemToItem(org, wi), externalId: `mention/${wi.id}`, role: 'mention' as const }))
+        ).map((wi) => ({
+          ...workItemToItem(org, wi),
+          externalId: `mention/${wi.id}`,
+          role: 'mention' as const,
+          changedAt: wi.fields['System.ChangedDate'],
+        }))
           .filter((item) => !isOff(item.adoProject));
-        const unlinked = mentioned.filter((item) => !linkedIds.has(item.externalId));
+        const unlinked = mentioned.filter((item) => {
+          if (linkedIds.has(item.externalId)) return false;
+          const prev = previous.get(item.externalId);
+          const dismissed = dismissedIds.has(item.externalId);
+          // A failed lookup (mention null) is tried again while the item is still listed
+          if (prev && (dismissed || (prev.changedAt === item.changedAt && prev.mention))) {
+            item.mention = prev.mention;
+            return false;
+          }
+          return !dismissed;
+        });
         if (unlinked.length === 0) return mentioned;
         const meId = (
           await az([

@@ -214,6 +214,20 @@ describe('Azure DevOps import', () => {
     expect(body.items.find((i) => i.externalId === 'mention/8')).toMatchObject({ role: 'mention', mention: null });
     expect(body.warnings).toEqual([]);
 
+    // Unchanged: its comment is reused; the failed lookup is tried again
+    const comments = () => calls.filter((c) => c.includes('comments')).map((c) => c.at(-1));
+    calls.length = 0;
+    ({ body } = await fetchItems());
+    expect(comments()).toEqual(['workItemId=8']);
+    expect(body.items.find((i) => i.externalId === 'mention/7')!.mention).toMatchObject({ by: 'Sam Smith' });
+    // Changed, or dismissed: looked up again, or never
+    await app.inject({ method: 'POST', url: '/api/ado/dismissed', payload: { externalIds: ['mention/8'], dismissed: true } });
+    const changed = workItem(7, 'Product Backlog Item');
+    responses[MENTIONS] = [{ ...changed, fields: { ...changed.fields, 'System.ChangedDate': '2026-10-02' } }, workItem(8, 'Bug', 'Beta')];
+    calls.length = 0;
+    await fetchItems();
+    expect(comments()).toEqual(['workItemId=7']);
+
     await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: [mention] } });
     expect((await listTasks()).map((t) => t.title)).toContain('Reply to Sam on PBI 7: Item 7');
 

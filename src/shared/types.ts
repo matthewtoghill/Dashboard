@@ -471,7 +471,11 @@ export const AdoImportInputSchema = z.object({
 /** GET /api/ado/items. */
 export interface AdoFetchResult {
   /** Open items assigned to me and recent mentions; taskId is set when already imported. */
-  items: (AdoItem & { taskId: string | null })[];
+  items: (AdoItem & {
+    taskId: string | null;
+    /** Mentions: the work item's ChangedDate, so its comments are only looked up again once it changes. */
+    changedAt?: string;
+  })[];
   /** Unfinished linked tasks whose items are all closed, merged or abandoned; state lists theirs. */
   closed: { taskId: string; title: string; state: string }[];
   /** Per-project failures that did not stop the rest of the fetch. */
