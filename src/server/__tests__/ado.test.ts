@@ -317,6 +317,35 @@ describe('Azure DevOps import', () => {
     expect((await listTasks()).find((t) => t.id === tasks[0].id)!.adoLinks[0].state).toBe('Done');
   });
 
+  it('closes review tasks when the PR completes, or on my vote or approval if set', async () => {
+    await putLinks([{ adoProject: 'Alpha' }]);
+    const { body } = await fetchItems();
+    const review = body.items.filter((i) => i.externalId === 'pr/11');
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: review } });
+    const states = async () => (await fetchItems()).body.closed.map((c) => c.state);
+
+    // Voted, still active: known from the reviewer list, so no pr show
+    const reviewer = '--project Alpha --status active --reviewer me';
+    responses[reviewer] = [pr(11, 'Alpha', [{ id: ME_ID, vote: -5 }])];
+    calls.length = 0;
+    expect(await states()).toEqual([]);
+    expect(calls.some((c) => c.includes('show'))).toBe(false);
+    await putSettings({ adoReviewDoneWhen: 'approved' });
+    expect(await states()).toEqual([]);
+    await putSettings({ adoReviewDoneWhen: 'voted' });
+    expect(await states()).toEqual(['Waiting for author']);
+    await putSettings({ adoReviewDoneWhen: 'approved' });
+    responses[reviewer] = [pr(11, 'Alpha', [{ id: ME_ID, vote: 5 }])];
+    expect(await states()).toEqual(['Approved with suggestions']);
+
+    // Off the reviewer list: pr show answers, and my own PR never counts as reviewed
+    responses[reviewer] = [];
+    responses['repos pr show'] = pr(11, 'Alpha', [{ id: ME_ID, vote: 10 }]);
+    expect(await states()).toEqual(['Approved']);
+    responses['repos pr show'] = { ...pr(11, 'Alpha', [{ id: ME_ID, vote: 10 }]), createdBy: { id: ME_ID } };
+    expect(await states()).toEqual([]);
+  });
+
   it('links several items to an existing task, flags it closed once all are, and unlinks', async () => {
     const { body } = await fetchItems();
     const task = (await app.inject({ method: 'POST', url: '/api/tasks', payload: { title: 'Mine' } })).json().task as Task;

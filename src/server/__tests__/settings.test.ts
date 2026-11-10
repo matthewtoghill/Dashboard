@@ -39,6 +39,7 @@ describe('settings', () => {
         adoIgnoredStates: [],
         adoLinkedProjectsOnly: false,
         adoSyncMinutes: 30,
+        adoReviewDoneWhen: 'completed',
         weekStartDay: 1,
         streakSkipsWeekends: false,
         staleTaskDays: 14,

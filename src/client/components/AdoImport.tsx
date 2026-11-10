@@ -560,6 +560,18 @@ export const AdoSettings: React.FC<{
           ))}
         </select>
       </label>
+      <label className="flex items-center gap-4">
+        <span className="w-32 shrink-0 text-zinc-600 dark:text-zinc-300">Reviews done</span>
+        <select
+          value={settings.adoReviewDoneWhen}
+          onChange={(e) => onSave({ adoReviewDoneWhen: e.target.value as Settings['adoReviewDoneWhen'] })}
+          className={inputClass}
+        >
+          <option value="completed">When the PR completes</option>
+          <option value="voted">When I vote</option>
+          <option value="approved">When I approve</option>
+        </select>
+      </label>
       <label className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300">
         <input
           type="checkbox"

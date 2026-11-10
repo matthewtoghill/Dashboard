@@ -369,6 +369,8 @@ export const SettingsSchema = z.object({
   adoLinkedProjectsOnly: z.boolean().default(false),
   /** Minutes between background checks; 0 turns the check off. */
   adoSyncMinutes: z.number().int().min(0).max(1440).default(30),
+  /** When a linked PR review counts as closed: once the PR completes, or once I vote or approve. */
+  adoReviewDoneWhen: z.enum(['completed', 'voted', 'approved']).default('completed'),
   /** First day of the calendar week: 0 = Sunday, 1 = Monday. */
   weekStartDay: z.union([z.literal(0), z.literal(1)]).default(1),
   /** Saturdays and Sundays without a completion don't break the streak (they don't add to it either). */

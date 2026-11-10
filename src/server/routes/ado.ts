@@ -150,8 +150,14 @@ interface AzPullRequest {
   status: string;
   isDraft?: boolean;
   repository: { name: string; project: { name: string } };
+  createdBy?: { id?: string };
   reviewers?: { id?: string; vote?: number }[];
 }
+
+/** Azure DevOps vote values; 0 is no vote. */
+const VOTES: Record<number, string> = { 10: 'Approved', 5: 'Approved with suggestions', [-5]: 'Waiting for author', [-10]: 'Rejected' };
+
+const myReview = (pr: AzPullRequest, meId: string) => pr.reviewers?.find((r) => r.id?.toLowerCase() === meId.toLowerCase());
 
 export function workItemToItem(org: string, wi: AzWorkItem): AdoItem {
   return {
@@ -185,7 +191,7 @@ export function pullRequestToItem(org: string, pr: AzPullRequest, role: 'author'
 /** True when `meId` (my identity id) is a reviewer on the PR who has not voted yet. */
 export function awaitsMyVote(pr: AzPullRequest, meId: string): boolean {
   if (pr.isDraft) return false;
-  const mine = pr.reviewers?.find((r) => r.id?.toLowerCase() === meId.toLowerCase());
+  const mine = myReview(pr, meId);
   return !!mine && !mine.vote;
 }
 
@@ -584,6 +590,25 @@ export async function registerAdoRoutes(
     const seen = new Map<string, { title: string; type?: string; state: string; closed: boolean }>();
     const workItemIds = toCheck.flatMap((l) => /^workitem\/(\d+)$/.exec(l.externalId)?.[1] ?? []);
     const prIds = toCheck.flatMap((l) => /^pr\/(\d+)$/.exec(l.externalId)?.[1] ?? []);
+    // A review is done when the PR closes or, if settings say so, once I vote or approve
+    const reviewing = new Map(prLists.flatMap((l) => l.reviewing).map((pr) => [String(pr.pullRequestId), pr]));
+    const seePr = (pr: AzPullRequest) => {
+      const mine = pr.createdBy?.id?.toLowerCase() === meId.toLowerCase() ? undefined : myReview(pr, meId);
+      const vote = mine?.vote ?? 0;
+      const reviewed = settings.adoReviewDoneWhen === 'voted' ? vote !== 0 : settings.adoReviewDoneWhen === 'approved' && vote > 0;
+      const state =
+        pr.status === 'completed' ? 'Completed'
+        : pr.status === 'abandoned' ? 'Abandoned'
+        : reviewed ? (VOTES[vote] ?? 'Voted')
+        : pr.isDraft ? 'Draft'
+        : pr.status;
+      const closed = pr.status === 'completed' || pr.status === 'abandoned' || reviewed;
+      seen.set(`pr/${pr.pullRequestId}`, { title: pr.title, state, closed });
+    };
+    for (const id of prIds) {
+      const pr = reviewing.get(id);
+      if (pr) seePr(pr);
+    }
     await Promise.all([
       workItemIds.length > 0 &&
         az([
@@ -604,14 +629,12 @@ export async function registerAdoRoutes(
             if (!(err instanceof AzError)) throw err;
             warnings.push(`Checking linked work items: ${err.message}`);
           }),
-      ...prIds.map((id) =>
+      // PRs from the reviewer lists are already known; only the rest need looking up
+      ...prIds.filter((id) => !reviewing.has(id)).map((id) =>
         az(['repos', 'pr', 'show', ...scope, '--id', id])
           .then((out) => {
             const pr = parseJson<AzPullRequest>(out);
-            if (!pr) return;
-            const closed = pr.status === 'completed' || pr.status === 'abandoned';
-            const state = closed ? (pr.status === 'completed' ? 'Completed' : 'Abandoned') : pr.isDraft ? 'Draft' : pr.status;
-            seen.set(`pr/${id}`, { title: pr.title, state, closed });
+            if (pr) seePr(pr);
           })
           .catch((err) => {
             if (!(err instanceof AzError)) throw err;
