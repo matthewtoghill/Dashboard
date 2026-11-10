@@ -105,11 +105,12 @@ export const runAz: AzRunner = (args) =>
   new Promise((resolve, reject) => {
     const windows = process.platform === 'win32';
     let timedOut = false;
-    // az is a .cmd script on Windows, which Node only starts through cmd.exe. Each argument is
-    // double-quoted there; values from users are validated to contain no " or % (see types.ts).
+    // az is a .cmd script on Windows, which Node only starts through cmd.exe, so the command line is
+    // built here (Node deprecates args with shell: true). Each argument is double-quoted; values
+    // from users are validated to contain no " or % (see types.ts).
     const child = execFile(
-      'az',
-      windows ? args.map((a) => `"${a}"`) : args,
+      windows ? ['az', ...args.map((a) => `"${a}"`)].join(' ') : 'az',
+      windows ? [] : args,
       { shell: windows, maxBuffer: 64 * 1024 * 1024, windowsHide: true },
       (err, stdout, stderr) => {
         clearTimeout(timer);
