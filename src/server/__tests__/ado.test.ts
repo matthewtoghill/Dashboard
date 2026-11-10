@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.ts';
-import { AzError, AzRunner, describeAzFailure, inBatches, openWorkItemsWiql } from '../routes/ado.ts';
+import { AzError, AzRunner, describeAzFailure, limitAz, openWorkItemsWiql } from '../routes/ado.ts';
 import { externalLinkLabel, externalShortLabel } from '../../client/components/AdoImport.tsx';
 import { arrangeAdoItems } from '../../client/components/AdoProjectPanel.tsx';
 import { AdoSyncResult, Task } from '../../shared/types.ts';
@@ -59,15 +59,16 @@ describe('describeAzFailure', () => {
   it('runs az calls a few at a time', async () => {
     let running = 0;
     let most = 0;
-    const done: number[] = [];
-    await inBatches([...Array(14).keys()], async (n) => {
+    const az = limitAz(async ([n]) => {
       most = Math.max(most, ++running);
       await new Promise((resolve) => setTimeout(resolve, 1));
       running--;
-      done.push(n);
+      if (n === '3') throw new AzError('boom'); // a failure frees its slot too
+      return n;
     });
+    const results = await Promise.allSettled([...Array(14).keys()].map((n) => az([String(n)])));
     expect(most).toBe(6);
-    expect(done.sort((a, b) => a - b)).toEqual([...Array(14).keys()]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(13);
   });
 
   it('quotes project names in WIQL', () => {

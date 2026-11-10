@@ -193,10 +193,23 @@ export function listAdoProjectLinks(db: AppDatabase): AdoProjectLink[] {
 }
 
 const TYPE_CACHE_KEY = 'ado_work_item_types';
-/** Runs `fn` over `items` a few at a time, since every az call is its own Python process. */
+/** Lets `size` az calls run at once, the rest wait their turn, since every call is its own Python process. */
 // ponytail: 6 at a time, ~1s each; slow if mentions or linked PRs run into hundreds
-export async function inBatches<T>(items: T[], fn: (item: T) => Promise<unknown>, size = 6): Promise<void> {
-  for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn));
+export function limitAz(run: AzRunner, size = 6): AzRunner {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async (args) => {
+    if (active < size) active++;
+    else await new Promise<void>((resolve) => waiting.push(resolve));
+    try {
+      return await run(args);
+    } finally {
+      // Hand the slot straight to the next waiting call
+      const next = waiting.shift();
+      if (next) next();
+      else active--;
+    }
+  };
 }
 
 /** Cache entry for the az default project, used while no projects are mapped. */
@@ -260,9 +273,10 @@ const SYNC_STARTUP_DELAY_MS = 10_000;
 export async function registerAdoRoutes(
   app: FastifyInstance,
   db: AppDatabase,
-  az: AzRunner = runAz,
+  runner: AzRunner = runAz,
   options: { backgroundSync?: boolean } = {}
 ) {
+  const az = limitAz(runner);
   const linkFor = (links: AdoProjectLink[], adoProject: string) =>
     links.find((l) => l.adoProject.toLowerCase() === adoProject.toLowerCase());
 
@@ -466,7 +480,7 @@ export async function registerAdoRoutes(
             '--query', 'authenticatedUser.id', '--output', 'tsv',
           ])
         ).trim();
-        await inBatches(unlinked, async (item) => {
+        await Promise.all(unlinked.map(async (item) => {
           try {
             const out = await az([
               'devops', 'invoke', ...scope, '--area', 'wit', '--resource', 'comments',
@@ -478,7 +492,7 @@ export async function registerAdoRoutes(
             // Without the comment the mention is still listed
             if (!(err instanceof AzError)) throw err;
           }
-        });
+        }));
         return mentioned;
       } catch (err) {
         if (!(err instanceof AzError)) throw err;
@@ -568,7 +582,7 @@ export async function registerAdoRoutes(
             if (!(err instanceof AzError)) throw err;
             warnings.push(`Checking linked work items: ${err.message}`);
           }),
-      inBatches(prIds, (id) =>
+      ...prIds.map((id) =>
         az(['repos', 'pr', 'show', ...scope, '--id', id])
           .then((out) => {
             const pr = parseJson<AzPullRequest>(out);
