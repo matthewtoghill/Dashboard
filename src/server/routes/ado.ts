@@ -619,6 +619,7 @@ export async function registerAdoRoutes(
               taskId: links[0].taskId,
               title: links[0].title,
               state: [...new Set(links.map((l) => seen.get(l.externalId)!.state))].join(', '),
+              externalIds: links.map((l) => l.externalId),
             },
           ]
         : []
@@ -652,7 +653,10 @@ export async function registerAdoRoutes(
   /** The stored result, with imports and completions made since the check applied. */
   const syncResult = (): AdoSyncResult => {
     const state = readSyncState(db);
-    const byExternalId = new Map(db.select().from(taskAdoLinks).all().map((l) => [l.externalId, l.taskId]));
+    const linkRows = db.select().from(taskAdoLinks).all();
+    const byExternalId = new Map(linkRows.map((l) => [l.externalId, l.taskId]));
+    const linkIdsByTask = new Map<string, string[]>();
+    for (const l of linkRows) linkIdsByTask.set(l.taskId, [...(linkIdsByTask.get(l.taskId) ?? []), l.externalId]);
     const dismissedIds = new Set(db.select().from(adoDismissed).all().map((d) => d.externalId));
     const items = (state.result?.items ?? []).map((item) => ({ ...item, taskId: byExternalId.get(item.externalId) ?? null }));
     const unfinished = new Map(
@@ -666,9 +670,12 @@ export async function registerAdoRoutes(
     return {
       items: items.filter((i) => !dismissedIds.has(i.externalId)),
       dismissed: items.filter((i) => dismissedIds.has(i.externalId)),
-      closed: (state.result?.closed ?? []).flatMap((c) => {
+      closed: (state.result?.closed ?? []).flatMap(({ externalIds, ...c }) => {
         const task = unfinished.get(c.taskId);
-        return task ? [{ ...c, title: task.title }] : [];
+        // An item linked since the check may still be open; a task with no links left isn't from ADO now
+        const current = linkIdsByTask.get(c.taskId) ?? [];
+        const sameLinks = !externalIds || (current.length > 0 && current.every((id) => externalIds.includes(id)));
+        return task && sameLinks ? [{ ...c, title: task.title }] : [];
       }),
       warnings: state.result?.warnings ?? [],
       checkedAt: state.checkedAt,

@@ -477,7 +477,13 @@ export interface AdoFetchResult {
     changedAt?: string;
   })[];
   /** Unfinished linked tasks whose items are all closed, merged or abandoned; state lists theirs. */
-  closed: { taskId: string; title: string; state: string }[];
+  closed: {
+    taskId: string;
+    title: string;
+    state: string;
+    /** The items the check saw closed; missing in results stored before it existed. Server only. */
+    externalIds?: string[];
+  }[];
   /** Per-project failures that did not stop the rest of the fetch. */
   warnings: string[];
 }

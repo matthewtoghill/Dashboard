@@ -334,6 +334,13 @@ describe('Azure DevOps import', () => {
     responses['WHERE [System.Id] IN'] = [workItem(1, 'Task', 'Alpha', 'Done'), workItem(3, 'Bug', 'Beta', 'Closed')];
     expect((await fetchItems()).body.closed).toEqual([{ taskId: task.id, title: 'Mine', state: 'Done, Closed' }]);
 
+    // An item linked since the check may be open: not flagged until the next check
+    const extra = { ...body.items[0], externalId: 'workitem/5', url: `${ORG}_workitems/edit/5` };
+    await link([extra], task.id);
+    expect((await fetchItems(true)).body.closed).toEqual([]);
+    await app.inject({ method: 'DELETE', url: '/api/ado/links/workitem/5' });
+    expect((await fetchItems(true)).body.closed).toHaveLength(1);
+
     expect((await app.inject({ method: 'DELETE', url: '/api/ado/links/workitem/3' })).statusCode).toBe(204);
     expect((await app.inject({ method: 'DELETE', url: '/api/ado/links/workitem/3' })).statusCode).toBe(404);
     tasks = await listTasks();
