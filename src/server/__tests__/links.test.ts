@@ -23,8 +23,11 @@ describe('launchCommands', () => {
     ]);
     expect(launchCommands('edge', 'e.exe', 'tab', urls, true)).toEqual([{ file: 'e.exe', args: ['--inprivate', ...urls] }]);
     expect(launchCommands('brave', 'b.exe', 'tab', urls, true)).toEqual([{ file: 'b.exe', args: ['--incognito', ...urls] }]);
-    expect(launchCommands('firefox', 'ff.exe', 'window', urls, true)).toEqual([
-      { file: 'ff.exe', args: ['-private-window', urls[0], '-private-window', urls[1]] },
+    // One launch per URL: Firefox only acts on the first -private-window it is given
+    expect(launchCommands('firefox', 'ff.exe', 'window', [...urls, 'https://c.test/'], true)).toEqual([
+      { file: 'ff.exe', args: ['-private-window', urls[0]] },
+      { file: 'ff.exe', args: ['-private-window', urls[1]], delayMs: 1500 },
+      { file: 'ff.exe', args: ['-private-window', 'https://c.test/'], delayMs: 400 },
     ]);
     expect(() => launchCommands('default', '', 'tab', urls, true)).toThrow();
   });

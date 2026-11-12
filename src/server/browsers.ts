@@ -7,6 +7,8 @@ import type { Browser } from '../shared/types.ts';
 export interface LaunchCommand {
   file: string;
   args: string[];
+  /** Wait this long after starting the previous command, so the browser has handled it. */
+  delayMs?: number;
 }
 
 export type Launcher = (commands: LaunchCommand[]) => void;
@@ -34,6 +36,11 @@ export function installedBrowsers(): Browser[] {
   return [...(Object.keys(INSTALL_PATHS) as NamedBrowser[]).filter((b) => findBrowser(b)), 'default'];
 }
 
+// ponytail: fixed waits between Firefox launches; a slow cold start can still drop or split links.
+// Firefox needs time to open the first private window before later links can join it.
+const FIREFOX_FIRST_DELAY_MS = 1500;
+const FIREFOX_NEXT_DELAY_MS = 400;
+
 /** The flag that opens a Chromium browser's private window. */
 const PRIVATE_FLAGS: Record<Exclude<NamedBrowser, 'firefox'>, string> = {
   chrome: '--incognito',
@@ -60,9 +67,14 @@ export function launchCommands(
     return urls.map((url) => ({ file: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', url] }));
   }
   if (browser === 'firefox' && isPrivate) {
-    // Firefox has no private tab flag: each URL joins the open private window, or starts one.
-    // ponytail: "new window" isn't forced here; Firefox decides whether to reuse a private window.
-    return [{ file: exe, args: urls.flatMap((url) => ['-private-window', url]) }];
+    // Firefox has no private tab flag, and acts on only one -private-window per launch. So each URL
+    // gets its own launch, one after another: the first opens a private window (or joins the open
+    // one; Firefox decides, so "new window" isn't forced), and the rest join it as tabs.
+    return urls.map((url, i) => ({
+      file: exe,
+      args: ['-private-window', url],
+      ...(i > 0 ? { delayMs: i === 1 ? FIREFOX_FIRST_DELAY_MS : FIREFOX_NEXT_DELAY_MS } : {}),
+    }));
   }
   if (browser === 'firefox') {
     const [first, ...rest] = urls;
@@ -75,11 +87,17 @@ export function launchCommands(
   return [{ file: exe, args: [...flags, ...urls] }];
 }
 
-/** Starts each command detached, so the browser outlives the Dashboard server. */
+/**
+ * Starts each command detached, so the browser outlives the Dashboard server, waiting out any
+ * delays in the background (the request has already been answered by then).
+ */
 export const launchDetached: Launcher = (commands) => {
-  for (const { file, args } of commands) {
-    const child = spawn(file, args, { detached: true, stdio: 'ignore' });
-    child.on('error', () => {}); // a missing executable is checked beforehand; never crash the server
-    child.unref();
-  }
+  void (async () => {
+    for (const { file, args, delayMs } of commands) {
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      const child = spawn(file, args, { detached: true, stdio: 'ignore' });
+      child.on('error', () => {}); // a missing executable is checked beforehand; never crash the server
+      child.unref();
+    }
+  })();
 };
