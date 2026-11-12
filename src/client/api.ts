@@ -613,3 +613,10 @@ export const deleteLinks = (ids: string[]) =>
 
 export const openLinks = (input: OpenLinksInput) =>
   sendJson<{ openedCount: number }>('POST', '/api/links/open', input, 'Failed to open links');
+
+export const orderLinkGroups = (ids: string[]) =>
+  sendJson<{ groups: LinkGroup[] }>('POST', '/api/link-groups/order', { ids }, 'Failed to reorder groups');
+
+/** Sets a group's links to `ids`, in that order; links from other groups move into it. */
+export const orderLinks = (groupId: string, ids: string[]) =>
+  sendJson<{ groups: LinkGroup[] }>('POST', `/api/link-groups/${groupId}/links/order`, { ids }, 'Failed to move links');

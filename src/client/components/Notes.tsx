@@ -338,7 +338,7 @@ const NoteRow: React.FC<NoteItemProps> = ({ note, selected, onOpen, onTogglePin,
 };
 
 /** Toolbar button group with one option pressed, styled like the task list's layout switch. */
-function Segmented<T extends string>({
+export function Segmented<T extends string>({
   label,
   value,
   options,

@@ -612,6 +612,8 @@ export const AddLinksInputSchema = z.object({ links: z.array(LinkInputSchema).mi
 
 const LinkIdsSchema = z.array(z.string().min(1)).min(1, 'Pick at least one link').max(500);
 export const DeleteLinksInputSchema = z.object({ ids: LinkIdsSchema });
+/** The full new order of the groups, or of one group's links (which may come from other groups). */
+export const OrderInputSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) });
 
 export const BROWSERS = ['chrome', 'edge', 'brave', 'firefox', 'default'] as const;
 export type Browser = (typeof BROWSERS)[number];

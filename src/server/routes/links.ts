@@ -14,6 +14,7 @@ import {
   LinkGroupInputSchema,
   LinkInputSchema,
   OpenLinksInputSchema,
+  OrderInputSchema,
   isFileUrl,
   isOpenableUrl,
 } from '../../shared/types.ts';
@@ -67,6 +68,28 @@ export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, 
     const id = crypto.randomUUID();
     db.insert(linkGroups).values({ id, name: parsed.data.name, sortOrder: now, createdAt: now }).run();
     return reply.status(201).send({ group: getGroup(id) });
+  });
+
+  // Puts the groups in the given order
+  app.post('/api/link-groups/order', async (request, reply) => {
+    const parsed = OrderInputSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid order', details: parsed.error.flatten() });
+    db.transaction(() => {
+      parsed.data.ids.forEach((id, i) => db.update(linkGroups).set({ sortOrder: i }).where(eq(linkGroups.id, id)).run());
+    });
+    return { groups: listLinkGroups(db) };
+  });
+
+  // Sets a group's links to the given order. Links listed from another group move into this one.
+  app.post<{ Params: { id: string } }>('/api/link-groups/:id/links/order', async (request, reply) => {
+    const parsed = OrderInputSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid order', details: parsed.error.flatten() });
+    const groupId = request.params.id;
+    if (!getGroup(groupId)) return reply.status(404).send({ error: 'Group not found' });
+    db.transaction(() => {
+      parsed.data.ids.forEach((id, i) => db.update(links).set({ groupId, sortOrder: i }).where(eq(links.id, id)).run());
+    });
+    return { groups: listLinkGroups(db) };
   });
 
   app.patch<{ Params: { id: string } }>('/api/link-groups/:id', async (request, reply) => {

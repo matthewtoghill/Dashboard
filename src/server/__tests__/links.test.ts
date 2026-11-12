@@ -91,6 +91,28 @@ describe('Links REST API', () => {
     expect((await request('POST', '/api/links/delete', { ids: [second.id] })).json().deletedCount).toBe(0);
   });
 
+  it('reorders groups, and reorders and moves links between groups', async () => {
+    const a = await newGroup('A', ['a1.test', 'a2.test']);
+    const b = await newGroup('B', ['b1.test']);
+    const order = await request('POST', '/api/link-groups/order', { ids: [b.id, a.id] });
+    expect(order.json().groups.map((g: LinkGroup) => g.id)).toEqual([b.id, a.id]);
+
+    // a2 moves to the front of B; a1 stays in A
+    const [a1, a2] = a.links;
+    const [b1] = b.links;
+    const moved = await request('POST', `/api/link-groups/${b.id}/links/order`, { ids: [a2.id, b1.id] });
+    expect(moved.json().groups.map((g: LinkGroup) => [g.name, g.links.map((l) => l.id)])).toEqual([
+      ['B', [a2.id, b1.id]],
+      ['A', [a1.id]],
+    ]);
+    // Links added later go to the end
+    const added = (await request('POST', `/api/link-groups/${b.id}/links`, { links: [{ url: 'b2.test' }] })).json().group as LinkGroup;
+    expect(added.links.map((l) => l.url)).toEqual(['https://a2.test/', 'https://b1.test/', 'https://b2.test/']);
+
+    expect((await request('POST', '/api/link-groups/missing/links/order', { ids: [a1.id] })).statusCode).toBe(404);
+    expect((await request('POST', '/api/link-groups/order', { ids: [] })).statusCode).toBe(400);
+  });
+
   it('stores local drive paths as file URLs', async () => {
     const group = await newGroup('Files', ['C:\\Docs\\My spec.pdf', '"D:\\a#1\\b.docx"', 'c:/x/y.txt', 'file:///E:/z.md']);
     expect(group.links.map((l) => l.url)).toEqual([
