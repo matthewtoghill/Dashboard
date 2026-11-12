@@ -4,7 +4,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AppDatabase } from '../db/index.ts';
-import { linkGroups, links } from '../db/schema.ts';
+import { linkGroups, linkIcons, links } from '../db/schema.ts';
+import { fetchIcon, fetchPageInfo, mapLimit } from '../pageInfo.ts';
 import { findBrowser, installedBrowsers, launchCommands, launchDetached, Launcher } from '../browsers.ts';
 import {
   AddLinksInputSchema,
@@ -18,6 +19,12 @@ import {
   isFileUrl,
   isOpenableUrl,
 } from '../../shared/types.ts';
+
+const isWebUrl = (url: string) => /^https?:/i.test(url);
+/** A site without a usable icon is asked again after a week. */
+const ICON_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+/** Pages fetched at once when filling in titles. */
+const TITLE_FETCH_LIMIT = 6;
 
 const isExistingFile = (filePath: string) => fs.statSync(filePath, { throwIfNoEntry: false })?.isFile() ?? false;
 
@@ -58,6 +65,39 @@ export function overwriteLinkGroup(db: AppDatabase, group: LinkGroup): void {
 
 export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, launch: Launcher = launchDetached) {
   const getGroup = (id: string) => listLinkGroups(db).find((g) => g.id === id);
+  const getIcon = (origin: string) => db.select().from(linkIcons).where(eq(linkIcons.origin, origin)).get();
+
+  // One fetch per site at a time, however many of its links ask for the icon
+  const iconFetches = new Map<string, Promise<void>>();
+  /** Fetches and caches the icon of `pageUrl`'s site, from `iconUrl` when the page is already known. */
+  const cacheIcon = (pageUrl: string, iconUrl?: string): Promise<void> => {
+    const origin = new URL(pageUrl).origin;
+    const pending =
+      iconFetches.get(origin) ??
+      (async () => {
+        const fallback = new URL('/favicon.ico', origin).href;
+        const declared = iconUrl ?? (await fetchPageInfo(pageUrl))?.iconUrl ?? fallback;
+        const icon = (await fetchIcon(declared)) ?? (declared === fallback ? null : await fetchIcon(fallback));
+        const row = { contentType: icon?.contentType ?? null, data: icon?.data ?? null, fetchedAt: Date.now() };
+        try {
+          db.insert(linkIcons).values({ origin, ...row }).onConflictDoUpdate({ target: linkIcons.origin, set: row }).run();
+        } catch {
+          // the database closed while fetching (e.g. the server stopped); the next request retries
+        }
+      })().finally(() => iconFetches.delete(origin));
+    iconFetches.set(origin, pending);
+    return pending;
+  };
+
+  /** Fills in empty titles of web links from their pages; links that can't be fetched stay untitled. */
+  const withTitles = <T extends { url: string; title: string }>(list: T[]) =>
+    mapLimit(list, TITLE_FETCH_LIMIT, async (link) => {
+      if (link.title || !isWebUrl(link.url)) return link;
+      const info = await fetchPageInfo(link.url);
+      // The page names its icon: cache it now rather than fetch the page again later
+      if (info && !getIcon(new URL(link.url).origin)) void cacheIcon(link.url, info.iconUrl);
+      return { ...link, title: info?.title ?? '' };
+    });
 
   app.get('/api/link-groups', async () => ({ groups: listLinkGroups(db), browsers: installedBrowsers() }));
 
@@ -112,9 +152,10 @@ export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, 
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid link', details: parsed.error.flatten() });
     const groupId = request.params.id;
     if (!getGroup(groupId)) return reply.status(404).send({ error: 'Group not found' });
+    const titled = await withTitles(parsed.data.links);
     const now = Date.now();
     db.transaction(() => {
-      parsed.data.links.forEach((link, i) => {
+      titled.forEach((link, i) => {
         db.insert(links)
           .values({ ...link, id: crypto.randomUUID(), groupId, sortOrder: now + i, createdAt: now })
           .run();
@@ -126,9 +167,48 @@ export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, 
   app.patch<{ Params: { id: string } }>('/api/links/:id', async (request, reply) => {
     const parsed = LinkInputSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: 'Invalid link', details: parsed.error.flatten() });
-    const { changes } = db.update(links).set(parsed.data).where(eq(links.id, request.params.id)).run();
-    if (changes === 0) return reply.status(404).send({ error: 'Link not found' });
+    if (!db.select({ id: links.id }).from(links).where(eq(links.id, request.params.id)).get()) {
+      return reply.status(404).send({ error: 'Link not found' });
+    }
+    const [link] = await withTitles([parsed.data]);
+    db.update(links).set(link).where(eq(links.id, request.params.id)).run();
     return reply.status(204).send();
+  });
+
+  // Fills in the titles of the given links that have none, from their pages
+  app.post('/api/links/fetch-titles', async (request, reply) => {
+    const parsed = DeleteLinksInputSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid link ids', details: parsed.error.flatten() });
+    const untitled = db
+      .select({ id: links.id, url: links.url, title: links.title })
+      .from(links)
+      .where(inArray(links.id, parsed.data.ids))
+      .all()
+      .filter((l) => !l.title);
+    const filled = (await withTitles(untitled)).filter((l) => l.title);
+    for (const { id, title } of filled) db.update(links).set({ title }).where(eq(links.id, id)).run();
+    return { groups: listLinkGroups(db), filledCount: filled.length };
+  });
+
+  // A saved link's site icon, cached per site. Only saved links are looked up, so a page can't use
+  // this to make the server fetch an address of its choosing.
+  app.get<{ Params: { id: string } }>('/api/links/:id/favicon', async (request, reply) => {
+    const link = db.select().from(links).where(eq(links.id, request.params.id)).get();
+    if (!link || !isWebUrl(link.url)) return reply.status(404).send({ error: 'No icon' });
+    const origin = new URL(link.url).origin;
+    let icon = getIcon(origin);
+    if (!icon || (!icon.data && icon.fetchedAt < Date.now() - ICON_RETRY_MS)) {
+      await cacheIcon(link.url);
+      icon = getIcon(origin);
+    }
+    reply.header('Cache-Control', `private, max-age=${icon?.data ? 86400 : 3600}`);
+    if (!icon?.data || !icon.contentType) return reply.status(404).send({ error: 'No icon' });
+    // An SVG opened on its own would run with this app's origin: the CSP sandbox stops any script
+    return reply
+      .header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+      .header('X-Content-Type-Options', 'nosniff')
+      .type(icon.contentType)
+      .send(icon.data);
   });
 
   app.post('/api/links/delete', async (request, reply) => {

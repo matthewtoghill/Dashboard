@@ -620,3 +620,7 @@ export const orderLinkGroups = (ids: string[]) =>
 /** Sets a group's links to `ids`, in that order; links from other groups move into it. */
 export const orderLinks = (groupId: string, ids: string[]) =>
   sendJson<{ groups: LinkGroup[] }>('POST', `/api/link-groups/${groupId}/links/order`, { ids }, 'Failed to move links');
+
+/** Fills in titles of the given links that have none, from their pages. */
+export const fetchLinkTitles = (ids: string[]) =>
+  sendJson<{ groups: LinkGroup[]; filledCount: number }>('POST', '/api/links/fetch-titles', { ids }, 'Failed to fetch titles');

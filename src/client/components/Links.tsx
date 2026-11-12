@@ -1,10 +1,11 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AppWindow, Check, ChevronRight, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { AppWindow, Check, ChevronRight, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { BROWSER_LABELS, Browser, Link, LinkGroup, isFileUrl } from '../../shared/types.ts';
 import {
   addLinks,
   createLinkGroup,
+  fetchLinkTitles,
   deleteLinkGroup,
   deleteLinks,
   fetchLinkGroups,
@@ -96,6 +97,22 @@ function matches(group: LinkGroup, link: Link, query: string): boolean {
   return query.toLowerCase().split(/\s+/).filter(Boolean).every((word) => haystack.includes(word));
 }
 
+/** The site's icon, from the server's cache; a globe when the site has none. */
+const SiteIcon: React.FC<{ link: Link }> = ({ link }) => {
+  const [failed, setFailed] = useState(false);
+  return failed ? (
+    <Globe className="w-3.5 h-3.5 shrink-0 text-zinc-400" aria-label="Web link" />
+  ) : (
+    <img
+      src={`/api/links/${link.id}/favicon`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="w-3.5 h-3.5 shrink-0 object-contain"
+    />
+  );
+};
+
 /** A checkbox that can show "some ticked". */
 const Checkbox: React.FC<{
   checked: boolean;
@@ -162,6 +179,8 @@ export const LinksView: React.FC<LinksViewProps> = ({ search, hiddenIds, showToa
     .map((g) => ({ ...g, links: query ? g.links.filter((l) => matches(g, l, query)) : g.links }))
     .filter((g) => !query || g.links.length > 0);
   const linkCount = groups.reduce((n, g) => n + g.links.length, 0);
+  const untitledIds = groups.flatMap((g) => g.links.filter((l) => !l.title && !isFileUrl(l.url)).map((l) => l.id));
+  const [fillingTitles, setFillingTitles] = useState(false);
   // In page order, so links open in the order they're listed
   const selectedIds = groups.flatMap((g) => g.links.filter((l) => selected.has(l.id)).map((l) => l.id));
 
@@ -333,6 +352,30 @@ export const LinksView: React.FC<LinksViewProps> = ({ search, hiddenIds, showToa
           </span>
         </div>
         <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          {untitledIds.length > 0 && (
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={fillingTitles}
+              onClick={() => {
+                setFillingTitles(true);
+                fetchLinkTitles(untitledIds)
+                  .then(({ groups: saved, filledCount }) => {
+                    setCachedGroups(saved);
+                    showToast(
+                      filledCount
+                        ? `Filled in ${plural(filledCount, 'title')}`
+                        : "No titles found; those pages couldn't be reached or have none"
+                    );
+                  }, fail('Fetching titles failed'))
+                  .finally(() => setFillingTitles(false));
+              }}
+              title="Fetch titles for web links that have none, from their pages"
+            >
+              {fillingTitles ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Fill in {plural(untitledIds.length, 'missing title')}
+            </button>
+          )}
           <Segmented
             label="Layout"
             value={layout}
@@ -527,10 +570,16 @@ const GroupCard: React.FC<{
   const endMark = reorder?.mark?.kind === 'groupEnd' && reorder.mark.groupId === group.id;
   const handleClass = `${iconButtonClass} cursor-grab active:cursor-grabbing hover:text-zinc-600 dark:hover:text-zinc-300`;
 
+  // Adding can take a few seconds while the server fetches page titles
+  const [adding, setAdding] = useState(false);
+  const add = (list: { url: string; title?: string }[]) => {
+    setAdding(true);
+    return onAdd(list).finally(() => setAdding(false));
+  };
   const submitAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
-    void onAdd([{ url: url.trim(), title: title.trim() }]).then((saved) => {
+    if (!url.trim() || adding) return;
+    void add([{ url: url.trim(), title: title.trim() }]).then((saved) => {
       if (!saved) return; // keep what was typed so it can be fixed
       setUrl('');
       setTitle('');
@@ -679,7 +728,7 @@ const GroupCard: React.FC<{
                     {isFileUrl(link.url) ? (
                       <FileText className="w-3.5 h-3.5 shrink-0 text-zinc-400" aria-label="Local file" />
                     ) : (
-                      <Globe className="w-3.5 h-3.5 shrink-0 text-zinc-400" aria-label="Web link" />
+                      <SiteIcon link={link} />
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-medium text-zinc-800 dark:text-zinc-200">{linkLabel(link)}</span>
@@ -723,7 +772,7 @@ const GroupCard: React.FC<{
                 const lines = splitLines(e.clipboardData.getData('text'));
                 if (lines.length < 2) return;
                 e.preventDefault();
-                void onAdd(lines.map((line) => ({ url: line })));
+                void add(lines.map((line) => ({ url: line })));
               }}
               placeholder="Add a URL or file path, like C:\Docs\spec.pdf (paste several lines to add them all)"
               aria-label={`Add links to ${group.name}`}
@@ -737,8 +786,14 @@ const GroupCard: React.FC<{
               maxLength={200}
               className={`${inputClass} w-36`}
             />
-            <button type="submit" disabled={!url.trim()} aria-label="Add link" className={`${buttonClass} px-2`}>
-              <Plus className="w-3.5 h-3.5" />
+            <button
+              type="submit"
+              disabled={!url.trim() || adding}
+              aria-label={adding ? 'Adding link' : 'Add link'}
+              title={adding ? 'Adding (fetching page titles)…' : undefined}
+              className={`${buttonClass} px-2`}
+            >
+              {adding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             </button>
           </form>
         </>

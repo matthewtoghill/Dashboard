@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey, blob } from 'drizzle-orm/sqlite-core';
 import { TASK_EVENT_KINDS, TASK_EVENT_SOURCES } from '../../shared/types.ts';
 
 export const projects = sqliteTable('projects', {
@@ -174,6 +174,15 @@ export const links = sqliteTable('links', {
   url: text('url').notNull(),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: integer('created_at').notNull(),
+});
+
+/** Favicons of link sites, by origin. A cache: not exported or restored. */
+export const linkIcons = sqliteTable('link_icons', {
+  origin: text('origin').primaryKey(),
+  /** Null with data when the site has no usable icon. */
+  contentType: text('content_type'),
+  data: blob('data', { mode: 'buffer' }),
+  fetchedAt: integer('fetched_at').notNull(),
 });
 
 export type DbQuickLink = typeof quickLinks.$inferSelect;

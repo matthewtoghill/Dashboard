@@ -234,6 +234,16 @@ export const MIGRATIONS: string[] = [
     );
     CREATE INDEX links_group_id ON links(group_id);
   `,
+
+  // 18: Favicon cache for the Links page, one row per site. A null data means "no icon found".
+  `
+    CREATE TABLE link_icons (
+      origin TEXT PRIMARY KEY,
+      content_type TEXT,
+      data BLOB,
+      fetched_at INTEGER NOT NULL
+    );
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

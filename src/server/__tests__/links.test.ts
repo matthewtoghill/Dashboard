@@ -1,11 +1,46 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildApp } from '../index.ts';
 import { LaunchCommand, launchCommands } from '../browsers.ts';
+import { parseIconUrl, parseTitle } from '../pageInfo.ts';
 import type { LinkGroup } from '../../shared/types.ts';
+
+/** Fake web: these URLs answer, anything else is a 404. No test reaches the network. */
+let pages: Record<string, { type: string; body: string | Uint8Array<ArrayBuffer> }> = {};
+let fetched: string[] = [];
+beforeEach(() => {
+  pages = {};
+  fetched = [];
+  vi.stubGlobal('fetch', async (input: string | URL) => {
+    const url = String(input);
+    fetched.push(url);
+    const page = pages[url];
+    return page
+      ? new Response(page.body, { headers: { 'content-type': page.type } })
+      : new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } });
+  });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('page info parsing', () => {
+  it('reads and tidies the title', () => {
+    expect(parseTitle('<html><head><TITLE lang="en">\n  Tom &amp; Jerry &#8211; &#x1F600; </TITLE>')).toBe('Tom & Jerry – 😀');
+    expect(parseTitle('<p>no title</p>')).toBe('');
+  });
+
+  it('finds the declared icon, resolved against the page, else /favicon.ico', () => {
+    const page = 'https://a.test/docs/page';
+    expect(parseIconUrl(`<link href='img/i.png' rel="shortcut icon">`, page)).toBe('https://a.test/docs/img/i.png');
+    expect(parseIconUrl('<link rel=stylesheet href=x.css><link rel="icon" href="//cdn.test/i.svg">', page)).toBe('https://cdn.test/i.svg');
+    expect(parseIconUrl('<link rel="icon" href="javascript:alert(1)">', page)).toBe('https://a.test/favicon.ico');
+    expect(parseIconUrl('<p>none</p>', page)).toBe('https://a.test/favicon.ico');
+  });
+});
 
 describe('launchCommands', () => {
   const urls = ['https://a.test/', 'https://b.test/'];
@@ -176,6 +211,58 @@ describe('Links REST API', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('fills in missing titles from the page, and keeps given ones', async () => {
+    pages['https://a.test/'] = { type: 'text/html; charset=utf-8', body: '<title>Page A</title>' };
+    const group = (await request('POST', '/api/link-groups', { name: 'G' })).json().group as LinkGroup;
+    const added = await request('POST', `/api/link-groups/${group.id}/links`, {
+      links: [{ url: 'a.test' }, { url: 'https://a.test/', title: 'Mine' }, { url: 'down.test' }, { url: 'C:\\x.pdf' }],
+    });
+    expect((added.json().group as LinkGroup).links.map((l) => l.title)).toEqual(['Page A', 'Mine', '', '']);
+    expect(fetched).not.toContain('file:///C:/x.pdf');
+
+    // Later, the page that was down comes up
+    pages['https://down.test/'] = { type: 'text/html', body: '<title>Back</title>' };
+    const ids = (added.json().group as LinkGroup).links.map((l) => l.id);
+    const filled = await request('POST', '/api/links/fetch-titles', { ids });
+    expect(filled.json().filledCount).toBe(1);
+    expect((filled.json().groups as LinkGroup[])[0].links.map((l) => l.title)).toEqual(['Page A', 'Mine', 'Back', '']);
+  });
+
+  it('serves a cached site icon for a saved web link only', async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    pages['https://a.test/x'] = { type: 'text/html', body: '<link rel="icon" href="/i.svg">' };
+    pages['https://a.test/i.svg'] = { type: 'image/svg+xml', body: '<svg/>' };
+    pages['https://b.test/favicon.ico'] = { type: 'image/x-icon', body: png };
+    const group = await newGroup('G', ['https://a.test/x', 'https://a.test/y', 'https://b.test/', 'https://c.test/', 'C:\\x.pdf']);
+    const [a, a2, b, c, file] = group.links;
+    const icon = (id: string) => request('GET', `/api/links/${id}/favicon`);
+
+    const svg = await icon(a.id);
+    expect(svg.statusCode).toBe(200);
+    expect(svg.headers['content-type']).toBe('image/svg+xml');
+    expect(svg.headers['content-security-policy']).toContain('sandbox');
+    expect(svg.body).toBe('<svg/>');
+
+    // Cached per site: another link on a.test fetches nothing
+    const before = fetched.length;
+    expect((await icon(a2.id)).statusCode).toBe(200);
+    expect(fetched.length).toBe(before);
+
+    // No declared icon: falls back to /favicon.ico
+    const ico = await icon(b.id);
+    expect(ico.statusCode).toBe(200);
+    expect(new Uint8Array(ico.rawPayload)).toEqual(png);
+
+    // No icon at all is remembered too
+    expect((await icon(c.id)).statusCode).toBe(404);
+    const afterMiss = fetched.length;
+    expect((await icon(c.id)).statusCode).toBe(404);
+    expect(fetched.length).toBe(afterMiss);
+
+    expect((await icon(file.id)).statusCode).toBe(404);
+    expect((await icon('missing')).statusCode).toBe(404);
   });
 
   it('round-trips groups through export and import', async () => {
