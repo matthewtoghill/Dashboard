@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AppWindow, Check, ChevronRight, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { AppWindow, Check, ChevronRight, Copy, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { BROWSER_LABELS, Browser, Link, LinkGroup, isFileUrl } from '../../shared/types.ts';
 import {
   addLinks,
@@ -85,6 +85,9 @@ const displayUrl = (url: string) =>
   isFileUrl(url)
     ? decodeURIComponent(new URL(url).pathname.slice(1)).replace(/\//g, '\\')
     : url.replace(/^https?:\/\//i, '');
+
+/** What copying a link puts on the clipboard: its URL, or a file's Windows path. Both paste back in. */
+const copyText = (link: Link) => (isFileUrl(link.url) ? displayUrl(link.url) : link.url);
 
 /** A link's title, or its address when it has none. */
 const linkLabel = (link: Link) => link.title || displayUrl(link.url);
@@ -190,6 +193,9 @@ export const LinksView: React.FC<LinksViewProps> = ({ search, hiddenIds, showToa
       old && { ...old, groups: old.groups.some((g) => g.id === group.id) ? old.groups.map((g) => (g.id === group.id ? group : g)) : [...old.groups, group] }
     );
   const fail = (fallback: string) => (err: unknown) => showToast(errorMessage(err, fallback));
+  const copy = (list: Link[], what: string) =>
+    // CRLF, so the lines survive pasting into Windows apps such as Notepad or Outlook
+    navigator.clipboard.writeText(list.map(copyText).join('\r\n')).then(() => showToast(`Copied ${what}`), fail('Copying failed'));
 
   const toggleCollapsed = (id: string) =>
     setCollapsed((prev) => {
@@ -532,6 +538,7 @@ export const LinksView: React.FC<LinksViewProps> = ({ search, hiddenIds, showToa
               )
             }
             onUpdateLink={(id, link) => updateLink(id, link).then(refresh, fail('Saving link failed'))}
+            onCopyLinks={(list, what) => void copy(list, what)}
             onRemoveLink={(link) => {
               toggle([link.id], false);
               onDelete([link.id], `Removed "${linkLabel(link)}"`, () => deleteLinks([link.id]));
@@ -556,7 +563,9 @@ const GroupCard: React.FC<{
   onAdd: (links: { url: string; title?: string }[]) => Promise<boolean>;
   onUpdateLink: (id: string, link: { url: string; title: string }) => void;
   onRemoveLink: (link: Link) => void;
-}> = ({ group, reorder, collapsed, onToggleCollapsed, selected, onToggle, onRename, onDelete, onAdd, onUpdateLink, onRemoveLink }) => {
+  /** Copies the links' URLs (files as paths), one per line. */
+  onCopyLinks: (links: Link[], what: string) => void;
+}> = ({ group, reorder, collapsed, onToggleCollapsed, selected, onToggle, onRename, onDelete, onAdd, onUpdateLink, onRemoveLink, onCopyLinks }) => {
   const ids = group.links.map((l) => l.id);
   const tickedCount = ids.filter((id) => selected.has(id)).length;
   const checkboxId = useId();
@@ -662,6 +671,16 @@ const GroupCard: React.FC<{
         <span className="text-[11px] text-zinc-500">{plural(group.links.length, 'link')}</span>
         <button
           type="button"
+          disabled={group.links.length === 0}
+          onClick={() => onCopyLinks(group.links, `${plural(group.links.length, 'link')} from ${group.name}`)}
+          aria-label={`Copy the links in ${group.name}`}
+          title="Copy the group's URLs, one per line"
+          className={`${iconButtonClass} hover:text-primary-600 disabled:opacity-40 disabled:cursor-default disabled:hover:text-zinc-400`}
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
           onClick={() => setRenaming(true)}
           aria-label={`Rename ${group.name}`}
           title="Rename group"
@@ -736,6 +755,15 @@ const GroupCard: React.FC<{
                     </span>
                   </label>
                   <span className="flex opacity-0 group-hover/link:opacity-100 group-focus-within/link:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => onCopyLinks([link], isFileUrl(link.url) ? 'path' : 'URL')}
+                      aria-label={`Copy ${isFileUrl(link.url) ? 'path' : 'URL'} of ${linkLabel(link)}`}
+                      title={isFileUrl(link.url) ? 'Copy path' : 'Copy URL'}
+                      className={`${iconButtonClass} hover:text-primary-600`}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => setEditingId(link.id)}
