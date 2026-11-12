@@ -20,6 +20,7 @@ import {
   CloudDownload,
   PanelLeft,
   StickyNote,
+  Link2,
   NotebookPen,
   Pause,
   ClipboardCheck,
@@ -209,6 +210,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         icon: StickyNote,
         action: () => {
           onSelectNav({ type: 'smart', id: 'notes' });
+          onClose();
+        },
+      },
+      {
+        id: 'nav-links',
+        label: 'Go to Links',
+        category: 'Views',
+        icon: Link2,
+        action: () => {
+          onSelectNav({ type: 'smart', id: 'links' });
           onClose();
         },
       },

@@ -150,7 +150,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setImportStatus(
         `Backup restored: ${result.importedTasks} tasks, ${result.importedProjects} projects, ` +
           `${result.importedQuickLinks} links, ${result.importedSavedViews} saved views, ` +
-          `${result.importedClaudeSessions} Claude sessions, ${result.importedNotes} notes added ` +
+          `${result.importedClaudeSessions} Claude sessions, ${result.importedNotes} notes, ${result.importedLinkGroups} link groups added ` +
           '(existing items were left unchanged).'
       );
       queryClient.invalidateQueries({ queryKey: ['settings'] });

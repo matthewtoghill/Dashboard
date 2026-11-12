@@ -8,6 +8,7 @@ export const SECTION_LABELS: Record<RestoreSection, string> = {
   tasks: 'Tasks',
   notes: 'Notes',
   quickLinks: 'Quick links',
+  linkGroups: 'Link groups',
   savedViews: 'Saved views',
   claudeSessions: 'Claude sessions',
   claudeFolderLinks: 'Claude folder links',

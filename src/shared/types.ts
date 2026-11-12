@@ -245,8 +245,8 @@ export const WidgetConfigSchema = z.object({
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 // Stage 5: Saved views. The list view's state, as held by the client (see client/utils/taskView.ts).
-/** 'notes' and 'activity' are pages, not task lists. */
-export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'review', 'completed', 'archived', 'notes', 'activity']);
+/** 'notes', 'links' and 'activity' are pages, not task lists. */
+export const SmartViewIdSchema = z.enum(['overview', 'inbox', 'today', 'upcoming', 'on_hold', 'plan', 'review', 'completed', 'archived', 'notes', 'links', 'activity']);
 export const ActiveNavigationSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('smart'), id: SmartViewIdSchema }),
   z.object({ type: z.literal('project'), id: z.string().min(1) }),
@@ -544,6 +544,94 @@ export type UpdateNoteInput = z.input<typeof UpdateNoteInputSchema>;
 export const CreateNoteInputSchema = UpdateNoteInputSchema;
 export type CreateNoteInput = UpdateNoteInput;
 
+// Links page: named groups of URLs and local files, opened together in a chosen browser
+/** A file:/// URL for a path on a local or mapped drive, e.g. C:\Docs\spec.pdf; null for anything else. */
+function localFileUrl(input: string): string | null {
+  const path = input.replace(/^"(.*)"$/, '$1'); // Explorer's "Copy as path" adds quotes
+  if (!/^[a-z]:[\\/]/i.test(path)) return null;
+  // Each folder and file name is encoded, so # or ? in a name stays part of the path
+  const [drive, ...names] = path.split(/[\\/]/);
+  return `file:///${[drive, ...names.map(encodeURIComponent)].join('/')}`;
+}
+
+/**
+ * Whether a stored link may be handed to a browser: http(s), or a file on a local drive. Network
+ * file paths (file://server/share) are refused, since opening them sends Windows credentials there.
+ */
+export function isOpenableUrl(href: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'http:' || url.protocol === 'https:') return true;
+  return url.protocol === 'file:' && url.host === '' && /^\/[a-z]:\//i.test(url.pathname);
+}
+
+export const isFileUrl = (href: string) => href.startsWith('file:');
+
+/** Links are handed to a browser on the command line, so only isOpenableUrl ones are stored. */
+const WebUrlSchema = z
+  .string()
+  .trim()
+  .min(1, 'URL is required')
+  .max(2000)
+  .refine((url) => !/^["]?\\\\/.test(url), "Network share paths aren't supported")
+  // Drive paths become file:/// URLs; bare hosts get https://; any other scheme is kept, so the
+  // check below rejects it
+  .transform((url) => localFileUrl(url) ?? (/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`))
+  .refine(isOpenableUrl, 'Expected a web link (http or https) or a file on a local drive, like C:\\Docs\\file.pdf')
+  // Stored percent-encoded, so no spaces or quotes reach the command line
+  .transform((url) => new URL(url).href);
+
+export const LinkSchema = z.object({
+  id: z.string(),
+  title: z.string().max(200),
+  url: WebUrlSchema,
+  sortOrder: z.number(),
+  createdAt: z.number(),
+});
+export type Link = z.infer<typeof LinkSchema>;
+
+export const LinkGroupSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100),
+  sortOrder: z.number(),
+  createdAt: z.number(),
+  links: z.array(LinkSchema),
+});
+export type LinkGroup = z.infer<typeof LinkGroupSchema>;
+
+export const LinkGroupInputSchema = z.object({ name: z.string().trim().min(1, 'Group name is required').max(100) });
+export type LinkGroupInput = z.input<typeof LinkGroupInputSchema>;
+
+export const LinkInputSchema = z.object({ title: z.string().trim().max(200).default(''), url: WebUrlSchema });
+export type LinkInput = z.input<typeof LinkInputSchema>;
+export const AddLinksInputSchema = z.object({ links: z.array(LinkInputSchema).min(1).max(100) });
+
+const LinkIdsSchema = z.array(z.string().min(1)).min(1, 'Pick at least one link').max(500);
+export const DeleteLinksInputSchema = z.object({ ids: LinkIdsSchema });
+
+export const BROWSERS = ['chrome', 'edge', 'brave', 'firefox', 'default'] as const;
+export type Browser = (typeof BROWSERS)[number];
+export const BROWSER_LABELS: Record<Browser, string> = {
+  chrome: 'Google Chrome',
+  edge: 'Microsoft Edge',
+  brave: 'Brave',
+  firefox: 'Firefox',
+  default: 'System default',
+};
+
+export const OpenLinksInputSchema = z.object({
+  ids: LinkIdsSchema,
+  browser: z.enum(BROWSERS),
+  target: z.enum(['tab', 'window']),
+  /** Open in a private (incognito) window. */
+  private: z.boolean().default(false),
+});
+export type OpenLinksInput = z.input<typeof OpenLinksInputSchema>;
+
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),
   widgetConfig: WidgetConfigSchema,
@@ -588,6 +676,8 @@ export const BackupPayloadSchema = z.object({
   adoDismissed: z.array(AdoDismissedSchema).optional().default([]),
   /** Since version 11. */
   claudeFolderLinks: z.array(ClaudeFolderLinkSchema).optional().default([]),
+  /** Since version 12. */
+  linkGroups: z.array(LinkGroupSchema).optional().default([]),
 });
 export type BackupPayload = z.infer<typeof BackupPayloadSchema>;
 
@@ -597,6 +687,7 @@ export const RESTORE_SECTIONS = [
   'tasks',
   'notes',
   'quickLinks',
+  'linkGroups',
   'savedViews',
   'claudeSessions',
   'claudeFolderLinks',
@@ -664,4 +755,5 @@ export interface ImportResult {
   importedSavedViews: number;
   importedClaudeSessions: number;
   importedNotes: number;
+  importedLinkGroups: number;
 }

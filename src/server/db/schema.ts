@@ -158,6 +158,24 @@ export type NewDbTask = typeof tasks.$inferInsert;
 export type DbSubtask = typeof subtasks.$inferSelect;
 export type NewDbSubtask = typeof subtasks.$inferInsert;
 
+export const linkGroups = sqliteTable('link_groups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const links = sqliteTable('links', {
+  id: text('id').primaryKey(),
+  groupId: text('group_id')
+    .notNull()
+    .references(() => linkGroups.id, { onDelete: 'cascade' }),
+  title: text('title').notNull().default(''),
+  url: text('url').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: integer('created_at').notNull(),
+});
+
 export type DbQuickLink = typeof quickLinks.$inferSelect;
 export type NewDbQuickLink = typeof quickLinks.$inferInsert;
 
@@ -172,3 +190,7 @@ export type DbTaskAdoLink = typeof taskAdoLinks.$inferSelect;
 export type DbTaskEvent = typeof taskEvents.$inferSelect;
 
 export type DbNote = typeof notes.$inferSelect;
+
+export type DbLinkGroup = typeof linkGroups.$inferSelect;
+
+export type DbLink = typeof links.$inferSelect;

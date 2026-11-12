@@ -215,6 +215,25 @@ export const MIGRATIONS: string[] = [
   `
     ALTER TABLE tasks ADD COLUMN reviewed_at INTEGER;
   `,
+
+  // 17: Link groups: named sets of URLs opened together from the Links page. Separate from quick_links.
+  `
+    CREATE TABLE link_groups (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE links (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL REFERENCES link_groups(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '',
+      url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX links_group_id ON links(group_id);
+  `,
 ];
 
 /** Applies pending migrations, each in its own transaction together with its version bump. */

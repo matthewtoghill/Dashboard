@@ -10,6 +10,7 @@ import { runMigrations } from './db/migrations.ts';
 import { listBackups } from './backup.ts';
 import { readSettings, readStoredSettings, writeSettings } from './settings.ts';
 import { eq } from 'drizzle-orm';
+import { overwriteLinkGroup } from './routes/links.ts';
 import {
   exportPayload,
   getSavedViews,
@@ -126,6 +127,7 @@ const RULES: { [S in RestoreSection]: SectionRule<Item<S>> } = {
   },
   notes: { key: (n) => n.id, label: (n) => n.title || 'Untitled note' },
   quickLinks: { key: (l) => l.id, label: (l) => l.title },
+  linkGroups: { key: (g) => g.id, label: (g) => g.name },
   savedViews: { key: (v) => v.id, label: (v) => v.name },
   // Sessions change with every hook event and unlinked ones are pruned, so only linked sessions
   // that are gone are offered
@@ -317,6 +319,7 @@ function overwriteItems(db: AppDatabase, items: Selected): void {
   for (const { id, ...link } of items.quickLinks) {
     db.update(schema.quickLinks).set(link).where(eq(schema.quickLinks.id, id)).run();
   }
+  for (const group of items.linkGroups) overwriteLinkGroup(db, group);
   if (items.savedViews.length) {
     const byId = new Map(items.savedViews.map((v) => [v.id, v]));
     setSavedViews(db, getSavedViews(db).map((v) => byId.get(v.id) ?? v));

@@ -65,6 +65,7 @@ import { AdoProjectPanel } from './components/AdoProjectPanel.tsx';
 import { ProjectSettingsDialog } from './components/ProjectSettingsDialog.tsx';
 import { PomodoroTimer } from './components/PomodoroTimer.tsx';
 import { NOTE_TAG_LIST_ID, NotePanel, NotesView, copyNote, noteTags, upsertNote } from './components/Notes.tsx';
+import { LinksView } from './components/Links.tsx';
 import {
   ClaudeIcon,
   ClaudeSessionActions,
@@ -255,6 +256,7 @@ export const App: React.FC = () => {
         activeNav.id === 'archived' ||
         activeNav.id === 'review' ||
         activeNav.id === 'notes' ||
+        activeNav.id === 'links' ||
         activeNav.id === 'activity')
     ) {
       setActiveNav({ type: 'smart', id: 'inbox' });
@@ -713,6 +715,14 @@ export const App: React.FC = () => {
   const isNotesPage = activeNav.type === 'smart' && activeNav.id === 'notes';
   const isReviewPage = activeNav.type === 'smart' && activeNav.id === 'review';
   const isActivityPage = activeNav.type === 'smart' && activeNav.id === 'activity';
+  const isLinksPage = activeNav.type === 'smart' && activeNav.id === 'links';
+  const handleDeleteLinks = (ids: string[], message: string, commit: () => Promise<unknown>) => {
+    const undo = schedule(ids, async () => {
+      await commit();
+      await invalidate('link-groups');
+    });
+    showToast(message, undo);
+  };
   // The note panel belongs to the Notes page
   useEffect(() => {
     if (!isNotesPage) setNotePanel(null);
@@ -772,7 +782,7 @@ export const App: React.FC = () => {
     tasks,
     visibleOrder,
     enabled: !(confirmRequest || shortcutsOpen || commandPaletteOpen || selectedTaskId || selectedSessionId),
-    listShown: !isOverviewPage && !isNotesPage && !isReviewPage && !isActivityPage && !isCalendar,
+    listShown: !isOverviewPage && !isNotesPage && !isReviewPage && !isActivityPage && !isLinksPage && !isCalendar,
     onShowShortcuts: () => setShortcutsOpen(true),
     onOpen: setSelectedTaskId,
     onToggle: handleToggleTask,
@@ -990,7 +1000,7 @@ export const App: React.FC = () => {
                   : {}),
               })
             }
-            placeholder={isNotesPage ? 'Search notes…' : isActivityPage ? 'Search activity…' : 'Search tasks or run a command…'}
+            placeholder={isNotesPage ? 'Search notes…' : isLinksPage ? 'Search links…' : isActivityPage ? 'Search activity…' : 'Search tasks or run a command…'}
             aria-label={isNotesPage ? 'Search notes' : 'Search tasks'}
             className="flex-1 min-w-0 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
@@ -1123,6 +1133,8 @@ export const App: React.FC = () => {
               onNew={() => openNote(null)}
               showToast={showToast}
             />
+          ) : isLinksPage ? (
+            <LinksView search={searchQuery} hiddenIds={pendingIds} showToast={showToast} onDelete={handleDeleteLinks} />
           ) : isActivityPage ? (
             <ActivityLog
               tasks={tasks}

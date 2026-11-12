@@ -30,6 +30,10 @@ import {
   Note,
   CreateNoteInput,
   UpdateNoteInput,
+  Browser,
+  LinkGroup,
+  LinkInput,
+  OpenLinksInput,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -573,3 +577,39 @@ export async function deleteNote(id: string): Promise<void> {
   const res = await fetch(`/api/notes/${id}`, { method: 'DELETE', keepalive: true });
   if (!res.ok) throw new Error(`Failed to delete note: ${res.statusText}`);
 }
+
+// Links page
+async function sendJson<T>(method: string, url: string, body: unknown, fallback: string): Promise<T> {
+  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) return failWith(res, fallback);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+export async function fetchLinkGroups(): Promise<{ groups: LinkGroup[]; browsers: Browser[] }> {
+  const res = await fetch('/api/link-groups');
+  if (!res.ok) return failWith(res, 'Failed to load links');
+  return res.json();
+}
+
+export const createLinkGroup = (name: string) =>
+  sendJson<{ group: LinkGroup }>('POST', '/api/link-groups', { name }, 'Failed to create group');
+
+export const renameLinkGroup = (id: string, name: string) =>
+  sendJson<{ group: LinkGroup }>('PATCH', `/api/link-groups/${id}`, { name }, 'Failed to rename group');
+
+export async function deleteLinkGroup(id: string): Promise<void> {
+  const res = await fetch(`/api/link-groups/${id}`, { method: 'DELETE' });
+  if (!res.ok) return failWith(res, 'Failed to delete group');
+}
+
+export const addLinks = (groupId: string, links: LinkInput[]) =>
+  sendJson<{ group: LinkGroup }>('POST', `/api/link-groups/${groupId}/links`, { links }, 'Failed to add links');
+
+export const updateLink = (id: string, link: LinkInput) =>
+  sendJson<void>('PATCH', `/api/links/${id}`, link, 'Failed to update link');
+
+export const deleteLinks = (ids: string[]) =>
+  sendJson<{ deletedCount: number }>('POST', '/api/links/delete', { ids }, 'Failed to remove links');
+
+export const openLinks = (input: OpenLinksInput) =>
+  sendJson<{ openedCount: number }>('POST', '/api/links/open', input, 'Failed to open links');

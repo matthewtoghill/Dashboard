@@ -7,6 +7,7 @@ import { serializeProject } from './projects.ts';
 import { listClaudeFolderLinks, listClaudeSessions } from './claude.ts';
 import { listAdoProjectLinks } from './ado.ts';
 import { listNotes } from './notes.ts';
+import { insertLinkGroup, listLinkGroups } from './links.ts';
 import { hasSavedSettings, readSettings, writeSettings } from '../settings.ts';
 import { listTaskEvents } from '../taskEvents.ts';
 import {
@@ -129,7 +130,7 @@ export function exportPayload(db: AppDatabase): BackupPayload {
     .map(serializeQuickLink);
 
   return {
-    version: 11,
+    version: 12,
     exportedAt: Date.now(),
     projects: allProjects,
     tasks: allTasks,
@@ -143,6 +144,7 @@ export function exportPayload(db: AppDatabase): BackupPayload {
     notes: listNotes(db),
     adoDismissed: db.select().from(adoDismissed).orderBy(asc(adoDismissed.dismissedAt)).all(),
     claudeFolderLinks: listClaudeFolderLinks(db),
+    linkGroups: listLinkGroups(db),
   };
 }
 
@@ -217,6 +219,7 @@ export function importPayload(db: AppDatabase, payload: BackupPayload): ImportRe
   let importedSavedViews = 0;
   let importedClaudeSessions = 0;
   let importedNotes = 0;
+  let importedLinkGroups = 0;
 
   for (const proj of payload.projects) {
     const result = db
@@ -301,6 +304,11 @@ export function importPayload(db: AppDatabase, payload: BackupPayload): ImportRe
     importedNotes += result.changes;
   }
 
+  // Like a task's subtasks, a group's links only come in with the group
+  for (const group of payload.linkGroups) {
+    importedLinkGroups += insertLinkGroup(db, group);
+  }
+
   for (const dismissed of payload.adoDismissed) {
     db.insert(adoDismissed).values(dismissed).onConflictDoNothing().run();
   }
@@ -340,6 +348,7 @@ export function importPayload(db: AppDatabase, payload: BackupPayload): ImportRe
     importedSavedViews,
     importedClaudeSessions,
     importedNotes,
+    importedLinkGroups,
   };
 }
 

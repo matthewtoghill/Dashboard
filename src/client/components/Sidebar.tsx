@@ -17,6 +17,7 @@ import {
   Bookmark,
   ChevronRight,
   StickyNote,
+  Link2,
   Pause,
   Sun,
   ClipboardCheck,
@@ -304,6 +305,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'inbox', label: 'Calendar', icon: CalendarDays, calendar: true },
     { id: 'completed', label: 'Completed', icon: CircleCheck, count: completedCount },
     { id: 'notes', label: 'Notes', icon: StickyNote },
+    { id: 'links', label: 'Links', icon: Link2 },
     { id: 'activity', label: 'Activity Log', icon: History },
   ];
 

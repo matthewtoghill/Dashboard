@@ -11,6 +11,8 @@ import { registerBackupRoutes } from './routes/backups.ts';
 import { registerClaudeRoutes } from './routes/claude.ts';
 import { registerSettingsRoutes } from './routes/settings.ts';
 import { registerNoteRoutes } from './routes/notes.ts';
+import { registerLinkRoutes } from './routes/links.ts';
+import type { Launcher } from './browsers.ts';
 import { AzRunner, registerAdoRoutes } from './routes/ado.ts';
 import { readSettings } from './settings.ts';
 import { backupDatabase, isDailyBackupDue, resolveBackupConfig } from './backup.ts';
@@ -31,7 +33,7 @@ function isAllowedOrigin(origin: string): boolean {
   }
 }
 
-export async function buildApp(options?: { dbPath?: string; az?: AzRunner }): Promise<{
+export async function buildApp(options?: { dbPath?: string; az?: AzRunner; launch?: Launcher }): Promise<{
   app: FastifyInstance;
   db: AppDatabase;
 }> {
@@ -88,6 +90,7 @@ export async function buildApp(options?: { dbPath?: string; az?: AzRunner }): Pr
   await registerClaudeRoutes(app, db);
   await registerSettingsRoutes(app, sqlite);
   await registerNoteRoutes(app, db);
+  await registerLinkRoutes(app, db, options?.launch);
   // Tests use an in-memory database and check on demand instead
   await registerAdoRoutes(app, db, options?.az, { backgroundSync: dbPath !== ':memory:' });
 
