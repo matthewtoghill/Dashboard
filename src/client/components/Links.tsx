@@ -2,6 +2,13 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppWindow, Check, ChevronRight, Copy, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { BROWSER_LABELS, Browser, Link, LinkGroup, isFileUrl } from '../../shared/types.ts';
+import braveLogo from '../assets/browsers/brave.svg';
+import chromeLogo from '../assets/browsers/chrome.svg';
+import edgeLogo from '../assets/browsers/edge.svg';
+import firefoxLogo from '../assets/browsers/firefox.svg';
+
+/** The system default has no logo and shows a globe instead. */
+const BROWSER_LOGOS: Partial<Record<Browser, string>> = { brave: braveLogo, chrome: chromeLogo, edge: edgeLogo, firefox: firefoxLogo };
 import {
   addLinks,
   createLinkGroup,
@@ -414,18 +421,25 @@ export const LinksView: React.FC<LinksViewProps> = ({ search, hiddenIds, showToa
         <span className="flex-1" />
         <label className="inline-flex items-center gap-1.5 text-zinc-500">
           Browser
-          <select
-            value={browser}
-            onChange={(e) => pickBrowser(e.target.value as Browser)}
-            disabled={browsers.length === 0}
-            className={inputClass}
-          >
-            {(browsers.length ? browsers : [browser]).map((b) => (
-              <option key={b} value={b}>
-                {BROWSER_LABELS[b]}
-              </option>
-            ))}
-          </select>
+          <span className="relative inline-flex items-center">
+            {BROWSER_LOGOS[browser] ? (
+              <img src={BROWSER_LOGOS[browser]} alt="" className="absolute left-2 w-4 h-4 pointer-events-none" />
+            ) : (
+              <Globe size={16} className="absolute left-2 pointer-events-none" />
+            )}
+            <select
+              value={browser}
+              onChange={(e) => pickBrowser(e.target.value as Browser)}
+              disabled={browsers.length === 0}
+              className={`${inputClass} pl-7`}
+            >
+              {(browsers.length ? browsers : [browser]).map((b) => (
+                <option key={b} value={b}>
+                  {BROWSER_LABELS[b]}
+                </option>
+              ))}
+            </select>
+          </span>
         </label>
         <label
           className={`inline-flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300 ${browser === 'default' ? 'opacity-50' : 'cursor-pointer'}`}
