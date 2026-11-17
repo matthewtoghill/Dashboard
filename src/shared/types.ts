@@ -87,8 +87,54 @@ export const TaskAdoLinkSchema = z.object({
 });
 export type TaskAdoLink = z.infer<typeof TaskAdoLinkSchema>;
 
-/** Where a task came from outside Azure DevOps: a Slack message, Teams thread, email or any page. */
-const SourceUrlSchema = z.string().trim().url().startsWith('https://', 'Source links must start with https://');
+/** A file:/// URL for a path on a local or mapped drive, e.g. C:\Docs\spec.pdf; null for anything else. */
+function localFileUrl(input: string): string | null {
+  const path = input.replace(/^"(.*)"$/, '$1'); // Explorer's "Copy as path" adds quotes
+  if (!/^[a-z]:[\\/]/i.test(path)) return null;
+  // Each folder and file name is encoded, so # or ? in a name stays part of the path
+  const [drive, ...names] = path.split(/[\\/]/);
+  return `file:///${[drive, ...names.map(encodeURIComponent)].join('/')}`;
+}
+
+/**
+ * Whether a stored link may be handed to a browser: http(s), or a file on a local drive. Network
+ * file paths (file://server/share) are refused, since opening them sends Windows credentials there.
+ */
+export function isOpenableUrl(href: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'http:' || url.protocol === 'https:') return true;
+  return url.protocol === 'file:' && url.host === '' && /^\/[a-z]:\//i.test(url.pathname);
+}
+
+export const isFileUrl = (href: string) => href.startsWith('file:');
+
+/** A web link without its scheme, or a file link as a Windows path. */
+export const displayUrl = (url: string) =>
+  isFileUrl(url)
+    ? decodeURIComponent(new URL(url).pathname.slice(1)).replace(/\//g, '\\')
+    : url.replace(/^https?:\/\//i, '');
+
+/** Links are handed to a browser on the command line, so only isOpenableUrl ones are stored. */
+export const WebUrlSchema = z
+  .string()
+  .trim()
+  .min(1, 'URL is required')
+  .max(2000)
+  .refine((url) => !/^["]?\\\\/.test(url), "Network share paths aren't supported")
+  // Drive paths become file:/// URLs; bare hosts get https://; any other scheme is kept, so the
+  // check below rejects it
+  .transform((url) => localFileUrl(url) ?? (/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`))
+  .refine(isOpenableUrl, 'Expected a web link (http or https) or a file on a local drive, like C:\\Docs\\file.pdf')
+  // Stored percent-encoded, so no spaces or quotes reach the command line
+  .transform((url) => new URL(url).href);
+
+/** Where a task came from: a Slack message, Teams thread, email, any page, or a file on a local drive. */
+const SourceUrlSchema = WebUrlSchema;
 const SourceUrlListSchema = z.array(SourceUrlSchema).transform((urls) => [...new Set(urls)]);
 
 export const TaskSchema = z.object({
@@ -545,46 +591,7 @@ export const CreateNoteInputSchema = UpdateNoteInputSchema;
 export type CreateNoteInput = UpdateNoteInput;
 
 // Links page: named groups of URLs and local files, opened together in a chosen browser
-/** A file:/// URL for a path on a local or mapped drive, e.g. C:\Docs\spec.pdf; null for anything else. */
-function localFileUrl(input: string): string | null {
-  const path = input.replace(/^"(.*)"$/, '$1'); // Explorer's "Copy as path" adds quotes
-  if (!/^[a-z]:[\\/]/i.test(path)) return null;
-  // Each folder and file name is encoded, so # or ? in a name stays part of the path
-  const [drive, ...names] = path.split(/[\\/]/);
-  return `file:///${[drive, ...names.map(encodeURIComponent)].join('/')}`;
-}
-
-/**
- * Whether a stored link may be handed to a browser: http(s), or a file on a local drive. Network
- * file paths (file://server/share) are refused, since opening them sends Windows credentials there.
- */
-export function isOpenableUrl(href: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return false;
-  }
-  if (url.protocol === 'http:' || url.protocol === 'https:') return true;
-  return url.protocol === 'file:' && url.host === '' && /^\/[a-z]:\//i.test(url.pathname);
-}
-
-export const isFileUrl = (href: string) => href.startsWith('file:');
-
-/** Links are handed to a browser on the command line, so only isOpenableUrl ones are stored. */
-const WebUrlSchema = z
-  .string()
-  .trim()
-  .min(1, 'URL is required')
-  .max(2000)
-  .refine((url) => !/^["]?\\\\/.test(url), "Network share paths aren't supported")
-  // Drive paths become file:/// URLs; bare hosts get https://; any other scheme is kept, so the
-  // check below rejects it
-  .transform((url) => localFileUrl(url) ?? (/^[a-z][a-z\d+.-]*:\/\//i.test(url) ? url : `https://${url}`))
-  .refine(isOpenableUrl, 'Expected a web link (http or https) or a file on a local drive, like C:\\Docs\\file.pdf')
-  // Stored percent-encoded, so no spaces or quotes reach the command line
-  .transform((url) => new URL(url).href);
-
+// (link URLs use WebUrlSchema, defined with the task source links that share it)
 export const LinkSchema = z.object({
   id: z.string(),
   title: z.string().max(200),
@@ -633,6 +640,15 @@ export const OpenLinksInputSchema = z.object({
   private: z.boolean().default(false),
 });
 export type OpenLinksInput = z.input<typeof OpenLinksInputSchema>;
+
+/** Opens a task's local file source in a browser; web sources open straight from the page. */
+export const OpenSourceInputSchema = z.object({
+  url: z.string(),
+  /** The Links page's pick; any other installed named browser is used when it can't open files. */
+  browser: z.enum(BROWSERS).optional(),
+  private: z.boolean().default(false),
+});
+export type OpenSourceInput = z.input<typeof OpenSourceInputSchema>;
 
 export const DashboardStateSchema = z.object({
   scratchpad: z.string(),

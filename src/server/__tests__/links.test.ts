@@ -213,6 +213,29 @@ describe('Links REST API', () => {
     }
   });
 
+  it.runIf(process.platform === 'win32')("opens a task's file source in a named browser, and only saved ones", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dashboard-sources-'));
+    try {
+      const file = path.join(dir, 'spec.pdf');
+      fs.writeFileSync(file, '');
+      const task = (await request('POST', '/api/tasks', { title: 'T', sourceUrls: [file] })).json().task;
+      const [url] = task.sourceUrls as string[];
+
+      expect((await request('POST', '/api/task-sources/open', { url: 'file:///C:/other.pdf' })).statusCode).toBe(404);
+      const res = await request('POST', '/api/task-sources/open', { url, browser: 'default' });
+      // With no named browser installed there's nothing safe to open a file in
+      if (res.statusCode === 200) {
+        expect(launched).toHaveLength(1);
+        expect(launched[0][0].file).not.toBe('rundll32.exe');
+      } else {
+        expect(res.json().error).toContain('default');
+        expect(launched).toEqual([]);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('fills in missing titles from the page, and keeps given ones', async () => {
     pages['https://a.test/'] = { type: 'text/html; charset=utf-8', body: '<title>Page A</title>' };
     const group = (await request('POST', '/api/link-groups', { name: 'G' })).json().group as LinkGroup;

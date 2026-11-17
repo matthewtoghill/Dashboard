@@ -1,4 +1,4 @@
-import { Project, Task, TaskEvent, TaskPriority, TaskStatus } from '../../shared/types.ts';
+import { Project, Task, TaskEvent, TaskPriority, TaskStatus, isFileUrl } from '../../shared/types.ts';
 import { addDays, addMonthsClamped, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 import { Recurrence, parseRecurrenceToken } from '../../shared/recurrence.ts';
 
@@ -380,7 +380,7 @@ export function parseQuickAddSyntax(
   };
 }
 
-export type SourceKind = 'Slack' | 'Teams' | 'Email' | 'Link';
+export type SourceKind = 'Slack' | 'Teams' | 'Email' | 'File' | 'Link';
 
 const SOURCE_HOSTS: [SourceKind, RegExp][] = [
   ['Slack', /(^|\.)slack\.com$/],
@@ -390,6 +390,7 @@ const SOURCE_HOSTS: [SourceKind, RegExp][] = [
 
 /** What a source link points at, from its host. */
 export function sourceKind(url: string): SourceKind {
+  if (isFileUrl(url)) return 'File';
   const host = URL.canParse(url) ? new URL(url).hostname.toLowerCase() : '';
   return SOURCE_HOSTS.find(([, pattern]) => pattern.test(host))?.[0] ?? 'Link';
 }

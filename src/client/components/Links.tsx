@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppWindow, Check, ChevronRight, Copy, ExternalLink, EyeOff, FileText, FolderPlus, Globe, Grid2x2, GripVertical, LayoutDashboard, Link2, Loader2, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
-import { BROWSER_LABELS, Browser, Link, LinkGroup, isFileUrl } from '../../shared/types.ts';
+import { BROWSER_LABELS, Browser, Link, LinkGroup, displayUrl, isFileUrl } from '../../shared/types.ts';
 import braveLogo from '../assets/browsers/brave.svg';
 import chromeLogo from '../assets/browsers/chrome.svg';
 import edgeLogo from '../assets/browsers/edge.svg';
@@ -16,6 +16,8 @@ import {
   deleteLinkGroup,
   deleteLinks,
   fetchLinkGroups,
+  LINKS_BROWSER_KEY as BROWSER_KEY,
+  LINKS_PRIVATE_KEY as PRIVATE_KEY,
   openLinks,
   orderLinkGroups,
   orderLinks,
@@ -27,9 +29,6 @@ import { Segmented } from './Notes.tsx';
 import { dropBefore, placeBefore, stepBefore } from '../utils/linkOrder.ts';
 
 const QUERY_KEY = ['link-groups'];
-/** The picked browser lasts for this browser tab's session only. */
-const BROWSER_KEY = 'dashboard_links_browser';
-const PRIVATE_KEY = 'dashboard_links_private';
 /** Ids of collapsed groups, kept in this browser. */
 const COLLAPSED_KEY = 'dashboard_links_collapsed';
 const LAYOUT_KEY = 'dashboard_links_layout';
@@ -86,12 +85,6 @@ const buttonClass =
 const primaryButtonClass =
   'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary-600 hover:bg-primary-500 text-white cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-primary-600';
 const iconButtonClass = 'p-1 rounded-md text-zinc-400 cursor-pointer';
-
-/** A web link without its scheme, or a file link as a Windows path. */
-const displayUrl = (url: string) =>
-  isFileUrl(url)
-    ? decodeURIComponent(new URL(url).pathname.slice(1)).replace(/\//g, '\\')
-    : url.replace(/^https?:\/\//i, '');
 
 /** What copying a link puts on the clipboard: its URL, or a file's Windows path. Both paste back in. */
 const copyText = (link: Link) => (isFileUrl(link.url) ? displayUrl(link.url) : link.url);

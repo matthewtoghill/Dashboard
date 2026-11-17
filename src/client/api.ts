@@ -34,6 +34,7 @@ import {
   LinkGroup,
   LinkInput,
   OpenLinksInput,
+  isFileUrl,
 } from '../shared/types.ts';
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -613,6 +614,26 @@ export const deleteLinks = (ids: string[]) =>
 
 export const openLinks = (input: OpenLinksInput) =>
   sendJson<{ openedCount: number }>('POST', '/api/links/open', input, 'Failed to open links');
+
+/** The Links page's picked browser and private setting, for this browser tab's session only. */
+export const LINKS_BROWSER_KEY = 'dashboard_links_browser';
+export const LINKS_PRIVATE_KEY = 'dashboard_links_private';
+
+/**
+ * Opens a task source link. Browsers won't follow file:/// links from this page, so a local file is
+ * opened by the server in the browser picked on the Links page. Shows an alert when it can't.
+ */
+export function openSourceLink(url: string): void {
+  if (!isFileUrl(url)) {
+    window.open(url, '_blank', 'noreferrer');
+    return;
+  }
+  const browser = (sessionStorage.getItem(LINKS_BROWSER_KEY) as Browser | null) ?? undefined;
+  const isPrivate = sessionStorage.getItem(LINKS_PRIVATE_KEY) === '1';
+  sendJson('POST', '/api/task-sources/open', { url, browser, private: isPrivate }, 'Failed to open file').catch((e: Error) =>
+    alert(e.message)
+  );
+}
 
 export const orderLinkGroups = (ids: string[]) =>
   sendJson<{ groups: LinkGroup[] }>('POST', '/api/link-groups/order', { ids }, 'Failed to reorder groups');

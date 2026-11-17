@@ -20,7 +20,8 @@ import {
   Tag,
   Trash2,
 } from 'lucide-react';
-import { Note, Project, Task, TaskPriority, TaskStatus, UpdateNoteInput, UpdateTaskInput } from '../../shared/types.ts';
+import { Note, Project, Task, TaskPriority, TaskStatus, UpdateNoteInput, UpdateTaskInput, displayUrl, isFileUrl } from '../../shared/types.ts';
+import { openSourceLink } from '../api.ts';
 import type { MenuItem } from '../components/ContextMenu.tsx';
 import {
   PRIORITY_CONFIG,
@@ -163,7 +164,7 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
   );
 
   if (task.adoLinks.length > 0) {
-    const open = (url: string) => () => window.open(url, '_blank', 'noreferrer');
+    const open = (url: string) => () => openSourceLink(url);
     items.push(
       task.adoLinks.length === 1
         ? { label: 'Open in Azure DevOps', icon: ExternalLink, onSelect: open(task.adoLinks[0].url) }
@@ -183,7 +184,7 @@ export function taskMenuItems(task: Task, ghost: boolean, a: TaskMenuActions): M
         : {
             label: 'Open source',
             icon: ExternalLink,
-            submenu: task.sourceUrls.map((url) => ({ label: `${sourceKind(url)}: ${url}`, onSelect: open(url) })),
+            submenu: task.sourceUrls.map((url) => ({ label: `${sourceKind(url)}: ${isFileUrl(url) ? displayUrl(url) : url}`, onSelect: open(url) })),
           }
     );
   }

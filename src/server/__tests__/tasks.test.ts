@@ -108,7 +108,9 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
 
     const patch = (payload: object) => app.inject({ method: 'PATCH', url: `/api/tasks/${id}`, payload });
     expect((await patch({ sourceUrls: [mail, slack] })).json().task.sourceUrls).toEqual([slack, mail]);
-    expect((await patch({ sourceUrls: ['http://insecure.example.com'] })).statusCode).toBe(400);
+    for (const url of ['javascript:alert(1)', 'file://server/share/x.pdf', '\\\\server\\x.pdf']) {
+      expect((await patch({ sourceUrls: [url] })).statusCode, url).toBe(400);
+    }
     expect((await patch({ title: 'Reply to Sam' })).json().task.sourceUrls).toEqual([slack, mail]);
 
     const backup = (await app.inject({ method: 'GET', url: '/api/export' })).json();
@@ -117,6 +119,15 @@ describe('Tasks, Projects, Subtasks & Dashboard REST API', () => {
     await app.inject({ method: 'DELETE', url: `/api/tasks/${id}` });
     expect((await app.inject({ method: 'POST', url: '/api/import', payload: backup })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/tasks' })).json().tasks[0].sourceUrls).toEqual([slack, mail]);
+  });
+
+  it('stores web and local file source links like the Links page', async () => {
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Read spec', sourceUrls: ['C:\\Docs\\My spec.pdf', '"D:\\a#1\\b.docx"','http://intranet.test/x'] },
+    });
+    expect(create.json().task.sourceUrls).toEqual(['file:///C:/Docs/My%20spec.pdf', 'file:///D:/a%231/b.docx', 'http://intranet.test/x']);
   });
 
   it('creates, lists, updates, toggles completion, and deletes tasks', async () => {

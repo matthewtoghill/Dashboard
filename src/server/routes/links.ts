@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AppDatabase } from '../db/index.ts';
-import { linkGroups, linkIcons, links } from '../db/schema.ts';
+import { linkGroups, linkIcons, links, taskSourceLinks } from '../db/schema.ts';
 import { fetchIcon, fetchPageInfo, mapLimit } from '../pageInfo.ts';
 import { findBrowser, installedBrowsers, launchCommands, launchDetached, Launcher } from '../browsers.ts';
 import {
@@ -15,7 +15,9 @@ import {
   LinkGroupInputSchema,
   LinkInputSchema,
   OpenLinksInputSchema,
+  OpenSourceInputSchema,
   OrderInputSchema,
+  Browser,
   isFileUrl,
   isOpenableUrl,
 } from '../../shared/types.ts';
@@ -66,6 +68,42 @@ export function overwriteLinkGroup(db: AppDatabase, group: LinkGroup): void {
 export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, launch: Launcher = launchDetached) {
   const getGroup = (id: string) => listLinkGroups(db).find((g) => g.id === id);
   const getIcon = (origin: string) => db.select().from(linkIcons).where(eq(linkIcons.origin, origin)).get();
+
+  /** Opens saved links (http(s) or local file URLs) in `browser`; returns why it couldn't, or null. */
+  const openUrls = (
+    picked: { url: string; label: string }[],
+    browser: Browser,
+    target: 'tab' | 'window',
+    isPrivate: boolean
+  ): string | null => {
+    // Checked again here, since rows can also arrive by restoring a backup database
+    const refused = picked.filter((l) => !isOpenableUrl(l.url));
+    if (refused.length) return `Can't open ${refused.map((l) => l.label).join(', ')}`;
+    // Re-serialised so the URL is percent-encoded: no spaces or quotes reach the command line
+    const urls = picked.map((l) => new URL(l.url).href);
+
+    if (process.platform !== 'win32') {
+      return 'Opening links in a browser is only supported on Windows';
+    }
+    if (browser === 'default' && urls.some(isFileUrl)) {
+      return "Local files can't be opened with the system default browser; pick a named browser";
+    }
+    const missing = picked.filter((l) => isFileUrl(l.url) && !isExistingFile(fileURLToPath(l.url)));
+    if (missing.length) {
+      return `File not found: ${missing.map((l) => fileURLToPath(l.url)).join(', ')}`;
+    }
+    if (browser === 'default' && target === 'window') {
+      return 'The system default browser can only open links as tabs';
+    }
+    if (browser === 'default' && isPrivate) {
+      return "The system default browser can't open private windows";
+    }
+    const exe = browser === 'default' ? '' : findBrowser(browser);
+    if (exe === null) return `${BROWSER_LABELS[browser]} isn't installed`;
+
+    launch(launchCommands(browser, exe, target, urls, isPrivate));
+    return null;
+  };
 
   // One fetch per site at a time, however many of its links ask for the icon
   const iconFetches = new Map<string, Promise<void>>();
@@ -232,32 +270,24 @@ export async function registerLinkRoutes(app: FastifyInstance, db: AppDatabase, 
     // Keep the order they were picked in
     const byId = new Map(rows.map((r) => [r.id, r]));
     const picked = ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
-    // Checked again here, since rows can also arrive by restoring a backup database
-    const refused = picked.filter((l) => !isOpenableUrl(l.url));
-    if (refused.length) return reply.status(400).send({ error: `Can't open ${refused.map((l) => l.title || l.url).join(', ')}` });
-    // Re-serialised so the URL is percent-encoded: no spaces or quotes reach the command line
-    const urls = picked.map((l) => new URL(l.url).href);
+    const error = openUrls(picked.map((l) => ({ url: l.url, label: l.title || l.url })), browser, target, isPrivate);
+    if (error) return reply.status(400).send({ error });
+    return { openedCount: picked.length };
+  });
 
-    if (process.platform !== 'win32') {
-      return reply.status(501).send({ error: 'Opening links in a browser is only supported on Windows' });
-    }
-    if (browser === 'default' && urls.some(isFileUrl)) {
-      return reply.status(400).send({ error: "Local files can't be opened with the system default browser; pick a named browser" });
-    }
-    const missing = picked.filter((l) => isFileUrl(l.url) && !isExistingFile(fileURLToPath(l.url)));
-    if (missing.length) {
-      return reply.status(400).send({ error: `File not found: ${missing.map((l) => fileURLToPath(l.url)).join(', ')}` });
-    }
-    if (browser === 'default' && target === 'window') {
-      return reply.status(400).send({ error: 'The system default browser can only open links as tabs' });
-    }
-    if (browser === 'default' && isPrivate) {
-      return reply.status(400).send({ error: "The system default browser can't open private windows" });
-    }
-    const exe = browser === 'default' ? '' : findBrowser(browser);
-    if (exe === null) return reply.status(400).send({ error: `${BROWSER_LABELS[browser]} isn't installed` });
-
-    launch(launchCommands(browser, exe, target, urls, isPrivate));
-    return { openedCount: urls.length };
+  // Opens a task's local file source. Browsers won't follow file:/// links from a web page, so the
+  // server starts one. Only URLs saved as some task's source are accepted, like link ids above.
+  app.post('/api/task-sources/open', async (request, reply) => {
+    const parsed = OpenSourceInputSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
+    const { url, private: isPrivate } = parsed.data;
+    const saved = db.select().from(taskSourceLinks).where(eq(taskSourceLinks.url, url)).get();
+    if (!saved) return reply.status(404).send({ error: 'Source link not found' });
+    // Files need a named browser; fall back to the first installed one
+    const named: Browser[] = installedBrowsers().filter((b) => b !== 'default');
+    const browser: Browser = parsed.data.browser && named.includes(parsed.data.browser) ? parsed.data.browser : named[0] ?? 'default';
+    const error = openUrls([{ url, label: url }], browser, 'tab', isPrivate && browser !== 'default');
+    if (error) return reply.status(400).send({ error });
+    return { openedCount: 1 };
   });
 }

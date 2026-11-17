@@ -17,6 +17,7 @@ import {
   Users,
   Mail,
   Link2,
+  FileText,
   Star,
   Sun,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ import {
   isMainThing,
   isPlanned,
 } from '../utils/taskUtils.ts';
+import { openSourceLink } from '../api.ts';
 import { externalLinkLabel, typeStyle } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
 import { STATE_STYLES, primaryClaudeSession } from './ClaudeSessions.tsx';
@@ -199,7 +201,7 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
   );
 };
 
-export const SOURCE_ICONS: Record<SourceKind, typeof Link2> = { Slack: Hash, Teams: Users, Email: Mail, Link: Link2 };
+export const SOURCE_ICONS: Record<SourceKind, typeof Link2> = { Slack: Hash, Teams: Users, Email: Mail, File: FileText, Link: Link2 };
 
 /** "Slack" for the first source link, opening it, and "+2" for more. */
 export const SourceBadge: React.FC<{ task: Task }> = ({ task }) => {
@@ -212,7 +214,11 @@ export const SourceBadge: React.FC<{ task: Task }> = ({ task }) => {
       href={first}
       target="_blank"
       rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        openSourceLink(first);
+      }}
       aria-label={`Open ${kind} source`}
       title={task.sourceUrls.join('\n')}
       className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}

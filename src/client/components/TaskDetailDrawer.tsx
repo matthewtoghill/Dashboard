@@ -35,6 +35,8 @@ import {
   UpdateTaskInput,
   UpdateSubtaskInput,
   ClaudeSession,
+  WebUrlSchema,
+  displayUrl,
 } from '../../shared/types.ts';
 import { parseIsoDate, toIsoDate } from '../../shared/dates.ts';
 import {
@@ -47,7 +49,7 @@ import {
   STATUS_LABELS,
   sourceKind,
 } from '../utils/taskUtils.ts';
-import { fetchTaskEvents } from '../api.ts';
+import { fetchTaskEvents, openSourceLink } from '../api.ts';
 import { Recurrence, describeRecurrence, nextOccurrence } from '../../shared/recurrence.ts';
 import { toggleMarkdownCheckbox } from '../utils/markdown.ts';
 import { markdownEditorProps } from '../utils/markdownEditing.ts';
@@ -940,18 +942,19 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   );
 };
 
-/** The task's source links, each opening in a new tab, with a field to add more. */
+/** The task's source links, each opening in a new tab (files via the server), with a field to add more. */
 const SourceLinks: React.FC<{ urls: string[]; onChange: (urls: string[]) => void }> = ({ urls, onChange }) => {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
 
   const add = () => {
-    const url = draft.trim();
-    if (!url) return;
-    if (!url.startsWith('https://') || !URL.canParse(url)) {
-      setError('Paste a link starting with https://');
+    if (!draft.trim()) return;
+    const parsed = WebUrlSchema.safeParse(draft);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
       return;
     }
+    const url = parsed.data;
     if (!urls.includes(url)) onChange([...urls, url]);
     setDraft('');
     setError('');
@@ -977,10 +980,14 @@ const SourceLinks: React.FC<{ urls: string[]; onChange: (urls: string[]) => void
                   href={url}
                   target="_blank"
                   rel="noreferrer"
-                  title={url}
+                  title={displayUrl(url)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openSourceLink(url);
+                  }}
                   className="min-w-0 flex-1 truncate text-sm text-zinc-800 dark:text-zinc-100 hover:underline"
                 >
-                  {url}
+                  {kind === 'File' ? displayUrl(url) : url}
                 </a>
                 <button
                   type="button"
@@ -997,7 +1004,7 @@ const SourceLinks: React.FC<{ urls: string[]; onChange: (urls: string[]) => void
         </ul>
       )}
       <input
-        type="url"
+        type="text"
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
@@ -1010,7 +1017,7 @@ const SourceLinks: React.FC<{ urls: string[]; onChange: (urls: string[]) => void
           }
         }}
         onBlur={add}
-        placeholder="Paste a Slack, Teams, email or other https:// link"
+        placeholder="Paste a Slack, Teams, email or web link, or a file path like C:\Docs\spec.pdf"
         aria-label="Add source link"
         aria-invalid={Boolean(error)}
         className="w-full text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-primary-500"
