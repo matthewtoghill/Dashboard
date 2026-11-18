@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClaudeFolderLink, ClaudeSession, ClaudeSessionState, Project, Task } from '../../shared/types.ts';
 import { matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
-import { deleteClaudeFolder, fetchClaudeFolders, fetchProjects, saveClaudeFolder } from '../api.ts';
+import { deleteClaudeFolder, fetchClaudeFolders, fetchProjects, saveClaudeFolder, updateTask } from '../api.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
 import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
@@ -227,7 +227,7 @@ const taskSearchText = (t: Task) =>
   [t.title, ...t.adoLinks.map((l) => `#${l.externalId.split('/')[1]}`)].join(' ').toLowerCase();
 
 /**
- * Dialog for choosing a task (open, or with "Include done" also done) to link something to, or
+ * Dialog for choosing a task (open or on hold, or with "Include done" also done) to link something to, or
  * (with `create`) creating a new one to link. Used for Claude sessions and Azure DevOps items.
  */
 export const TaskLinkDialog: React.FC<{
@@ -248,6 +248,9 @@ export const TaskLinkDialog: React.FC<{
   const [newTitle, setNewTitle] = useState('');
   const [includeDone, setIncludeDone] = useState(false);
   const [projectOnly, setProjectOnly] = useState(true);
+  /** The on hold task picked, awaiting a choice of whether to resume it. */
+  const [heldPick, setHeldPick] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects });
   const project = projects.find((p) => p.id === projectId);
 
@@ -259,6 +262,7 @@ export const TaskLinkDialog: React.FC<{
       setNewTitle(create?.title ?? '');
       setIncludeDone(false);
       setProjectOnly(true);
+      setHeldPick(null);
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
@@ -266,15 +270,19 @@ export const TaskLinkDialog: React.FC<{
 
   const linkedTask = tasks.find((t) => t.id === linkedTaskId);
   const q = query.trim().toLowerCase();
+  const rank = (t: Task) => (t.status === 'done' ? 2 : t.status === 'on_hold' ? 1 : 0);
   const choices = tasks
     .filter(
       (t) =>
-        (t.status === 'todo' || t.status === 'in_progress' || (includeDone && t.status === 'done')) &&
+        (t.status === 'todo' ||
+          t.status === 'in_progress' ||
+          t.status === 'on_hold' ||
+          (includeDone && t.status === 'done')) &&
         (!project || !projectOnly || t.projectId === project.id) &&
         taskSearchText(t).includes(q)
     )
-    // Open tasks first
-    .sort((a, b) => Number(a.status === 'done') - Number(b.status === 'done'));
+    // Open tasks first, then on hold, then done
+    .sort((a, b) => rank(a) - rank(b));
   const scopeButtonClass = (active: boolean) =>
     `flex-1 min-w-0 truncate px-2 py-1 rounded-md transition-colors cursor-pointer ${
       active
@@ -284,6 +292,11 @@ export const TaskLinkDialog: React.FC<{
   const link = (taskId: string | null) => {
     onLink(taskId);
     onClose();
+  };
+  /** Links an on hold task, optionally resuming it as To Do or In Progress. */
+  const linkHeld = (taskId: string, status?: 'todo' | 'in_progress') => {
+    link(taskId);
+    if (status) void updateTask(taskId, { status }).then(() => queryClient.invalidateQueries({ queryKey: ['tasks'] }));
   };
 
   return (
@@ -364,12 +377,19 @@ export const TaskLinkDialog: React.FC<{
                     <li key={t.id}>
                       <button
                         type="button"
-                        onClick={() => link(t.id)}
+                        onClick={() =>
+                          t.status === 'on_hold' && t.id !== linkedTaskId
+                            ? setHeldPick(heldPick === t.id ? null : t.id)
+                            : link(t.id)
+                        }
+                        aria-expanded={t.status === 'on_hold' ? heldPick === t.id : undefined}
                         className={`w-full flex items-center gap-2 px-2 py-2 text-left rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer ${
                           t.id === linkedTaskId ? 'font-medium text-primary-600 dark:text-primary-400' : ''
                         }`}
                       >
-                        <span className={`flex-1 truncate ${t.status === 'done' ? 'text-zinc-500 dark:text-zinc-400' : ''}`}>
+                        <span
+                          className={`flex-1 truncate ${t.status === 'done' || t.status === 'on_hold' ? 'text-zinc-500 dark:text-zinc-400' : ''}`}
+                        >
                           {t.title}
                         </span>
                         {t.adoLinks.map((l) => (
@@ -382,8 +402,30 @@ export const TaskLinkDialog: React.FC<{
                             Done
                           </span>
                         )}
+                        {t.status === 'on_hold' && (
+                          <span
+                            title={t.holdReason ?? undefined}
+                            className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                          >
+                            On Hold
+                          </span>
+                        )}
                         {t.id === linkedTaskId && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
                       </button>
+                      {heldPick === t.id && (
+                        <div className="flex flex-wrap items-center gap-2 px-2 pb-2 text-xs">
+                          <span className="text-zinc-500 dark:text-zinc-400">Link and:</span>
+                          <button type="button" onClick={() => linkHeld(t.id)} className={`${iconButtonClass} text-xs`}>
+                            Keep On Hold
+                          </button>
+                          <button type="button" onClick={() => linkHeld(t.id, 'todo')} className={`${iconButtonClass} text-xs`}>
+                            Set To Do
+                          </button>
+                          <button type="button" onClick={() => linkHeld(t.id, 'in_progress')} className={`${iconButtonClass} text-xs`}>
+                            Set In Progress
+                          </button>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
