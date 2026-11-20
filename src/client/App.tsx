@@ -317,6 +317,8 @@ export const App: React.FC = () => {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${fill}"/><g transform="translate(6.5 6.5) scale(0.7917)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344"/><path d="m9 11 3 3L22 4"/></g></svg>`;
     const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
     document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((link) => (link.href = href));
+    // Installed PWA title bar follows the primary colour too
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', fill);
   }, [primaryColor]);
   const density = settingsData?.settings.density;
   useEffect(() => {
