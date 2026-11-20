@@ -281,8 +281,8 @@ export const TaskLinkDialog: React.FC<{
         (!project || !projectOnly || t.projectId === project.id) &&
         taskSearchText(t).includes(q)
     )
-    // Open tasks first, then on hold, then done
-    .sort((a, b) => rank(a) - rank(b));
+    // Open tasks first, then on hold, then done; most recently updated first within each
+    .sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const scopeButtonClass = (active: boolean) =>
     `flex-1 min-w-0 truncate px-2 py-1 rounded-md transition-colors cursor-pointer ${
       active
