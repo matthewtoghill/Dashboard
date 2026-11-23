@@ -581,6 +581,15 @@ export const AdoSettings: React.FC<{
         />
         Only fetch projects mapped to a Dashboard project
       </label>
+      <label className="flex items-center gap-2 text-zinc-600 dark:text-zinc-300">
+        <input
+          type="checkbox"
+          checked={settings.adoRepoInPrTitle}
+          onChange={(e) => onSave({ adoRepoInPrTitle: e.target.checked })}
+          className="rounded text-primary-600"
+        />
+        Include the repository in imported pull request titles
+      </label>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <AdoSyncStatus data={sync.data} refreshing={sync.refresh.isPending} />
         <button

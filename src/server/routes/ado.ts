@@ -776,6 +776,7 @@ export async function registerAdoRoutes(
       return reply.status(404).send({ error: 'Task not found' });
     }
     const links = listAdoProjectLinks(db);
+    const repoInTitle = readSettings(db.$client).adoRepoInPrTitle;
     const now = Date.now();
     let importedCount = 0;
     db.transaction((tx) => {
@@ -783,15 +784,16 @@ export async function registerAdoRoutes(
         if (tx.select().from(taskAdoLinks).where(eq(taskAdoLinks.externalId, item.externalId)).get()) return;
         const id = taskId ?? crypto.randomUUID();
         if (!taskId) {
+          const title = repoInTitle && item.repo ? `[${item.repo}] ${item.title}` : item.title;
           tx.insert(tasks)
             .values({
               id,
               title:
                 item.role === 'reviewer'
-                  ? `Review: ${item.title}`
+                  ? `Review: ${title}`
                   : item.role === 'mention'
                     ? mentionTaskTitle(item)
-                    : item.title,
+                    : title,
               status: 'todo',
               // PR reviews are time-sensitive: due today, medium priority
               ...(item.role === 'reviewer' && { dueDate: toIsoDate(new Date(now)), priority: 2 }),

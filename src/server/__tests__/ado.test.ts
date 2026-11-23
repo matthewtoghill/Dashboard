@@ -317,6 +317,15 @@ describe('Azure DevOps import', () => {
     expect((await listTasks()).find((t) => t.id === tasks[0].id)!.adoLinks[0].state).toBe('Done');
   });
 
+  it('prefixes imported PR titles with the repository when set', async () => {
+    await putLinks([{ adoProject: 'Alpha' }]);
+    await putSettings({ adoRepoInPrTitle: true });
+    const { body } = await fetchItems();
+    const review = body.items.filter((i) => i.externalId === 'pr/11');
+    await app.inject({ method: 'POST', url: '/api/ado/import', payload: { items: review } });
+    expect((await listTasks()).map((t) => t.title)).toEqual(['Review: [repo one] PR 11']);
+  });
+
   it('closes review tasks when the PR completes, or on my vote or approval if set', async () => {
     await putLinks([{ adoProject: 'Alpha' }]);
     const { body } = await fetchItems();

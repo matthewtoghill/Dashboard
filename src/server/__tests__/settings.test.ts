@@ -40,6 +40,7 @@ describe('settings', () => {
         adoLinkedProjectsOnly: false,
         adoSyncMinutes: 30,
         adoReviewDoneWhen: 'completed',
+        adoRepoInPrTitle: false,
         weekStartDay: 1,
         streakSkipsWeekends: false,
         staleTaskDays: 14,
