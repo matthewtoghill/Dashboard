@@ -74,8 +74,9 @@ const HomeTaskRow: React.FC<{ task: Task; trailing?: React.ReactNode; actions: T
           <ClaudeSessionBadge
             sessions={actions.claudeSessionsByTaskId.get(task.id) ?? []}
             onOpenSession={actions.onOpenSession}
+            align="right"
           />
-          <AdoBadge task={task} />
+          <AdoBadge task={task} align="right" />
         </>
       )}
     </li>

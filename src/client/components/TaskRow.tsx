@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useDismiss } from '../utils/useDismiss.ts';
 import {
   Check,
   Trash2,
@@ -46,7 +47,7 @@ import {
   isPlanned,
 } from '../utils/taskUtils.ts';
 import { openSourceLink } from '../api.ts';
-import { externalLinkLabel, typeStyle } from './AdoImport.tsx';
+import { externalLinkLabel, externalShortLabel, typeStyle } from './AdoImport.tsx';
 import { DatePopover } from './DatePicker.tsx';
 import { STATE_STYLES, primaryClaudeSession } from './ClaudeSessions.tsx';
 import { BADGE_CLASS, Dot, LABEL_CLASS, NEUTRAL_BADGE_CLASS } from './ui.tsx';
@@ -148,42 +149,172 @@ export const TaskStatusCheckbox: React.FC<{ task: Task; onToggle: (task: Task) =
   );
 };
 
-/** Bot badge: amber when the most urgent linked session needs attention, else primary. */
+interface ChipMenuItem {
+  key: string;
+  icon: typeof Link2;
+  iconClass?: string;
+  label: string;
+  detail?: string;
+  /** Rendered as a link when set, so middle click and copy link still work. */
+  href?: string;
+  /** Replaces the default navigation when set. */
+  onOpen?: () => void;
+}
+
+/** Chip that opens a list of its items on click; closes on pick, outside click or Escape. */
+const ChipMenu: React.FC<{
+  items: ChipMenuItem[];
+  ariaLabel: string;
+  className: string;
+  align?: 'left' | 'right';
+  children: React.ReactNode;
+}> = ({ items, ariaLabel, className, align = 'left', children }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useDismiss(ref, open, () => setOpen(false));
+
+  const itemClass =
+    'flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-left text-xs text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus-visible:bg-zinc-100 dark:focus-visible:bg-zinc-800 outline-none cursor-pointer';
+
+  return (
+    <span ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        aria-label={ariaLabel}
+        aria-haspopup="true"
+        aria-expanded={open}
+        className={className}
+      >
+        {children}
+      </button>
+      {open && (
+        <span
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full mt-1 z-30 w-72 max-h-72 overflow-y-auto p-1 flex flex-col rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg`}
+        >
+          {items.map(({ key, icon: Icon, iconClass = '', label, detail, href, onOpen }) => {
+            const content = (
+              <>
+                <Icon className={`shrink-0 w-3.5 h-3.5 ${iconClass}`} />
+                <span className="min-w-0 truncate">{label}</span>
+                {detail && <span className="ml-auto shrink-0 text-zinc-400">{detail}</span>}
+              </>
+            );
+            const pick = (e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (onOpen) {
+                e.preventDefault();
+                onOpen();
+              }
+              setOpen(false);
+            };
+            return href ? (
+              <a key={key} href={href} target="_blank" rel="noreferrer" title={label} onClick={pick} className={itemClass}>
+                {content}
+              </a>
+            ) : (
+              <button key={key} type="button" title={label} onClick={pick} className={itemClass}>
+                {content}
+              </button>
+            );
+          })}
+        </span>
+      )}
+    </span>
+  );
+};
+
+/** Bot badge: amber when the most urgent linked session needs attention, else primary. Several sessions open a menu. */
 export const ClaudeSessionBadge: React.FC<{
   sessions: ClaudeSession[];
   onOpenSession?: (sessionId: string) => void;
-}> = ({ sessions, onOpenSession }) => {
+  align?: 'left' | 'right';
+}> = ({ sessions, onOpenSession, align }) => {
   const primarySession = primaryClaudeSession(sessions);
   if (!primarySession) return null;
   const label = `Claude session (${STATE_STYLES[primarySession.state].label}): ${
     primarySession.title || 'Untitled session'
   }`;
+  const className = `${BADGE_CLASS} cursor-pointer transition-colors duration-150 ${
+    primarySession.state === 'needs_attention'
+      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+      : primarySession.state === 'ended'
+      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+      : 'bg-primary-500/15 text-primary-700 dark:text-primary-300 hover:bg-primary-500/25'
+  }`;
+  if (sessions.length > 1) {
+    return (
+      <ChipMenu
+        ariaLabel={`${sessions.length} Claude sessions`}
+        className={className}
+        align={align}
+        items={sessions.map((s) => ({
+          key: s.sessionId,
+          icon: Bot,
+          label: s.title || 'Untitled session',
+          detail: STATE_STYLES[s.state].label,
+          onOpen: () => onOpenSession?.(s.sessionId),
+        }))}
+      >
+        <Bot className="w-[11px] h-[11px]" />
+        <span>{sessions.length}</span>
+      </ChipMenu>
+    );
+  }
   return (
     <button
       type="button"
       onClick={() => onOpenSession?.(primarySession.sessionId)}
-      aria-label={`${label}${sessions.length > 1 ? ` (${sessions.length} sessions)` : ''}`}
-      title={`${label}${sessions.length > 1 ? ` (+${sessions.length - 1} more)` : ''}`}
-      className={`${BADGE_CLASS} cursor-pointer transition-colors duration-150 ${
-        primarySession.state === 'needs_attention'
-          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
-          : primarySession.state === 'ended'
-          ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
-          : 'bg-primary-500/15 text-primary-700 dark:text-primary-300 hover:bg-primary-500/25'
-      }`}
+      aria-label={label}
+      title={label}
+      className={className}
     >
       <Bot className="w-[11px] h-[11px]" />
-      {sessions.length > 1 && <span>{sessions.length}</span>}
     </button>
   );
 };
 
-/** "PR 482" or "#3127" for the first linked item, with the matching icon, and "+2" for more. */
-export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
+const LINK_BADGE_CLASS = `${NEUTRAL_BADGE_CLASS} cursor-pointer hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`;
+
+/** "PR 482" or "#3127" for the first linked item, with the matching icon, and "+2" for more, which opens a menu. */
+export const AdoBadge: React.FC<{ task: Task; align?: 'left' | 'right' }> = ({ task, align }) => {
   const [first, ...more] = task.adoLinks;
   if (!first) return null;
   const [kind, id] = first.externalId.split('/');
   const { icon: Icon, className: iconColour } = typeStyle(first);
+  const content = (
+    <>
+      <Icon className={`w-[11px] h-[11px] ${iconColour}`} />
+      <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
+      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+    </>
+  );
+  if (more.length > 0) {
+    return (
+      <ChipMenu
+        ariaLabel={`${task.adoLinks.length} Azure DevOps items`}
+        className={LINK_BADGE_CLASS}
+        align={align}
+        items={task.adoLinks.map((l) => {
+          const style = typeStyle(l);
+          return {
+            key: l.externalId,
+            icon: style.icon,
+            iconClass: style.className,
+            label: l.title || externalLinkLabel(l.externalId),
+            detail: externalShortLabel(l.externalId),
+            href: l.url,
+          };
+        })}
+      >
+        {content}
+      </ChipMenu>
+    );
+  }
   return (
     <a
       href={first.url}
@@ -191,24 +322,51 @@ export const AdoBadge: React.FC<{ task: Task }> = ({ task }) => {
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
       aria-label={`Open ${externalLinkLabel(first.externalId)}`}
-      title={[first, ...more].map((l) => externalLinkLabel(l.externalId)).join('\n')}
-      className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}
+      title={first.title || externalLinkLabel(first.externalId)}
+      className={LINK_BADGE_CLASS}
     >
-      <Icon className={`w-[11px] h-[11px] ${iconColour}`} />
-      <span>{kind === 'pr' ? `PR ${id}` : `#${id}`}</span>
-      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+      {content}
     </a>
   );
 };
 
 export const SOURCE_ICONS: Record<SourceKind, typeof Link2> = { Slack: Hash, Teams: Users, Email: Mail, File: FileText, Link: Link2 };
 
-/** "Slack" for the first source link, opening it, and "+2" for more. */
-export const SourceBadge: React.FC<{ task: Task }> = ({ task }) => {
+/** "Slack" for the first source link, opening it, and "+2" for more, which opens a menu. */
+export const SourceBadge: React.FC<{ task: Task; align?: 'left' | 'right' }> = ({ task, align }) => {
   const [first, ...more] = task.sourceUrls;
   if (!first) return null;
   const kind = sourceKind(first);
   const Icon = SOURCE_ICONS[kind];
+  const content = (
+    <>
+      <Icon className="w-[11px] h-[11px]" />
+      <span>{kind}</span>
+      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+    </>
+  );
+  if (more.length > 0) {
+    return (
+      <ChipMenu
+        ariaLabel={`${task.sourceUrls.length} source links`}
+        className={LINK_BADGE_CLASS}
+        align={align}
+        items={task.sourceUrls.map((url) => {
+          const urlKind = sourceKind(url);
+          return {
+            key: url,
+            icon: SOURCE_ICONS[urlKind],
+            label: url,
+            detail: urlKind,
+            href: url,
+            onOpen: () => openSourceLink(url),
+          };
+        })}
+      >
+        {content}
+      </ChipMenu>
+    );
+  }
   return (
     <a
       href={first}
@@ -220,12 +378,10 @@ export const SourceBadge: React.FC<{ task: Task }> = ({ task }) => {
         openSourceLink(first);
       }}
       aria-label={`Open ${kind} source`}
-      title={task.sourceUrls.join('\n')}
-      className={`${NEUTRAL_BADGE_CLASS} hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-150`}
+      title={first}
+      className={LINK_BADGE_CLASS}
     >
-      <Icon className="w-[11px] h-[11px]" />
-      <span>{kind}</span>
-      {more.length > 0 && <span className="text-zinc-400">+{more.length}</span>}
+      {content}
     </a>
   );
 };
