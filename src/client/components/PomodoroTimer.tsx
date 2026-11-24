@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useDismiss } from '../utils/useDismiss.ts';
 import { Timer, Play, Pause, RotateCcw, SkipForward } from 'lucide-react';
 import {
   PomodoroMode,
@@ -84,24 +85,7 @@ export const PomodoroTimer: React.FC = () => {
     }
   }, [running, left, state]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [open]);
+  useDismiss(ref, open, () => setOpen(false));
 
   const toggleRunning = () => {
     const t = Date.now();

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
+import { useDismiss } from '../utils/useDismiss.ts';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { addDays, parseIsoDate, toIsoDate } from '../../shared/dates.ts';
@@ -116,24 +117,7 @@ export const DatePopover: React.FC<{
 }> = ({ value, onChange, open, onOpenChange, trigger, className = 'relative', align = 'left' }) => {
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onOpenChange(false);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onOpenChange(false);
-      }
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [open, onOpenChange]);
+  useDismiss(ref, open, () => onOpenChange(false));
 
   return (
     <div ref={ref} className={className}>
