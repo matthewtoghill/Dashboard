@@ -135,6 +135,9 @@ const GROUP_LABEL_COLORS: Record<string, string> = {
   'status-on_hold': 'text-slate-500 dark:text-slate-400',
 };
 
+/** Completed tasks shown under the active list before "Show all". */
+const COMPLETED_PREVIEW = 20;
+
 /** "› Later 6": a collapsible list toggle in the task list footer. */
 const FooterToggle: React.FC<{ label: string; count: number; open: boolean; onToggle: () => void }> = ({
   label,
@@ -231,6 +234,8 @@ export const App: React.FC = () => {
   const [newProjectId, setNewProjectId] = useState<string>('');
 
   const [showCompleted, setShowCompleted] = useState(true);
+  // Every shown row re-renders on each change, so the footer list stays short until asked
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
   // The "Later" due-date bucket (over 7 days out) starts collapsed
   const [showLater, setShowLater] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -711,7 +716,12 @@ export const App: React.FC = () => {
 
   const laterSection = groupedSections.find((s) => s.key === 'due-later') ?? null;
   const shownSections = showLater ? groupedSections : groupedSections.filter((s) => s !== laterSection);
-  const visibleOrder = visibleTaskOrder({ ...taskList, sections: shownSections }, showCompleted);
+  const shownCompleted =
+    completedSection && !showAllCompleted ? completedSection.slice(0, COMPLETED_PREVIEW) : completedSection;
+  const visibleOrder = visibleTaskOrder(
+    { ...taskList, sections: shownSections, completedSection: shownCompleted },
+    showCompleted
+  );
 
   const isOverviewPage = activeNav.type === 'smart' && activeNav.id === 'overview';
   const isNotesPage = activeNav.type === 'smart' && activeNav.id === 'notes';
@@ -1351,9 +1361,9 @@ export const App: React.FC = () => {
                     </div>
                   )}
 
-                  {completedSection && showCompleted && (
+                  {shownCompleted && showCompleted && (
                     <div>
-                      {completedFilteredTasks.map((task) => (
+                      {shownCompleted.map((task) => (
                         <TaskRow
                           chaseHoldDays={chaseHoldDays}
                           noteStyle={statusNoteStyle}
@@ -1373,6 +1383,15 @@ export const App: React.FC = () => {
                           {...rowFocusProps(task)}
                         />
                       ))}
+                      {!showAllCompleted && completedFilteredTasks.length > COMPLETED_PREVIEW && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllCompleted(true)}
+                          className="mt-1 px-1.5 py-0.5 rounded-md text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                        >
+                          Show all {completedFilteredTasks.length} completed
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
