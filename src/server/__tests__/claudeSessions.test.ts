@@ -232,6 +232,10 @@ describe('Claude sessions API', () => {
       expect((await list())[0].title).toBe('Fix the build');
       await post({ ...base, hook_event_name: 'Stop' });
       expect((await list())[0].title).toBe('Fix CI build');
+      fs.appendFileSync(transcript, '\n' + JSON.stringify({ type: 'custom-title', customTitle: 'Renamed' }));
+      const refreshed = await app.inject({ method: 'POST', url: '/api/claude/sessions/abc/refresh-title' });
+      expect(refreshed.json().session.title).toBe('Renamed');
+      expect((await app.inject({ method: 'POST', url: '/api/claude/sessions/nope/refresh-title' })).statusCode).toBe(404);
     } finally {
       vi.unstubAllEnvs();
       fs.rmSync(configDir, { recursive: true, force: true });

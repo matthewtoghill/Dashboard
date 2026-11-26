@@ -15,11 +15,19 @@ import {
   EyeOff,
   AlertTriangle,
   FolderInput,
+  RefreshCw,
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClaudeFolderLink, ClaudeSession, ClaudeSessionState, Project, Task } from '../../shared/types.ts';
 import { matchFolderLink, sameFolder } from '../../shared/claudeFolders.ts';
-import { deleteClaudeFolder, fetchClaudeFolders, fetchProjects, saveClaudeFolder, updateTask } from '../api.ts';
+import {
+  deleteClaudeFolder,
+  fetchClaudeFolders,
+  fetchProjects,
+  refreshClaudeSessionTitle,
+  saveClaudeFolder,
+  updateTask,
+} from '../api.ts';
 import { formatRelativeTime, formatTimestamp } from '../utils/taskUtils.ts';
 import { DockedPanel, LABEL_CLASS, SectionHeader } from './ui.tsx';
 
@@ -188,6 +196,28 @@ const CopyButton: React.FC<{ text: string; label: string; title?: string; withLa
     >
       {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
       {withLabel && <span>{copied ? 'Copied' : label}</span>}
+    </button>
+  );
+};
+
+/** Re-reads the title from the transcript: renaming a session fires no hook. */
+const RefreshTitleButton: React.FC<{ session: ClaudeSession; withLabel?: boolean }> = ({ session, withLabel }) => {
+  const queryClient = useQueryClient();
+  const refresh = useMutation({
+    mutationFn: () => refreshClaudeSessionTitle(session.sessionId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['claudeSessions'] }),
+  });
+  return (
+    <button
+      type="button"
+      aria-label="Refresh title"
+      title="Refresh title from Claude"
+      disabled={refresh.isPending}
+      onClick={() => refresh.mutate()}
+      className={`${iconButtonClass} inline-flex items-center gap-1.5 text-xs`}
+    >
+      <RefreshCw className={`w-3.5 h-3.5 ${refresh.isPending ? 'animate-spin' : ''}`} />
+      {withLabel && <span>Refresh title</span>}
     </button>
   );
 };
@@ -581,6 +611,7 @@ export const ClaudeSessionItem: React.FC<
         <Unlink className="w-3.5 h-3.5" />
       </button>
     )}
+    <RefreshTitleButton session={session} />
     <OpenSessionLink session={session} />
     <CopyResumeButton session={session} />
     {tasks && (
@@ -668,6 +699,7 @@ export const ClaudeSessionsRail: React.FC<
                   onCreateTask={onCreateTask}
                   compact
                 />
+                <RefreshTitleButton session={s} />
                 <OpenSessionLink session={s} />
                 <CopyResumeButton session={s} />
                 <button
@@ -868,6 +900,7 @@ export const ClaudeSessionPanel: React.FC<
           <div className="flex flex-wrap items-center gap-1">
             <OpenSessionLink session={session} withLabel />
             <CopyResumeButton session={session} withLabel />
+            <RefreshTitleButton session={session} withLabel />
             <button
               type="button"
               onClick={() => onToggleCleared(session)}

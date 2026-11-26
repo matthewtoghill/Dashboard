@@ -395,6 +395,14 @@ export async function updateClaudeSession(
   return ((await res.json()) as { session: ClaudeSession }).session;
 }
 
+export async function refreshClaudeSessionTitle(sessionId: string): Promise<ClaudeSession> {
+  const res = await fetch(`/api/claude/sessions/${encodeURIComponent(sessionId)}/refresh-title`, { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`Failed to refresh session title: ${res.statusText}`);
+  }
+  return ((await res.json()) as { session: ClaudeSession }).session;
+}
+
 export async function fetchSettings(): Promise<SettingsResponse> {
   const res = await fetch('/api/settings');
   if (!res.ok) {

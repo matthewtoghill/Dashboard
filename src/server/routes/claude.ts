@@ -124,6 +124,20 @@ export async function readTranscriptTitle(
   return clip((custom.trim() || ai.trim()).split('\n')[0], 80);
 }
 
+/** A session's transcript, found by id under any project folder; '' if missing. */
+export function findTranscript(sessionId: string, dir = path.join(claudeDir(), 'projects')): string {
+  if (!/^[\w-]+$/.test(sessionId)) return '';
+  try {
+    for (const project of fs.readdirSync(dir)) {
+      const file = path.join(dir, project, `${sessionId}.jsonl`);
+      if (fs.existsSync(file)) return file;
+    }
+  } catch {
+    // No projects folder
+  }
+  return '';
+}
+
 /**
  * The desktop app's id (local_...) for a session, from Claude Code's live session registry
  * (~/.claude/sessions/<pid>.json). Undocumented format, so any surprise just means no deep link.
@@ -322,6 +336,19 @@ export async function registerClaudeRoutes(app: FastifyInstance, db: AppDatabase
     });
 
     return { session: listClaudeSessions(db, request.params.id)[0] };
+  });
+
+  // POST /api/claude/sessions/:id/refresh-title — re-reads Claude's title from the transcript,
+  // for a /rename that hasn't been followed by a turn yet (no hook fires on rename)
+  app.post<{ Params: { id: string } }>('/api/claude/sessions/:id/refresh-title', async (request, reply) => {
+    const { id } = request.params;
+    if (!db.select().from(claudeSessions).where(eq(claudeSessions.sessionId, id)).get()) {
+      return reply.status(404).send({ error: 'Session not found' });
+    }
+    const transcript = findTranscript(id);
+    const title = transcript ? await readTranscriptTitle(transcript) : '';
+    if (title) db.update(claudeSessions).set({ title }).where(eq(claudeSessions.sessionId, id)).run();
+    return { session: listClaudeSessions(db, id)[0] };
   });
 
   // GET /api/claude/folders — folders mapped to projects
