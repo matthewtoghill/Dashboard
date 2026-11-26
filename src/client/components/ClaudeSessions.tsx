@@ -1076,6 +1076,8 @@ export function groupSessionsForPanel(sessions: ClaudeSession[]) {
   };
 }
 
+const HIDDEN_STATES_KEY = 'dashboard_claude_hidden_states';
+
 /** Docked right-hand panel with every Claude session, live or ended, as a card. */
 export const ClaudeSessionsSidePanel: React.FC<
   {
@@ -1099,15 +1101,26 @@ export const ClaudeSessionsSidePanel: React.FC<
   const filterProjects = projects.filter(
     (p) => projectCounts.has(p.id) || (filter?.type === 'project' && filter.value === p.id)
   );
+  const [hiddenStates, setHiddenStates] = useState<ClaudeSessionState[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(HIDDEN_STATES_KEY) ?? '[]');
+    } catch {
+      return [];
+    }
+  });
+  const toggleState = (state: ClaudeSessionState) => {
+    const next = hiddenStates.includes(state) ? hiddenStates.filter((h) => h !== state) : [...hiddenStates, state];
+    setHiddenStates(next);
+    localStorage.setItem(HIDDEN_STATES_KEY, JSON.stringify(next));
+  };
   const sessions = allSessions.filter((s) => matchesSessionFilter(s, filter));
-  const { attention, rest, cleared } = groupSessionsForPanel(sessions);
-  const count = (state: ClaudeSessionState) => rest.filter((s) => s.state === state).length;
-  const summary = [
-    attention.length && `${attention.length} need you`,
-    count('running') && `${count('running')} running`,
-    count('idle') && `${count('idle')} idle`,
-    count('ended') && `${count('ended')} ended`,
-  ].filter(Boolean);
+  const shown = sessions.filter((s) => !s.dismissedAt);
+  const stateChips = STATE_ORDER.map((state) => ({
+    state,
+    n: shown.filter((s) => s.state === state).length,
+    hidden: hiddenStates.includes(state),
+  })).filter((c) => c.n > 0 || c.hidden);
+  const { attention, rest, cleared } = groupSessionsForPanel(sessions.filter((s) => !hiddenStates.includes(s.state)));
   const cards = (list: ClaudeSession[]) => (
     <ul className="space-y-2">
       {list.map((s) => (
@@ -1191,7 +1204,27 @@ export const ClaudeSessionsSidePanel: React.FC<
                 ))}
               </optgroup>
             </select>
-            {summary.length > 0 && <p className="px-1 text-xs text-zinc-500">{summary.join(' · ')}</p>}
+            {stateChips.length > 0 && (
+              <div role="group" aria-label="Filter by state" className="flex flex-wrap gap-1.5 px-1 text-xs">
+                {stateChips.map(({ state, n, hidden }) => (
+                  <button
+                    key={state}
+                    type="button"
+                    onClick={() => toggleState(state)}
+                    aria-pressed={!hidden}
+                    title={hidden ? `Show ${STATE_STYLES[state].label.toLowerCase()} sessions` : `Hide ${STATE_STYLES[state].label.toLowerCase()} sessions`}
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
+                      hidden
+                        ? 'border-dashed border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 line-through'
+                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <span aria-hidden className={`w-1.5 h-1.5 rounded-full ${hidden ? 'bg-zinc-300 dark:bg-zinc-700' : RAIL_DOT[state]}`} />
+                    {state === 'needs_attention' ? 'Needs you' : STATE_STYLES[state].label} {n}
+                  </button>
+                ))}
+              </div>
+            )}
             {attention.length > 0 && (
               <section aria-label="Needs your input" className="space-y-2">
                 <h3 className={`px-1 ${LABEL_CLASS} text-amber-700 dark:text-amber-300`}>Needs your input</h3>
